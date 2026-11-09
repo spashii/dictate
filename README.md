@@ -17,7 +17,7 @@ Dictation is the base: press ``Option+` `` in any text field, talk, and press it
 - Live text. Voice cuts the speech at pauses and transcribes each piece while you are still talking, so stopping costs only the last piece.
 - Pasting is Cmd+V into the app in front, and then the clipboard is restored to what it held. Without Accessibility access the text stays on the clipboard.
 - Key terms: names and words Whisper gets wrong, spelled as they should be. The list starts empty.
-- An optional fix step: a model in [Ollama](https://ollama.com) rewrites the text with your prompt before it is pasted. If Ollama isn't running or the step fails, Whisper's text is pasted as it is.
+- An optional fix step: a model in [Ollama](https://ollama.com) suggests edits to the segments Voice flags as unsure, using your key terms, before the text is pasted. If Ollama isn't running or the step fails, Whisper's text is pasted as it is.
 - The menu lists your last five dictations and three online calls. Click one to copy it.
 
 ## Requirements
@@ -52,7 +52,7 @@ Voice updates itself: on its second launch it asks whether to check for updates 
 Settings is in the menu bar menu.
 
 - **Dictate:** the shortcut, the microphone (the system default, or one you pick), and the language (English, a language you pick, or detect).
-- **Fix the text:** a switch (off), the Ollama model, the prompt, and the key terms. The key terms go to Whisper whether or not the switch is on.
+- **Fix the text:** a switch (off), the Ollama model, and the key terms. The key terms go to Whisper whether or not the switch is on.
 - **Speech model:** Large v3 turbo (recommended) or Large v3 (3.1 GB, for languages turbo does worse). It can't change during an online call.
 - **Calls:** the shortcut, Record from (the input an online call records from), and Ask to record calls (on).
 - **General:** Open at login, Keep history (forever, or 30 days), the Accessibility step, and Agents can read transcripts, with the address and a button that copies the token.
