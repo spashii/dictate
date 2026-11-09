@@ -39,7 +39,7 @@ Dictation:
 - `Recovery.swift`: finds WAVs the history doesn't know and repairs their headers.
 - `Store.swift`: dictations and their segments, in SQLite.
 - `RetryStats.swift`, `WordDiff.swift`: what the retries did, read from their records: segments, unsure, retried, changed, the words each changed, the median confidence change and the paste time added, for the last 7 days and all time. Settings shows it under the retry switch, and `voice-cli retry-report [--json]` prints the numbers.
-- `History.swift`: what the History window shows, read from the tables: dictations and calls newest first, and for one, each segment's whisper text, time and flag, with every retry that changed words, every fix edit (rejected ones too) and every correction and undo over MCP, as word diffs that count capitals.
+- `History.swift`: what the History window shows, read from the tables: dictations and calls newest first, and for one, each segment's whisper text, time and flag, with every retry that changed words, every fix edit (rejected ones too) and every correction and undo over MCP, as word diffs that count capitals. A key term a correction suggested, and Settings' Add or Dismiss on it, shows beside that correction as a key-term event, not as a change to the transcript.
 - `OpenSuperWhisperImport.swift`: copies OpenSuperWhisper's history in as dictations with origin `imported`, as a test set.
 
 Calls:

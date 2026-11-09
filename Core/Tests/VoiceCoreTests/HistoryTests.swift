@@ -43,6 +43,9 @@ final class HistoryTests: StoreTestCase {
         let calls = try CallStore(url: databaseURL)
         try calls.correctDictation("fixed", text: "The Northwind pilot: ask Claude about it.", client: "agent 1")
         let wrong = try calls.correctDictation("second", text: "send it to Kodex", client: "agent 1").1
+        // The correction suggests Kodex as a key term; Settings dismisses it before the undo.
+        let kodex = try XCTUnwrap(try calls.suggestKeyTerms(from: wrong, known: []).first)
+        try calls.dismissTermSuggestion(kodex.id, client: KeyTermSuggestions.settingsClient)
         try calls.undo(wrong.id, client: "agent 1")
 
         try calls.createCall(NewCall(id: "call", appName: "Zoom", split: true, audioPath: dir.appending(path: "call.m4a").path))
@@ -52,8 +55,16 @@ final class HistoryTests: StoreTestCase {
                                         retriedText: "we use blend", retriedLogprob: -0.4, kept: true, changed: true)),
             NewCallSegment(channel: .call, startMs: 1500, endMs: 3000, text: "sounds good", avgLogprob: -0.1,
                            retry: .init(firstText: "sounds good", firstLogprob: -0.1, flagged: false)),
+            NewCallSegment(channel: .call, startMs: 3000, endMs: 4500, text: "ask the northwynd team", avgLogprob: -0.2,
+                           retry: .init(firstText: "ask the northwynd team", firstLogprob: -0.2, flagged: false)),
         ])
         try calls.correctSegment("call", lines[0].id, text: "we use Blend", client: "agent 2")
+        // Added from Settings: an add_key_terms edit decides the suggestion.
+        let northwind = try calls.correctSegment("call", lines[2].id, text: "ask the Northwind team", client: "agent 2").1
+        let suggested = try XCTUnwrap(try calls.suggestKeyTerms(from: northwind, known: []).first)
+        let add = try calls.recordEdit(.addKeyTerms, target: Edit.keyTermsTarget, client: KeyTermSuggestions.settingsClient,
+                                       before: Edit.Value(terms: []), after: Edit.Value(terms: ["Northwind"]))
+        try calls.acceptTermSuggestion(suggested.id, edit: add.id)
         return calls
     }
 
@@ -66,7 +77,11 @@ final class HistoryTests: StoreTestCase {
         for (table, sql) in [
             ("segment_retries", "SELECT id FROM segment_retries WHERE kept = 1 AND changed = 1"),
             ("fix_edits", "SELECT id FROM fix_edits"),
-            ("edits", "SELECT id FROM edits WHERE kind IN ('correct_dictation', 'correct_segment', 'undo')"),
+            // Transcript edits only: an undo counts when it reverted a transcript's correction.
+            ("edits", """
+                SELECT id FROM edits WHERE kind IN ('correct_dictation', 'correct_segment')
+                  OR (kind = 'undo' AND (target LIKE 'dictation:%' OR target LIKE 'call:%'))
+                """),
         ] {
             var statement: OpaquePointer?
             sqlite3_prepare_v2(db, sql, -1, &statement, nil)
@@ -79,15 +94,30 @@ final class HistoryTests: StoreTestCase {
     func testEveryStoredChangeAppearsInTheHistory() throws {
         let calls = try fixtures()
         let entries = try calls.historyEntries()
-        let shown = try entries.compactMap { try calls.historyDetail($0) }.flatMap(\.allChanges)
+        let all = try entries.compactMap { try calls.historyDetail($0) }.flatMap(\.allChanges)
+        let shown = all.filter { $0.source != .keyTerm }
         let stored = storedChanges()
 
-        XCTAssertEqual(stored.count, 10, "2 retries, 4 fix edits, 3 corrections and an undo")
+        XCTAssertEqual(stored.count, 11, "2 retries, 4 fix edits, 4 corrections and an undo")
         XCTAssertEqual(Set(shown.map(\.record)), stored)
         XCTAssertEqual(shown.count, stored.count, "each change once")
         XCTAssertEqual(Set(entries.map(\.id)), ["dictation:fixed", "dictation:second", "dictation:plain", "call:call"])
         XCTAssertEqual(entries.first { $0.ref == "fixed" }?.changes, 5)
-        XCTAssertEqual(entries.first { $0.ref == "call" }?.changes, 2)
+        XCTAssertEqual(entries.first { $0.ref == "call" }?.changes, 3)
+    }
+
+    func testKeyTermDecisionsShowAsKeyTermEventsNotTranscriptEdits() throws {
+        let calls = try fixtures()
+        let all = try calls.historyEntries().compactMap { try calls.historyDetail($0) }.flatMap(\.allChanges)
+        let decisions = Set(try calls.edits(limit: 100).filter { [.addKeyTerms, .dismissKeyTerm].contains($0.kind) }
+            .map { "edits:\($0.id)" })
+
+        let events = all.filter { $0.source == .keyTerm }
+        XCTAssertEqual(decisions.count, 2)
+        XCTAssertEqual(Set(events.map(\.record)), decisions)
+        XCTAssertEqual(Set(events.map { "\($0.before) \($0.after) \($0.note ?? "")" }),
+                       ["Codex Kodex dismissed", "northwynd Northwind added"])
+        XCTAssertTrue(all.filter { $0.source != .keyTerm }.allSatisfy { !decisions.contains($0.record) })
     }
 
     func testADictationReadsLineByLineFromWhispersText() throws {
@@ -118,7 +148,8 @@ final class HistoryTests: StoreTestCase {
         let detail = try XCTUnwrap(try calls.historyDetail(entry))
 
         XCTAssertEqual(detail.lines[0].changes[0].diff.changes, [.init(before: ["codex"], after: ["Codex"])])
-        XCTAssertEqual(detail.textChanges.map(\.after), ["send it to Kodex", "send it to Codex"])
+        XCTAssertEqual(detail.textChanges.map(\.after), ["send it to Kodex", "send it to Codex", "Kodex"])
+        XCTAssertEqual(detail.textChanges.map(\.source), [.correction, .correction, .keyTerm])
     }
 
     func testACallHasItsSidesTimesAndCorrections() throws {
@@ -127,14 +158,15 @@ final class HistoryTests: StoreTestCase {
         let detail = try XCTUnwrap(try calls.historyDetail(entry))
 
         XCTAssertEqual(entry.title, "Zoom call")
-        XCTAssertEqual(detail.lines.map(\.speaker), ["Me", "Call"])
-        XCTAssertEqual(detail.lines.map(\.whisper), ["we use bland", "sounds good"])
+        XCTAssertEqual(detail.lines.map(\.speaker), ["Me", "Call", "Call"])
+        XCTAssertEqual(detail.lines.map(\.whisper), ["we use bland", "sounds good", "ask the northwynd team"])
         XCTAssertEqual(detail.lines[0].t0, 0)
         XCTAssertEqual(detail.lines[1].t0, 1.5)
         XCTAssertEqual(detail.lines[1].t1, 3)
         XCTAssertEqual(detail.lines[0].changes.map(\.source), [.retry, .correction])
         XCTAssertEqual(detail.lines[0].changes[1].note, "agent 2")
-        XCTAssertEqual(detail.lines.map(\.playable), [true, false])
+        XCTAssertEqual(detail.lines[2].changes.map(\.source), [.correction, .keyTerm])
+        XCTAssertEqual(detail.lines.map(\.playable), [true, false, true])
     }
 
     func testOnlyFlaggedOrChangedLinesPlay() throws {

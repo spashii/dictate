@@ -57,6 +57,10 @@ public struct HistoryChange: Sendable, Equatable, Identifiable {
         case retry
         case fix
         case correction
+        /// A key term a correction suggested, and Settings' Add or Dismiss on it: an event
+        /// for the key-term list, kept beside the correction it came from, not an edit of
+        /// the transcript.
+        case keyTerm = "key term"
     }
 
     public var source: Source
@@ -66,9 +70,11 @@ public struct HistoryChange: Sendable, Equatable, Identifiable {
     public var diff: WordDiff
     /// False for a fix edit that was checked and rejected.
     public var applied: Bool
-    /// The key term a fix restored, why it was rejected, or the client that corrected it.
+    /// The key term a fix restored, why it was rejected, the client that corrected it, or
+    /// what became of a suggested key term (added, dismissed, suggested).
     public var note: String?
-    /// The stored row it was read from, as `table:id`: segment_retries, fix_edits or edits.
+    /// The stored row it was read from, as `table:id`: segment_retries, fix_edits or edits,
+    /// or key_term_suggestions for a suggestion nothing has decided.
     public var record: String
 
     public var id: String { record }
@@ -150,7 +156,9 @@ extension CallStore {
         return [HistoryChange(.retry, before: retry.first, after: retried, record: "segment_retries:\(retry.id)")]
     }
 
-    /// Corrections and their undos, oldest first, each as the text it found and left.
+    /// Corrections and their undos, oldest first, each as the text it found and left, then
+    /// the key terms those corrections suggested and what Settings did with them. Keyed by
+    /// call segment id, or -1 for a dictation.
     private func correctionChanges(_ target: String) throws -> [Int64: [HistoryChange]] {
         let edits = try db.query("""
             SELECT id, client, old_value, new_value, target FROM edits
@@ -161,10 +169,31 @@ extension CallStore {
              after: Self.editText(row.string(3)), target: row.text(4))
         }
         var byLine: [Int64: [HistoryChange]] = [:]
+        var lineOfEdit: [Int64: Int64] = [:]
         for edit in edits {
             let line = edit.target.range(of: "/segment:").flatMap { Int64(edit.target[$0.upperBound...]) } ?? -1
+            lineOfEdit[edit.id] = line
             byLine[line, default: []].append(HistoryChange(.correction, before: edit.before ?? "", after: edit.after ?? "",
                                                            note: edit.client, record: "edits:\(edit.id)"))
+        }
+        guard !edits.isEmpty else { return byLine }
+        // A decision whose edit was undone reads as pending again, as list_key_term_suggestions has it.
+        let suggestions = try db.query("""
+            SELECT s.id, s.term, s.heard, s.edit_id,
+              CASE WHEN e.undone_by IS NOT NULL THEN 'pending' ELSE s.status END,
+              CASE WHEN e.undone_by IS NOT NULL THEN NULL ELSE s.decision_edit END
+            FROM key_term_suggestions s LEFT JOIN edits e ON e.id = s.decision_edit
+            WHERE s.edit_id IN (\(edits.map { String($0.id) }.joined(separator: ",")))
+            ORDER BY s.id
+            """) { row in
+            (id: row.int64(0), term: row.text(1), heard: row.text(2).split(separator: "\u{1F}").first.map(String.init) ?? "",
+             edit: row.int64(3), status: row.text(4), decision: row.isNull(5) ? nil : row.int64(5))
+        }
+        for suggestion in suggestions {
+            let note = ["accepted": "added", "dismissed": "dismissed"][suggestion.status] ?? "suggested"
+            let record = suggestion.decision.map { "edits:\($0)" } ?? "key_term_suggestions:\(suggestion.id)"
+            byLine[lineOfEdit[suggestion.edit] ?? -1, default: []].append(
+                HistoryChange(.keyTerm, before: suggestion.heard, after: suggestion.term, note: note, record: record))
         }
         return byLine
     }
