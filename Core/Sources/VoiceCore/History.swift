@@ -16,6 +16,9 @@ public struct HistoryEntry: Sendable, Identifiable, Equatable, Hashable {
     public var title: String
     /// How many changes it holds: retries that changed words, fix edits and corrections.
     public var changes: Int
+    /// Whether it has words to copy. A dictation listed always has; a call that heard nothing
+    /// has none, and the window offers no Copy for it.
+    public var hasText = true
 
     public var id: String { "\(kind.rawValue):\(ref)" }
 }
@@ -110,11 +113,13 @@ extension CallStore {
                 SELECT c.id, c.started_at, coalesce(c.ended_at, c.started_at) - c.started_at,
                   coalesce(c.title, c.app_name || ' call', 'Call'),
                   (SELECT count(*) FROM segment_retries r WHERE r.call_id = c.id AND r.kept = 1 AND r.changed = 1)
-                  + (SELECT count(*) FROM edits e WHERE e.target LIKE 'call:' || c.id || '/segment:%')
+                  + (SELECT count(*) FROM edits e WHERE e.target LIKE 'call:' || c.id || '/segment:%'),
+                  EXISTS (SELECT 1 FROM call_segments s WHERE s.call_id = c.id
+                          AND trim(coalesce(s.corrected_text, s.text), ' ' || char(9, 10, 13)) <> '')
                 FROM calls c ORDER BY c.started_at DESC LIMIT ?
                 """, [limit]) { row in
                 HistoryEntry(kind: .call, ref: row.text(0), at: row.date(1), duration: row.double(2),
-                             title: row.text(3), changes: row.int(4))
+                             title: row.text(3), changes: row.int(4), hasText: row.int(5) != 0)
             }
             return Array((dictations + calls).sorted { $0.at > $1.at }.prefix(limit))
         }
