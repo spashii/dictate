@@ -84,3 +84,20 @@ targets:
       - sdk: AppKit.framework
       - sdk: AVFoundation.framework
       - sdk: ServiceManagement.framework
+  # Swift tests of the app's own logic. They compile the sources they test rather than load
+  # Voice.app, so a test run never starts a second Voice beside the one in use.
+  VoiceTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: VoiceTests
+      - path: Voice/SupportItems.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.spashii.voice.tests
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""
+    scheme:
+      testTargets: [VoiceTests]

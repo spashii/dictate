@@ -25,6 +25,12 @@ cd Core && swift test
 
 They cover the store and its index, the MCP server, call source choice and detection, channel handling, rebuild, AAC conversion, the chunkers, recovery, the fix step and the pipeline. Ollama is stubbed. The tests that need Whisper run only when `VOICE_TEST_WHISPER_MODEL` points at a model.
 
+```sh
+xcodebuild test -project app/Voice.xcodeproj -scheme VoiceTests -destination "platform=macOS,arch=arm64"
+```
+
+`app/VoiceTests` covers the app's own logic: the menu's Check for Updates, Report an Issue and View on GitHub items, and the issue link, which carries only the app and macOS versions. They build without VoiceCore and never open Voice. `tools/build.sh` generates the Xcode project they need.
+
 `voice-cli` runs the app's pipeline with no window or sound: `transcribe`, `eval`, `batch` and `live` for speech, `call --file`, `fake-call` and `watch-calls --raw` for calls, and `mcp` for the server. The comment at the top of `Core/Sources/voice-cli/main.swift` lists them all.
 
 ## Releases

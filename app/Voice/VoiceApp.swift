@@ -86,8 +86,20 @@ struct MenuContent: View {
             NSApp.activate()
         }
         .keyboardShortcut(",")
+        ForEach(SupportItem.allCases, id: \.self) { item in
+            Button(item.title) { open(item) }
+                .disabled(item == .checkForUpdates && !model.updates.canCheck)
+        }
         Button("Quit Voice") { NSApplication.shared.terminate(nil) }
             .keyboardShortcut("q")
+    }
+
+    private func open(_ item: SupportItem) {
+        switch item {
+        case .checkForUpdates: model.updates.check()
+        case .reportIssue: NSWorkspace.shared.open(SupportItem.issueURL)
+        case .viewOnGitHub: NSWorkspace.shared.open(SupportItem.repository)
+        }
     }
 
     private static func label(_ dictation: Dictation) -> String {
