@@ -70,6 +70,7 @@ struct MenuContent: View {
                         .disabled(dictation.finalText.isEmpty && dictation.error == nil)
                 }
                 RecentCalls()
+                Button("Open History") { model.openHistory() }
             }
         }
         Divider()

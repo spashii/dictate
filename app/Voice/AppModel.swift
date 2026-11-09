@@ -23,6 +23,8 @@ final class AppModel {
         case cleaningUp
         /// Shown in the indicator for a few seconds, then back to idle; some carry a button.
         case notice(String, NoticeAction?)
+        /// After a paste, the words the retries and the fix changed, for a moment.
+        case edits([WordDiff.Change])
     }
 
     enum NoticeAction: Equatable {
@@ -60,6 +62,7 @@ final class AppModel {
     @ObservationIgnored private var tickTask: Task<Void, Never>?
     @ObservationIgnored private lazy var indicator = Indicator(model: self)
     @ObservationIgnored private lazy var setupWindow = SetupWindow(model: self)
+    @ObservationIgnored private lazy var historyWindow = HistoryWindow()
 
     init() {
         recorder = Recorder(onLevel: { [weak self] level in
@@ -97,14 +100,14 @@ final class AppModel {
         switch phase {
         case .recording: "MenuBarDictating"
         case .transcribing, .cleaningUp: "MenuBarWorking"
-        case .idle, .notice: calls?.recording != nil ? "MenuBarCall" : "MenuBarIdle"
+        case .idle, .notice, .edits: calls?.recording != nil ? "MenuBarCall" : "MenuBarIdle"
         }
     }
 
     /// The first line of the menu.
     var statusText: String {
         switch phase {
-        case .idle, .notice: fixesText ? "Ready" : "Ready, whisper only"
+        case .idle, .notice, .edits: fixesText ? "Ready" : "Ready, whisper only"
         case .recording(_, let began): "Listening " + Self.clock(now.timeIntervalSince(began))
         case .transcribing: "Transcribing"
         case .cleaningUp: "Fixing the text"
@@ -160,7 +163,7 @@ final class AppModel {
     /// the start, so changing the setting mid-dictation doesn't change what this one does.
     func toggle() {
         switch phase {
-        case .idle, .notice: start(preferences.runPrompt && calls?.usesWhisper != true ? .fix : .plain)
+        case .idle, .notice, .edits: start(preferences.runPrompt && calls?.usesWhisper != true ? .fix : .plain)
         case .recording: stop()
         case .transcribing, .cleaningUp: break
         }
@@ -372,6 +375,7 @@ final class AppModel {
             for url in orphans {
                 while phase != .idle {
                     if case .notice = phase { break }
+                    if case .edits = phase { break }
                     try? await Task.sleep(for: .seconds(1))
                 }
                 let duration = Recovery.repairHeader(url) ?? 0
@@ -409,6 +413,7 @@ final class AppModel {
         let pasted = await Paster.paste(dictation.finalText)
         let elapsed = ContinuousClock.now - start
         store?.setPasteTime(dictation.id, ms: Int(elapsed.components.seconds * 1000 + elapsed.components.attoseconds / 1_000_000_000_000_000))
+        let changes = Self.changes(dictation)
         if let writeError {
             // Ahead of the rest: the recording is missing its end, and this says why.
             show("Couldn't keep writing the recording, so only what came before was transcribed: \(writeError)")
@@ -421,17 +426,49 @@ final class AppModel {
             show("\(lost) and pasted what it heard before.")
         } else if fellBackToDefault {
             show("The chosen microphone isn't connected, so the default one recorded.")
+        } else if !changes.isEmpty {
+            showEdits(changes)
         } else {
             phase = .idle
             refreshIndicator()
         }
     }
 
+    /// What the retries and the fix changed in a dictation's words, retries first. A fix
+    /// that only changed capitals still shows, since that is how a name gets put right.
+    static func changes(_ dictation: Dictation) -> [WordDiff.Change] {
+        let retried = dictation.segments.compactMap(\.retry).filter { $0.kept && $0.changed }
+            .flatMap { WordDiff($0.firstText, $0.retriedText ?? "").changes }
+        let fixed = (dictation.fixEdits ?? []).filter(\.applied).flatMap { edit in
+            let diff = WordDiff(edit.span, edit.replacement, ignoringCase: false).changes
+            return diff.isEmpty ? [WordDiff.Change(before: [edit.span], after: [edit.replacement])] : diff
+        }
+        return retried + fixed
+    }
+
+    /// Shown only once the text is pasted, so it never adds to the wait.
+    private func showEdits(_ changes: [WordDiff.Change]) {
+        phase = .edits(changes)
+        indicator.show()
+        noticeTask?.cancel()
+        noticeTask = Task {
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled, case .edits = phase else { return }
+            phase = .idle
+            refreshIndicator()
+        }
+    }
+
+    /// Opened only from the menu and Settings.
+    func openHistory() {
+        historyWindow.show()
+    }
+
     /// A notice from outside dictation. Mid-dictation the indicator stays on the dictation
     /// and the menu carries the message instead.
     func notice(_ text: String) {
         switch phase {
-        case .idle, .notice: show(text)
+        case .idle, .notice, .edits: show(text)
         case .recording, .transcribing, .cleaningUp: break
         }
     }

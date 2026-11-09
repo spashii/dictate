@@ -106,6 +106,8 @@ struct IndicatorView: View {
                     Button("Allow…") { model.noticeAction(action) }
                         .controlSize(.small)
                 }
+            case .edits(let changes):
+                EditsLine(changes: changes)
             case .idle:
                 EmptyView()
             }
@@ -132,3 +134,4 @@ private struct LevelBar: View {
             }
     }
 }
+
