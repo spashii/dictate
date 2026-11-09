@@ -257,7 +257,7 @@ private func count(_ url: URL, _ sql: String) throws -> Int {
         #expect(try RetryStats.load(url).allTime.notRetried == ["unknown": 1])
         // Opening it again changes nothing.
         _ = try Store(url: url)
-        #expect(try CallStore(url: url).appliedMigrations().count == 6)
+        #expect(try CallStore(url: url).appliedMigrations().count == CallStore.migrations.count)
     }
 
     @Test func aFileFrom030GetsBothRetryMigrations() throws {
