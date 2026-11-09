@@ -1,6 +1,6 @@
 cask "voice" do
-  version "0.9.0"
-  sha256 "c76135f52f9ac315f5386167e04dff0162f8e402854011e85e22048cca00da65"
+  version "0.9.1"
+  sha256 "2fabf5fad4c7598d3e7bd3c5c045b8b1fc10a58e3d666453551a770310aa178f"
 
   url "https://apps.idea2prod.in/voice/download/#{version}"
   name "Voice"
