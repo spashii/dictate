@@ -44,6 +44,7 @@ struct SettingsView: View {
                 }
                 TextField("Key terms", text: $preferences.keyTerms, axis: .vertical)
                 Help("Names and words whisper gets wrong, as they should be spelled.")
+                SuggestedTermsView()
             }
 
             Section("Speech model") {
