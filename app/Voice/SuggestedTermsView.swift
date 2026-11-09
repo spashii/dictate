@@ -13,49 +13,20 @@ struct SuggestedTermsView: View {
     @State private var busy: Int64?
 
     var body: some View {
-        Group {
-            if !suggestions.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Suggested").foregroundStyle(.secondary)
-                    ForEach(suggestions) { suggestion in
-                        row(suggestion)
-                    }
+        SuggestedTermsList(suggestions: suggestions, refused: refused, busy: busy, decide: decide)
+            .task(id: model.preferences.keyTerms) {
+                if service == nil {
+                    let settings = PreferencesKeyTerms(preferences: model.preferences)
+                    service = await Task.detached(priority: .utility) {
+                        (try? CallStore(url: Paths.database)).map { KeyTermSuggestions(store: $0, settings: settings) }
+                    }.value
+                }
+                // Corrections land from agents at any time, so the list is read again while it shows.
+                while !Task.isCancelled {
+                    await refresh()
+                    try? await Task.sleep(for: .seconds(3))
                 }
             }
-        }
-        .task(id: model.preferences.keyTerms) {
-            if service == nil {
-                let settings = PreferencesKeyTerms(preferences: model.preferences)
-                service = await Task.detached(priority: .utility) {
-                    (try? CallStore(url: Paths.database)).map { KeyTermSuggestions(store: $0, settings: settings) }
-                }.value
-            }
-            // Corrections land from agents at any time, so the list is read again while it shows.
-            while !Task.isCancelled {
-                await refresh()
-                try? await Task.sleep(for: .seconds(3))
-            }
-        }
-    }
-
-    private func row(_ suggestion: TermSuggestion) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(suggestion.term)
-                Text(suggestion.heard.map { "“\($0)”" }.joined(separator: ", "))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .help("How whisper heard it")
-                Spacer()
-                Button("Add") { decide(suggestion.id, accept: true) }
-                Button("Dismiss") { decide(suggestion.id, accept: false) }
-            }
-            .disabled(busy != nil)
-            if let message = refused[suggestion.id] {
-                Text(message).font(.caption).foregroundStyle(.red)
-            }
-        }
     }
 
     private func decide(_ id: Int64, accept: Bool) {
