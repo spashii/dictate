@@ -10,22 +10,27 @@ public struct Edit: Sendable, Codable, Equatable {
         case addKeyTerms = "add_key_terms"
         case removeKeyTerms = "remove_key_terms"
         case tagCall = "tag_call"
+        /// Settings' Dismiss on a suggested key term; its Add is an add_key_terms.
+        case dismissKeyTerm = "dismiss_key_term"
         case undo
     }
 
     /// A target's state, by kind: text and corrected for a correction, terms for the key
-    /// terms, tags for a call.
+    /// terms, tags for a call, the term and its status for a suggested key term.
     public struct Value: Sendable, Codable, Equatable {
         public var text: String?
         public var corrected: Bool?
         public var terms: [String]?
         public var tags: [String]?
+        public var status: String?
 
-        public init(text: String? = nil, corrected: Bool? = nil, terms: [String]? = nil, tags: [String]? = nil) {
+        public init(text: String? = nil, corrected: Bool? = nil, terms: [String]? = nil, tags: [String]? = nil,
+                    status: String? = nil) {
             self.text = text
             self.corrected = corrected
             self.terms = terms
             self.tags = tags
+            self.status = status
         }
     }
 
@@ -189,7 +194,7 @@ extension CallStore {
                     before = Edit.Value(tags: Self.sorted(current))
                     after = Edit.Value(tags: Self.sorted(try db.query("SELECT tag FROM call_tags WHERE call_id = ?",
                                                                       [callID]) { $0.text(0) }))
-                case .addKeyTerms, .removeKeyTerms, .undo:
+                case .addKeyTerms, .removeKeyTerms, .dismissKeyTerm, .undo:
                     throw VoiceError.store("Edit \(id) isn't undone here.")
                 }
                 return try insertUndo(of: edit, client: client, before: before, after: after)
@@ -229,7 +234,7 @@ extension CallStore {
     }
 
     /// Runs inside the caller's transaction, on the queue.
-    private func insertEdit(_ kind: Edit.Kind, target: String, client: String?, before: Edit.Value?,
+    func insertEdit(_ kind: Edit.Kind, target: String, client: String?, before: Edit.Value?,
                             after: Edit.Value?, undoes: Int64? = nil) throws -> Edit {
         let now = Date()
         try db.run("""

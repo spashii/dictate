@@ -196,6 +196,7 @@ struct MCPRouter: Sendable {
         case "correct_dictation":
             let (dictation, edit) = try store.correctDictation(try args.require("id"), text: try args.require("text"),
                                                                client: client)
+            await suggestKeyTerms(from: edit)
             var object = try Self.full(dictation)
             object["edit_id"] = edit.id
             return try Self.json(object)
@@ -205,6 +206,7 @@ struct MCPRouter: Sendable {
             guard let segmentID = try args.int64("segment_id") else { throw ToolError("segment_id is required.") }
             let (segment, edit) = try store.correctSegment(call.id, segmentID, text: try args.require("text"),
                                                            client: client)
+            await suggestKeyTerms(from: edit)
             var object = Self.compact(segment)
             object["call_id"] = call.id
             object["edit_id"] = edit.id
@@ -221,6 +223,20 @@ struct MCPRouter: Sendable {
             let change = try await requireKeyTerms().remove(try args.strings("terms"), client: client)
             return try Self.json(Self.plain(change, changed: "removed", unchanged: "not_found"))
 
+        case "list_key_term_suggestions":
+            let status = try args.string("status") ?? "pending"
+            guard status == "all" || TermSuggestion.Status(rawValue: status) != nil else {
+                throw ToolError("status is pending, accepted, dismissed or all, not \(status).")
+            }
+            let limit = try args.int("limit", default: 20, range: 1...200)
+            var suggestions = try store.termSuggestions(status: TermSuggestion.Status(rawValue: status), limit: 1000)
+            if status == "pending", let keyTerms {
+                // A term typed into the list since it was proposed is no longer a suggestion.
+                let known = Set(KeyTerms.parse(await keyTerms.settings.keyTerms()).map(TermProposals.key))
+                suggestions = suggestions.filter { !known.contains(TermProposals.key($0.term)) }
+            }
+            return try Self.json(try suggestions.prefix(limit).map { try Self.plain($0) })
+
         case "list_edits":
             let edits = try store.edits(since: try args.date("since"), target: try args.string("target"),
                                         limit: try args.int("limit", default: 20, range: 1...200))
@@ -233,6 +249,8 @@ struct MCPRouter: Sendable {
             switch edit.kind {
             case .addKeyTerms, .removeKeyTerms:
                 undo = try await requireKeyTerms().undo(id, client: client)
+            case .dismissKeyTerm:
+                undo = try store.undoDismissal(id, client: client)
             default:
                 undo = try store.undo(id, client: client)
             }
@@ -251,6 +269,12 @@ struct MCPRouter: Sendable {
         default:
             throw RPCError(-32602, "No tool \(name).")
         }
+    }
+
+    /// What a correction proposes waits in Settings for a tap; the correction stands either way.
+    private func suggestKeyTerms(from edit: Edit) async {
+        let known = await keyTerms?.settings.keyTerms() ?? ""
+        _ = try? store.suggestKeyTerms(from: edit, known: KeyTerms.parse(known))
     }
 
     private func requireKeyTerms() throws -> KeyTermsEditor {
@@ -340,6 +364,10 @@ struct MCPRouter: Sendable {
             tool("remove_key_terms", "Remove key terms from Voice's Settings, matching without case.",
                  ["terms": ["type": "array", "items": ["type": "string"]]],
                  required: ["terms"], readOnly: false),
+            tool("list_key_term_suggestions",
+                 "List the key terms Voice proposed from corrections, each with how whisper heard it, the correction it came from and its status. Only the user adds one, with a tap in Settings.",
+                 ["status": ["type": "string", "enum": ["pending", "accepted", "dismissed", "all"], "default": "pending"],
+                  "limit": limit(20, 200)]),
             tool("list_edits",
                  "List the writes agents made, newest first: when, which client, what kind, the target, and its before and after.",
                  ["since": since, "target": ["type": "string", "description": "Only edits to this target, such as dictation:ID, call:ID/segment:N, call:ID or key_terms."],

@@ -540,6 +540,23 @@ public final class CallStore: @unchecked Sendable {
                 WHERE coalesce(new.corrected_text, new.final_text) <> '';
             END;
             """),
+        // Key terms proposed from agents' corrections, one row a term, waiting for Settings'
+        // Add or Dismiss. heard holds whisper's spellings joined by the unit separator, as
+        // tags are. decision_edit is the edit that took or dismissed it: when that edit is
+        // undone the suggestion reads as pending again.
+        ("suggestions-1", """
+            CREATE TABLE key_term_suggestions (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              term TEXT NOT NULL COLLATE NOCASE UNIQUE,
+              heard TEXT NOT NULL,
+              status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'dismissed')),
+              edit_id INTEGER NOT NULL,
+              corrections INTEGER NOT NULL DEFAULT 1,
+              created_at REAL NOT NULL,
+              decision_edit INTEGER,
+              decided_at REAL
+            );
+            """),
     ]
 
     /// The names of the migrations this file has had.

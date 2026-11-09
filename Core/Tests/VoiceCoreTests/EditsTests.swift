@@ -62,7 +62,7 @@ private func count(_ url: URL, _ sql: String) throws -> Int {
             """)
 
         let calls = try CallStore(url: url)
-        #expect(try calls.appliedMigrations().last == "edits-1")
+        #expect(try calls.appliedMigrations().contains("edits-1"))
         #expect(try count(url, "SELECT count(*) FROM pragma_table_info('dictations') WHERE name = 'corrected_text'") == 1)
         #expect(try count(url, "SELECT count(*) FROM pragma_table_info('call_segments') WHERE name = 'corrected_text'") == 1)
         #expect(try count(url, "SELECT count(*) FROM edits") == 0)
