@@ -468,11 +468,11 @@ struct CallPromptView: View {
 final class StoppedCallPanel {
     private unowned let calls: CallsModel
     private var panel: NSPanel?
-    private let content: NSHostingView<AnyView>
+    private let content: FirstClickHostingView<AnyView>
 
     init(calls: CallsModel) {
         self.calls = calls
-        content = NSHostingView(rootView: AnyView(EmptyView()))
+        content = FirstClickHostingView(rootView: AnyView(EmptyView()))
     }
 
     func show(_ call: Call) {
@@ -505,6 +505,12 @@ final class StoppedCallPanel {
         panel.contentView = content
         return panel
     }
+}
+
+/// Takes the first click. The panel never becomes key, and a view that waits for its window
+/// to be key before taking clicks would let Copy Transcript's click fall through unanswered.
+final class FirstClickHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
 struct StoppedCallView: View {

@@ -76,7 +76,7 @@ struct StoppedCallPill: View {
                     Text(copied ? "Copied" : "Copy Transcript")
                 }
             }
-            .controlSize(.small)
+            .buttonStyle(PillButtonStyle())
         }
         .font(.system(size: 12, weight: .medium))
         .padding(.horizontal, 14)
@@ -84,5 +84,17 @@ struct StoppedCallPill: View {
         .frame(minHeight: 28)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .fixedSize()
+    }
+}
+
+/// A button that reads as one in a panel that is never key, where the system's buttons draw
+/// greyed out as if they were disabled.
+private struct PillButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(.white)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 2)
+            .background(Color.accentColor.opacity(configuration.isPressed ? 0.7 : 1), in: Capsule())
     }
 }
