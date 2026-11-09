@@ -54,3 +54,35 @@ struct CallPill: View {
         channel == .me ? Color.blue.opacity(0.75) : Color.purple.opacity(0.75)
     }
 }
+
+/// The call pill once the recording stops, for up to five seconds: the call, how long it ran,
+/// and Copy Transcript, which reads "Copied" once the transcript is on the clipboard.
+struct StoppedCallPill: View {
+    let name: String
+    let length: String
+    let copied: Bool
+    let copy: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            // The red dot of the recording, stopped.
+            RoundedRectangle(cornerRadius: 1.5).fill(.secondary).frame(width: 8, height: 8)
+            Text(name).lineLimit(1)
+            Text(length).monospacedDigit().foregroundStyle(.secondary).fixedSize()
+            Button(action: copy) {
+                // Both words take the same room, so the pill keeps its size when it changes.
+                ZStack {
+                    Text("Copy Transcript").hidden()
+                    Text(copied ? "Copied" : "Copy Transcript")
+                }
+            }
+            .controlSize(.small)
+        }
+        .font(.system(size: 12, weight: .medium))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 6)
+        .frame(minHeight: 28)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .fixedSize()
+    }
+}

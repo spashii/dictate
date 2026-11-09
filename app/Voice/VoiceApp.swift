@@ -65,7 +65,13 @@ struct MenuContent: View {
             Divider()
             Section("Recent") {
                 ForEach(model.recent) { dictation in
-                    Button(Self.label(dictation)) { model.open(dictation) }
+                    Button(Self.label(dictation)) {
+                        if RowMenu.rightClicked, !dictation.finalText.isEmpty {
+                            RowMenu.copyTranscript { model.copy(dictation) }
+                        } else {
+                            model.open(dictation)
+                        }
+                    }
                         .help(dictation.finalText.isEmpty && dictation.error != nil ? "Click to try again" : "Click to copy")
                         .disabled(dictation.finalText.isEmpty && dictation.error == nil)
                 }
@@ -96,5 +102,45 @@ struct MenuContent: View {
 
     private static func preview(_ text: String) -> String {
         text.count > 60 ? String(text.prefix(60)) + "…" : text
+    }
+}
+
+/// A Recent row's right-click menu. NSMenu has no context menu for its items, but a right
+/// click still picks one, so the row's action asks which button picked it: a right click
+/// opens Copy Transcript at the pointer, and a left click does what it always did. Should
+/// macOS not pass the right click through, the row acts as if left-clicked.
+@MainActor
+enum RowMenu {
+    static var rightClicked: Bool {
+        let type = NSApp.currentEvent?.type
+        return type == .rightMouseUp || type == .rightMouseDown
+    }
+
+    static func copyTranscript(_ copy: @escaping @MainActor () -> Void) {
+        let action = MenuAction(copy)
+        let menu = NSMenu()
+        let item = NSMenuItem(title: "Copy Transcript", action: #selector(MenuAction.fire), keyEquivalent: "")
+        item.target = action
+        menu.addItem(item)
+        let location = NSEvent.mouseLocation
+        // Once the menu bar's menu has finished closing, so the two never track at once.
+        Task {
+            withExtendedLifetime(action) {
+                _ = menu.popUp(positioning: nil, at: location, in: nil)
+            }
+        }
+    }
+}
+
+@MainActor
+private final class MenuAction: NSObject {
+    private let run: @MainActor () -> Void
+
+    init(_ run: @escaping @MainActor () -> Void) {
+        self.run = run
+    }
+
+    @objc func fire() {
+        run()
     }
 }

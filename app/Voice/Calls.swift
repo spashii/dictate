@@ -51,6 +51,10 @@ final class CallsModel {
     /// Set while a call app reads the mix being recorded or offered: Blend leaves a mix's
     /// readers out of its System audio, so that app's side of the call records as silence.
     private(set) var warning: String?
+    /// The call that just stopped, while its pill offers the transcript.
+    private(set) var stoppedCall: Call?
+    /// The pill's Copy Transcript put the transcript on the clipboard.
+    private(set) var stoppedCallCopied = false
 
     @ObservationIgnored private weak var model: AppModel?
     @ObservationIgnored private var store: CallStore?
@@ -61,6 +65,11 @@ final class CallsModel {
     /// The app a recording was started for: when its call ends, the recording does too.
     @ObservationIgnored private var recordingFor: String?
     @ObservationIgnored private lazy var prompt = CallPrompt(calls: self)
+    @ObservationIgnored private lazy var stoppedPill = StoppedCallPanel(calls: self)
+    @ObservationIgnored private var stoppedPillHides: Task<Void, Never>?
+    @ObservationIgnored private var stoppedPillEnds = ContinuousClock.now
+    /// How long the pill offers a stopped call's transcript, at most.
+    static let copyOffer: Duration = .seconds(5)
     @ObservationIgnored private var following: Task<Void, Never>?
     @ObservationIgnored private var quieting: Task<Void, Never>?
     private static let quiet: Duration = .seconds(20)
@@ -153,6 +162,7 @@ final class CallsModel {
         guard let recorder, let model else { throw VoiceError.store("Voice is still starting.") }
         if let recording { return recording }
         guard !starting else { throw VoiceError.store("A call recording is already starting.") }
+        dismissStoppedCall()
         starting = true
         defer { starting = false }
         await refreshSources()
@@ -203,7 +213,57 @@ final class CallsModel {
         transcribing = false
         refreshRecent()
         updatePrompt()
+        if let call { offerTranscript(call) }
         return call
+    }
+
+    /// The call pill comes back once the stopped call's words are all in, with Copy Transcript
+    /// for five seconds. Its own task, so the stop and an agent waiting on it return at once.
+    /// Nothing heard means no pill, and neither does a top of the screen already taken by a
+    /// new call or a dictation.
+    private func offerTranscript(_ call: Call) {
+        guard let store else { return }
+        Task {
+            let hasText = await Task.detached(priority: .userInitiated) {
+                TranscriptCopy.text(.call(call.id), in: store) != nil
+            }.value
+            guard hasText, recording == nil, !starting, model?.phase == .idle else { return }
+            stoppedCall = call
+            stoppedCallCopied = false
+            stoppedPillEnds = .now + Self.copyOffer
+            stoppedPill.show(call)
+            hideStoppedCall(after: Self.copyOffer)
+        }
+    }
+
+    /// The pill's button: "Copied" for a moment, then the pill goes, never later than the
+    /// five seconds it was offered for.
+    func copyStoppedCall() {
+        guard let call = stoppedCall, TranscriptCopy.copy(.call(call.id), in: store) else {
+            dismissStoppedCall()
+            return
+        }
+        stoppedCallCopied = true
+        hideStoppedCall(after: min(.milliseconds(1200), stoppedPillEnds - .now))
+    }
+
+    /// Hides the pill after a call at once, for whatever needs the top of the screen.
+    func dismissStoppedCall() {
+        stoppedPillHides?.cancel()
+        stoppedPillHides = nil
+        guard stoppedCall != nil else { return }
+        stoppedCall = nil
+        stoppedCallCopied = false
+        stoppedPill.hide()
+    }
+
+    private func hideStoppedCall(after delay: Duration) {
+        stoppedPillHides?.cancel()
+        stoppedPillHides = Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled else { return }
+            self?.dismissStoppedCall()
+        }
     }
 
     /// The recorder has already finished the call as failed and kept its audio.
@@ -274,9 +334,12 @@ final class CallsModel {
     }
 
     func copyTranscript(_ call: Call) {
-        guard let text = try? store?.transcript(call.id), !text.isEmpty else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+        TranscriptCopy.copy(.call(call.id), in: store)
+    }
+
+    /// Whether a call has words to copy, for the menu's Copy Transcript.
+    func hasTranscript(_ call: Call) -> Bool {
+        TranscriptCopy.text(.call(call.id), in: store) != nil
     }
 
     /// Whether a call's chunks hold whisper. Dictation then skips the Ollama fix: the fix
@@ -399,6 +462,69 @@ struct CallPromptView: View {
     }
 }
 
+/// The call pill once a recording stops, in a panel of its own the pill's size, so it takes
+/// clicks only on itself. Like the prompt it never takes focus from the call app.
+@MainActor
+final class StoppedCallPanel {
+    private unowned let calls: CallsModel
+    private var panel: NSPanel?
+    private let content: NSHostingView<AnyView>
+
+    init(calls: CallsModel) {
+        self.calls = calls
+        content = NSHostingView(rootView: AnyView(EmptyView()))
+    }
+
+    func show(_ call: Call) {
+        // Set outright rather than observed, so the size read next is this call's pill.
+        content.rootView = AnyView(StoppedCallView(call: call).environment(calls))
+        let size = content.fittingSize
+        let panel = panel ?? makePanel()
+        self.panel = panel
+        let screen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) } ?? NSScreen.main
+        if let frame = screen?.visibleFrame {
+            // Where the call pill sat while it recorded, at the top of the indicator.
+            panel.setFrame(NSRect(x: frame.midX - size.width / 2, y: frame.maxY - 12 - size.height,
+                                  width: size.width, height: size.height), display: false)
+        }
+        panel.orderFrontRegardless()
+    }
+
+    func hide() {
+        panel?.orderOut(nil)
+    }
+
+    private func makePanel() -> NSPanel {
+        let panel = NSPanel(contentRect: .zero, styleMask: [.nonactivatingPanel, .borderless], backing: .buffered,
+                            defer: true)
+        panel.level = .statusBar
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = false
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        panel.contentView = content
+        return panel
+    }
+}
+
+struct StoppedCallView: View {
+    @Environment(CallsModel.self) private var calls
+    let call: Call
+
+    var body: some View {
+        StoppedCallPill(name: call.displayName,
+                        length: HistoryDetailView.clock((call.endedAt ?? Date()).timeIntervalSince(call.startedAt)),
+                        copied: calls.stoppedCallCopied) { calls.copyStoppedCall() }
+    }
+}
+
+extension Call {
+    /// What the menu and the pill call it: its title, its app's call, or just Call.
+    var displayName: String {
+        title ?? appName.map { "\($0) call" } ?? "Call"
+    }
+}
+
 /// The menu's call items: Record at any time, the clock and Stop while a call records, each
 /// with the call shortcut.
 struct CallMenuItems: View {
@@ -427,14 +553,19 @@ struct CallMenuItems: View {
     }
 }
 
-/// Recent calls, after the dictations, each with a phone; a click copies the transcript.
+/// Recent calls, after the dictations, each with a phone; a click copies the transcript, and
+/// a right click offers Copy Transcript.
 struct RecentCalls: View {
     @Environment(CallsModel.self) private var calls
 
     var body: some View {
         ForEach(calls.recent) { call in
             Button {
-                calls.copyTranscript(call)
+                if RowMenu.rightClicked {
+                    if calls.hasTranscript(call) { RowMenu.copyTranscript { calls.copyTranscript(call) } }
+                } else {
+                    calls.copyTranscript(call)
+                }
             } label: {
                 Label(Self.label(call), systemImage: "phone")
             }
@@ -443,7 +574,7 @@ struct RecentCalls: View {
     }
 
     private static func label(_ call: Call) -> String {
-        let name = call.title ?? call.appName.map { "\($0) call" } ?? "Call"
+        let name = call.displayName
         let time = call.startedAt.formatted(date: .omitted, time: .shortened)
         let minutes = call.endedAt.map { " · \(max(1, Int($0.timeIntervalSince(call.startedAt) / 60))) min" } ?? ""
         let state = call.status == .failed ? " · failed" : call.status.isLive ? " · recording" : ""

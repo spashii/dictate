@@ -31,7 +31,10 @@ final class AppModel {
         case allowAccessibility
     }
 
-    var phase: Phase = .idle
+    var phase: Phase = .idle {
+        // The pill after a call sits where this one shows, so it gives way.
+        didSet { if phase != .idle { calls?.dismissStoppedCall() } }
+    }
     var level: Float = 0
     /// The text of the chunks decoded so far while recording, for the indicator.
     var liveText = ""
@@ -202,8 +205,7 @@ final class AppModel {
     }
 
     func copy(_ dictation: Dictation) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(dictation.finalText, forType: .string)
+        TranscriptCopy.copy(.dictation(dictation), in: nil)
     }
 
     /// A row from the menu's Recent list: copies its text, or tries a failed transcription

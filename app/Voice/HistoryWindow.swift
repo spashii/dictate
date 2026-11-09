@@ -72,6 +72,16 @@ final class HistoryModel {
         }
     }
 
+    /// Puts an entry's text on the clipboard, read as it is now, and says whether there was any.
+    func copy(_ entry: HistoryEntry) async -> Bool {
+        guard let store = await openStore() else { return false }
+        let item: TranscriptCopy.Item? = switch entry.kind {
+        case .call: .call(entry.ref)
+        case .dictation: (try? store.dictation(entry.ref)).map { TranscriptCopy.Item.dictation($0) }
+        }
+        return item.map { TranscriptCopy.copy($0, in: store) } ?? false
+    }
+
     private func openStore() async -> CallStore? {
         if let store { return store }
         store = try? await Task.detached { try CallStore(url: Paths.database) }.value
@@ -124,7 +134,7 @@ struct HistoryView: View {
     var body: some View {
         NavigationSplitView {
             List(model.entries, selection: $model.selection) { entry in
-                HistoryRow(entry: entry)
+                HistoryRow(entry: entry) { await model.copy(entry) }
             }
             .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 360)
         } detail: {
@@ -141,20 +151,56 @@ struct HistoryView: View {
 
 struct HistoryRow: View {
     let entry: HistoryEntry
+    /// Copies the entry's text; true once it is on the clipboard.
+    let copy: @MainActor () async -> Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 6) {
-                Text(entry.at, format: .dateTime.month(.abbreviated).day().hour().minute())
-                if entry.kind == .call { SmallLabel("call") }
-                Spacer()
-                if entry.changes > 0 { Text("\(entry.changes)").monospacedDigit() }
+        HStack(alignment: .center, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(entry.at, format: .dateTime.month(.abbreviated).day().hour().minute())
+                    if entry.kind == .call { SmallLabel("call") }
+                    Spacer()
+                    if entry.changes > 0 { Text("\(entry.changes)").monospacedDigit() }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                Text(entry.title).lineLimit(2)
             }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            Text(entry.title).lineLimit(2)
+            // A call that heard nothing has nothing to copy, so it gets no button.
+            if entry.hasText { CopyButton(copy: copy) }
         }
         .padding(.vertical, 2)
+    }
+}
+
+/// "Copy", and "Copied" for a moment once the text is on the clipboard. Nothing copied shows
+/// nothing.
+struct CopyButton: View {
+    let copy: @MainActor () async -> Bool
+    @State private var copied = false
+    @State private var reset: Task<Void, Never>?
+
+    var body: some View {
+        Button {
+            Task {
+                guard await copy() else { return }
+                copied = true
+                reset?.cancel()
+                reset = Task {
+                    try? await Task.sleep(for: .seconds(1.5))
+                    guard !Task.isCancelled else { return }
+                    copied = false
+                }
+            }
+        } label: {
+            // Both words take the same room, so the row doesn't shift when it changes.
+            ZStack {
+                Text("Copied").hidden()
+                Text(copied ? "Copied" : "Copy")
+            }
+        }
+        .controlSize(.small)
     }
 }
 
