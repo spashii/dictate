@@ -35,7 +35,7 @@ Speech to text:
 Dictation:
 
 - `Pipeline.swift`: a recording in, a stored dictation out. The app and voice-cli both go through it, so what voice-cli measures is what gets pasted.
-- `Cleanup.swift`: the fix step's settings and its request to Ollama.
+- `Cleanup.swift`, `Fix.swift`: the fix step. Its settings and requests to Ollama; for the flagged segments, the request for edits, the checks that accept or reject each one, and applying them. The whole-text rewrite stays for the evaluation (`voice-cli fix-batch --whole`).
 - `Recovery.swift`: finds WAVs the history doesn't know and repairs their headers.
 - `Store.swift`: dictations and their segments, in SQLite.
 - `RetryStats.swift`, `WordDiff.swift`: what the retries did, read from their records: segments, unsure, retried, changed, the words each changed, the median confidence change and the paste time added, for the last 7 days and all time. Settings shows it under the retry switch, and `voice-cli retry-report [--json]` prints the numbers.
@@ -72,7 +72,7 @@ Agents:
 4. **Chunk.** `Chunker` compares each 20 ms frame with a noise floor: the 15th percentile of the last 10 seconds, plus 10 dB. It closes a chunk after a 0.6 second pause (0.3 once the chunk passes 15 seconds) and never under 4 seconds. If no pause comes by 25 seconds, it cuts at the quietest 0.3 seconds. One worker decodes the chunks in order, each with the key terms and the last 50 words of the chunk before. The indicator shows the text so far.
 5. **Stop.** The recorder closes the file. Under 0.3 seconds, the dictation is a history row with the audio and "Too short to transcribe".
 6. **Transcribe.** `Pipeline.run` asks `LiveTranscription` to close its open tail and wait for the chunks, and their join is the transcript. If a chunk failed, or the speech model changed during the recording, it loads the WAV and decodes all of it.
-7. **Fix.** In cleanup mode with text to fix, Whisper unloads and Ollama gets the prompt and the key terms as the system message, at temperature 0.2 with thinking off, and keeps its model for 2 minutes. If it fails, the dictation keeps Whisper's text and records the error.
+7. **Fix.** With the fix on, only segments the retry signals flagged (a first-pass mean log probability under -0.6) go to it. A dictation with none skips the step: Ollama isn't asked and Whisper stays loaded. Otherwise Whisper unloads and Ollama gets the flagged segments, each with up to 20 words either side, and the key terms, at temperature 0.2 with thinking off, keeping its model for 2 minutes. It answers with edits in a JSON schema (segment, span, replacement, key term), never new text. Each edit is checked: its segment was flagged, its span occurs exactly once in that segment and doesn't reach outside it, the replacement differs and adds at most two words, and it doesn't overlap an edit already accepted. Accepted edits are applied in place and the segments joined again. Every edit is stored with the dictation, rejected ones with why. If Ollama fails, the dictation keeps Whisper's text and records the error.
 8. **Store.** `Store.insert` writes the dictation and its segments in one transaction, with the time each stage took (record, load, transcribe, fix, paste).
 9. **Paste.** `Paster` saves the clipboard, sets the text, sends Cmd+V with the modifier flags set outright (so an Option still held from the shortcut changes nothing), waits half a second and restores the clipboard if it still holds the text. Without Accessibility the text stays on the clipboard and a notice offers Allow.
 
@@ -99,7 +99,7 @@ Quitting during a call closes the WAV without waiting for the transcript and lea
 
 ## Storage
 
-- `voice.sqlite` holds everything: `dictations` and `segments` (Store), `calls`, `call_segments`, `call_tags` and the `transcript_search` index (CallStore), `segment_retries`, and `voice_migrations`. A flagged segment that wasn't retried records why (`skipped`: off, budget or no-audio). Store runs the migrations too, so a process that opens only Store finds the schema current.
+- `voice.sqlite` holds everything: `dictations` and `segments` (Store), `calls`, `call_segments`, `call_tags` and the `transcript_search` index (CallStore), `segment_retries`, `fix_edits` (each edit the fix step proposed: segment, span, replacement, key term, character offset, and `rejected` with the reason when it wasn't applied), `edits`, and `voice_migrations`. A flagged segment that wasn't retried records why (`skipped`: off, budget or no-audio). Store runs the migrations too, so a process that opens only Store finds the schema current.
 - Every store opens its own connection to the file: the app's history, the call recorder's, the MCP server's and voice-cli's. The journal is WAL, a writer waits up to 5 seconds for another, and a transaction that reads before it writes begins immediate, so another process can't overtake it between the two.
 - CallStore opens Store first, so the dictation tables exist before the search index's triggers attach to them. Each migration is applied once and recorded by name. A shipped one never changes; a schema change is a new entry at the end.
 - `transcript_search` is FTS5 (Porter stemming, no diacritics) over call segments and each dictation's final text, kept current by triggers. A search needs every word, and falls back to any word when nothing has them all.
@@ -180,6 +180,6 @@ Smaller rules:
 
 ## Tests
 
-`cd Core && swift test` covers the store and its index, segment retries and their records, the word diff and the retry numbers, the cursor and the wait, the MCP server and its limits, call source choice, call detection, channel handling, rebuild, AAC conversion, the chunkers, recovery, input loss and write errors, the fix step and the pipeline, and the OpenSuperWhisper import. Ollama is stubbed with a `URLProtocol`. The tests that need Whisper run only when `VOICE_TEST_WHISPER_MODEL` points at a model.
+`cd Core && swift test` covers the store and its index, segment retries and their records, the word diff and the retry numbers, the cursor and the wait, the MCP server and its limits, call source choice, call detection, channel handling, rebuild, AAC conversion, the chunkers, recovery, input loss and write errors, the fix step, its edits and their checks, and the pipeline, and the OpenSuperWhisper import. Ollama is stubbed with a `URLProtocol`. The tests that need Whisper run only when `VOICE_TEST_WHISPER_MODEL` points at a model.
 
 `voice-cli` is the manual side. `call --file` plays a stereo WAV as a live call, `fake-call` writes a call that gains a segment every 2 seconds, and `watch-calls --raw` prints call detection and every process using audio. `live` compares the live chunks with a whole-file decode.
