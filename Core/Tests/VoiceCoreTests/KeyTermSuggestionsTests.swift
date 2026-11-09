@@ -38,14 +38,34 @@ private func proposal(_ term: String, _ heard: String...) -> TermProposals.Propo
         #expect(propose("the cloud's plan", "the Claude's plan") == [proposal("Claude", "cloud")])
     }
 
-    @Test func punctuationCaseAndFillerProposeNothing() {
+    @Test func punctuationSentenceCaseAndFillerProposeNothing() {
         #expect(propose("hello, world", "Hello world.").isEmpty)
-        #expect(propose("uses blend and t3 code", "uses Blend and T3 Code").isEmpty)
-        #expect(propose("t3-code", "T3 Code").isEmpty)
+        #expect(propose("send it. then go", "Send it. Then go").isEmpty)
+        #expect(propose("ask Prior Art", "ask prior art").isEmpty)
+        #expect(propose("then i said ok", "then I said OK").isEmpty)
         #expect(propose("um so we ship it", "we ship it").isEmpty)
         #expect(propose("we uh ship it", "we um ship it").isEmpty)
         #expect(propose("their going", "they're going").isEmpty)
         #expect(propose("is the plan", "was a plan").isEmpty)
+    }
+
+    @Test func aNameOnlyRecasedIsProposed() {
+        #expect(propose("uses blend and t3 code", "Uses Blend and T3 Code")
+                == [proposal("Blend", "blend"), proposal("T3 Code", "t3 code")])
+        // Words already written as a name join the one the correction re-cased.
+        #expect(propose("provide an MCP that T3 code can use", "provide an MCP that T3 Code can use")
+                == [proposal("T3 Code", "T3 code")])
+        #expect(propose("a first class citizen in workbench.", "a first class citizen in Workbench.")
+                == [proposal("Workbench", "workbench")])
+        // At the start of a sentence a capital alone says nothing; a digit or an inner capital does.
+        #expect(propose("blend it in", "Blend it in").isEmpty)
+        #expect(propose("t3-code can", "T3-Code can") == [proposal("T3-Code", "t3-code")])
+        #expect(propose("iphone first", "iPhone first") == [proposal("iPhone", "iphone")])
+        #expect(propose("ask blend", "ask Blend", known: ["blend"]).isEmpty)
+        // A replacement takes its re-cased neighbours once, not again as a case change.
+        #expect(propose("open cloud code", "open Claude Code") == [proposal("Claude Code", "cloud code")])
+        #expect(propose("blend, cloud and akme", "Blend, Claude and Acme")
+                == [proposal("Claude", "cloud"), proposal("Acme", "akme")])
     }
 
     @Test func additionsRemovalsNumbersAndRewritesProposeNothing() {

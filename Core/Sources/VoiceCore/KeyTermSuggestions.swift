@@ -24,8 +24,9 @@ public struct TermSuggestion: Sendable, Codable, Equatable, Identifiable {
 }
 
 /// The key terms a correction proposes: each stretch of words it replaced, as the
-/// correction wrote it, with what whisper had written. WordDiff aligns the two texts, so a
-/// change of punctuation or case alone is no change and proposes nothing.
+/// correction wrote it, with what whisper had written; and each name it only re-cased, such
+/// as "T3 code" corrected to "T3 Code". WordDiff aligns the two texts, so a change of
+/// punctuation alone is no change, and a change of case counts only where it makes a name.
 public enum TermProposals {
     public struct Proposal: Sendable, Equatable {
         public var term: String
@@ -51,14 +52,19 @@ public enum TermProposals {
     ]
 
     /// The proposals, one per term in the order the correction makes them, leaving out
-    /// pure additions and removals, filler, numbers, rewrites longer than `maxWords`, and
+    /// pure additions and removals, filler, numbers, rewrites longer than `maxWords`, case
+    /// changes that make no name (a sentence's first word, a word put in lower case), and
     /// terms `known` already has in any case.
     public static func from(original: String, corrected: String, known: [String] = []) -> [Proposal] {
         let a = WordDiff.wordRanges(original), b = WordDiff.wordRanges(corrected)
         let wordsA = a.map { String(original[$0]) }, wordsB = b.map { String(corrected[$0]) }
         let diff = WordDiff(original, corrected)
-        let knownKeys = Set(known.map(key))
-        var proposals: [Proposal] = []
+        func gap(_ j: Int) -> Substring { corrected[b[j - 1].upperBound..<b[j].lowerBound] }
+        func opens(_ j: Int) -> Bool { startsSentence(corrected, at: b[j].lowerBound) }
+        // Ranges of words, whisper's and the correction's, each a candidate term.
+        var candidates: [(before: Range<Int>, after: Range<Int>)] = []
+        var taken = Set<Int>()
+
         for (index, span) in diff.spans.enumerated() {
             var before = span.before, after = span.after
             trim(&before, wordsA)
@@ -72,8 +78,7 @@ public enum TermProposals {
             let nextStart = index + 1 < diff.spans.count ? diff.spans[index + 1].after.lowerBound : b.count
             if after.upperBound == span.after.upperBound, before.upperBound == span.before.upperBound {
                 var i = before.upperBound, j = after.upperBound
-                while j < nextStart, i < a.count, wordsA[i] != wordsB[j],
-                      joined(corrected[b[j - 1].upperBound..<b[j].lowerBound]) {
+                while j < nextStart, i < a.count, wordsA[i] != wordsB[j], joined(gap(j)) {
                     i += 1
                     j += 1
                 }
@@ -82,19 +87,69 @@ public enum TermProposals {
             }
             if after.lowerBound == span.after.lowerBound, before.lowerBound == span.before.lowerBound {
                 var i = before.lowerBound, j = after.lowerBound
-                while j > previousEnd, i > 0, wordsA[i - 1] != wordsB[j - 1],
-                      joined(corrected[b[j - 1].upperBound..<b[j].lowerBound]),
-                      !startsSentence(corrected, at: b[j - 1].lowerBound) {
+                while j > previousEnd, i > 0, wordsA[i - 1] != wordsB[j - 1], joined(gap(j)), !opens(j - 1) {
                     i -= 1
                     j -= 1
                 }
                 before = i..<before.upperBound
                 after = j..<after.upperBound
             }
+            taken.formUnion(after)
+            candidates.append((before, after))
+        }
+
+        // The words both texts share, paired in order: the stretches between the changes.
+        var shared: [(i: Int, j: Int)] = []
+        for k in 0...diff.spans.count {
+            let i0 = k == 0 ? 0 : diff.spans[k - 1].before.upperBound
+            let j0 = k == 0 ? 0 : diff.spans[k - 1].after.upperBound
+            let j1 = k < diff.spans.count ? diff.spans[k].after.lowerBound : b.count
+            for offset in 0..<max(0, j1 - j0) { shared.append((i0 + offset, j0 + offset)) }
+        }
+        // A word only re-cased is a name when the correction gave it a capital that sentence
+        // case doesn't explain: "blend" to "Blend" mid-sentence, "t3 code" to "T3 Code"
+        // anywhere, but not "send" to "Send" at the start of a sentence.
+        func recased(_ p: Int) -> Bool {
+            let (i, j) = shared[p]
+            return wordsA[i] != wordsB[j] && !taken.contains(j) && !filler.contains(WordDiff.key(wordsB[j]))
+        }
+        var p = 0
+        while p < shared.count {
+            guard recased(p) else {
+                p += 1
+                continue
+            }
+            var q = p + 1
+            while q < shared.count, recased(q), shared[q].j == shared[q - 1].j + 1, joined(gap(shared[q].j)) { q += 1 }
+            defer { p = q }
+            // A sentence's first word, re-cased beside a name, isn't part of it.
+            func isName(_ r: Int) -> Bool { named(wordsB[shared[r].j], opensSentence: opens(shared[r].j)) }
+            var lower = p, upper = q
+            while lower < upper, !isName(lower) { lower += 1 }
+            while lower < upper, !isName(upper - 1) { upper -= 1 }
+            guard lower < upper else { continue }
+            // Words already written as a name join it: "T3 code" corrected to "T3 Code"
+            // proposes "T3 Code".
+            func keeps(_ r: Int) -> Bool {
+                let (i, j) = shared[r]
+                return wordsA[i] == wordsB[j] && !taken.contains(j) && !filler.contains(WordDiff.key(wordsB[j]))
+                    && named(wordsB[j], opensSentence: opens(j))
+            }
+            while lower > 0, upper - lower < maxWords, shared[lower - 1].j == shared[lower].j - 1,
+                  joined(gap(shared[lower].j)), keeps(lower - 1) { lower -= 1 }
+            while upper < shared.count, upper - lower < maxWords, shared[upper].j == shared[upper - 1].j + 1,
+                  joined(gap(shared[upper].j)), keeps(upper) { upper += 1 }
+            let before = shared[lower].i..<shared[upper - 1].i + 1, after = shared[lower].j..<shared[upper - 1].j + 1
+            taken.formUnion(after)
+            candidates.append((before, after))
+        }
+
+        let knownKeys = Set(known.map(key))
+        var proposals: [Proposal] = []
+        for (before, after) in candidates.sorted(by: { $0.after.lowerBound < $1.after.lowerBound }) {
             guard after.count <= maxWords, before.count <= maxWords else { continue }
             // Two words joined by a comma or a full stop are two things, not one name.
-            guard (after.lowerBound + 1..<after.upperBound).allSatisfy({ joined(corrected[b[$0 - 1].upperBound..<b[$0].lowerBound]) })
-            else { continue }
+            guard (after.lowerBound + 1..<after.upperBound).allSatisfy({ joined(gap($0)) }) else { continue }
             guard !wordsB[after].allSatisfy({ $0.allSatisfy(\.isNumber) }) else { continue }
             let term = possessive(String(corrected[b[after.lowerBound].lowerBound..<b[after.upperBound - 1].upperBound]))
             let heard = possessive(String(original[a[before.lowerBound].lowerBound..<a[before.upperBound - 1].upperBound]))
@@ -106,6 +161,13 @@ public enum TermProposals {
             }
         }
         return proposals
+    }
+
+    /// Written as a name: a digit, a capital past the first letter, or a first capital
+    /// where no sentence starts.
+    static func named(_ word: String, opensSentence: Bool) -> Bool {
+        if word.contains(where: \.isNumber) || word.dropFirst().contains(where: \.isUppercase) { return true }
+        return !opensSentence && (word.first?.isUppercase ?? false)
     }
 
     static func key(_ term: String) -> String { term.lowercased() }
