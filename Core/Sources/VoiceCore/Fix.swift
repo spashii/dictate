@@ -2,26 +2,30 @@ import Foundation
 
 /// Which part of a dictation the fix step sees.
 public enum FixScope: String, Sendable, Codable {
+    /// Every segment, and the model answers with edits: what the app sends. Whisper is as
+    /// sure of a misheard name as of any other word, so no signal of its own finds them.
+    case every
     /// Only the segments the retry signals flagged, each with its neighbours, and the model
-    /// answers with edits. A dictation with none flagged never reaches Ollama.
+    /// answers with edits. A dictation with none flagged never reaches Ollama. Kept for the
+    /// evaluation (voice-cli fix-batch --scope flagged).
     case flagged
     /// All of the text, rewritten by the prompt: the fix step before 0.7.0, kept for the
     /// evaluation (voice-cli fix-batch --whole).
     case whole
 }
 
-/// One edit the fix step proposed for a flagged segment: `span`, copied from the segment's
+/// One edit the fix step proposed for a segment it was sent: `span`, copied from the segment's
 /// text, becomes `replacement`. Every proposed edit is stored with its dictation, the
 /// rejected ones with why, so what the model asked for can be checked against what was
 /// pasted.
 public struct FixEdit: Sendable, Codable, Equatable {
     /// Why an edit was not applied, stored as its raw value.
     public enum Rejection: String, Sendable, Codable, Equatable {
-        /// It named a segment that wasn't flagged, or none that exists.
+        /// It named a segment that wasn't sent, or none that exists.
         case notFlagged = "not-flagged"
         /// The span isn't in the segment's text, nor anywhere near it.
         case noMatch = "no-match"
-        /// The span reaches into the text around the flagged segment.
+        /// The span reaches into the text around the segment.
         case outsideSegment = "outside-segment"
         /// The span is in the segment more than once, so where it goes is a guess.
         case ambiguous
@@ -72,14 +76,14 @@ public struct FixOutcome: Sendable, Codable {
     public var error: String?
 }
 
-/// The fix step for flagged segments: the request, the reply's edits, their checks, and
+/// The fix step as edits to segments: the request, the reply's edits, their checks, and
 /// applying them. Everything after the reply is deterministic, so the same reply always
 /// makes the same text.
 public enum TargetedFix {
     public static let system = """
-        You correct words a speech recognizer misheard. You get the segments of a dictation \
-        it was unsure of, each with the words before and after it, and the speaker's key terms: \
-        names and words spelled as they should be.
+        You correct words a speech recognizer misheard. You get numbered segments of a \
+        dictation, and the speaker's key terms: names and words spelled as they should be. A \
+        segment sent without its neighbours comes with the words before and after it.
 
         Answer with edits only. An edit gives the segment's number, a span copied exactly from \
         that segment's text, its replacement, and the key term the replacement restores, or an \
@@ -113,17 +117,31 @@ public enum TargetedFix {
         }
     }
 
-    /// The user message: the key terms, then each flagged segment between its neighbours.
+    /// The segments the edits may touch: every one with text, or the flagged ones.
+    public static func sent(_ segments: [Segment], scope: FixScope, flagBelow: Double) -> [Int] {
+        switch scope {
+        case .flagged: flagged(segments, below: flagBelow)
+        case .every, .whole: segments.indices.filter { !segments[$0].text.isEmpty }
+        }
+    }
+
+    /// The user message: the key terms, then each segment sent. One whose neighbour isn't
+    /// sent gets that side's words, so the model reads the sentence; when every segment goes,
+    /// the list is the dictation and repeating it would only lengthen the wait.
     public static func prompt(_ segments: [Segment], flagged: [Int], keyTerms: [String]) -> String {
         let terms = keyTerms.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         var parts = ["Key terms: " + (terms.isEmpty ? "none" : terms.joined(separator: ", "))]
+        let sent = Set(flagged)
         for i in flagged {
-            parts.append("""
-                Segment \(i)
-                Before: \(context(segments, before: i))
-                Text: \(segments[i].text)
-                After: \(context(segments, after: i))
-                """)
+            var lines = ["Segment \(i)"]
+            let previous = segments[..<i].lastIndex { !$0.text.isEmpty }
+            let next = segments[(i + 1)...].firstIndex { !$0.text.isEmpty }
+            let before = previous.map(sent.contains) == true ? "" : context(segments, before: i)
+            let after = next.map(sent.contains) == true ? "" : context(segments, after: i)
+            if !before.isEmpty { lines.append("Before: " + before) }
+            lines.append("Text: " + segments[i].text)
+            if !after.isEmpty { lines.append("After: " + after) }
+            parts.append(lines.joined(separator: "\n"))
         }
         return parts.joined(separator: "\n\n")
     }
@@ -229,7 +247,7 @@ public enum TargetedFix {
 }
 
 extension Ollama {
-    /// Asks for edits to the flagged segments, as structured output, and returns them as
+    /// Asks for edits to the segments sent, as structured output, and returns them as
     /// proposed, unchecked, with the seconds the answer took.
     public func edits(_ segments: [Segment], flagged: [Int],
                       settings: CleanupSettings) async throws -> (edits: [FixEdit], seconds: Double) {

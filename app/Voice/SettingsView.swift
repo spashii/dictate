@@ -32,7 +32,7 @@ struct SettingsView: View {
 
             Section("Fix the text") {
                 Toggle("Fix the text before pasting", isOn: $preferences.runPrompt)
-                Help("Only the parts whisper was unsure of go to a model on this Mac, which can change a few words in them. Text with none is pasted at once.")
+                Help("A model on this Mac reads the text with your key terms and can change a few misheard words. This adds a moment before the paste.")
                 OllamaModelRow()
                 TextField("Key terms", text: $preferences.keyTerms, axis: .vertical)
                 Help("Names and words whisper gets wrong, as they should be spelled.")

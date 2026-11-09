@@ -42,6 +42,37 @@ final class TargetedFixTests: XCTestCase {
             """)
     }
 
+    func testWithEverySegmentSentTheListIsTheDictationWithNoContextRepeated() {
+        let segments = [seg("we need Claud"), seg(""), seg("and blend"), seg("done")]
+
+        let sent = TargetedFix.sent(segments, scope: .every, flagBelow: -0.6)
+        let prompt = TargetedFix.prompt(segments, flagged: [0, 2], keyTerms: ["Claude"])
+
+        XCTAssertEqual(sent, [0, 2, 3])
+        XCTAssertEqual(prompt, """
+            Key terms: Claude
+
+            Segment 0
+            Text: we need Claud
+
+            Segment 2
+            Text: and blend
+            After: done
+            """)
+        XCTAssertEqual(TargetedFix.prompt(segments, flagged: sent, keyTerms: []), """
+            Key terms: none
+
+            Segment 0
+            Text: we need Claud
+
+            Segment 2
+            Text: and blend
+
+            Segment 3
+            Text: done
+            """)
+    }
+
     func testAMatchingEditIsAppliedInPlace() {
         let segments = [seg("why both Agents and Claud.md?", flagged: true), seg("fine")]
         let proposed = [FixEdit(segment: 0, span: "Claud.md", replacement: "Claude.md", keyTerm: "Claude")]
@@ -144,6 +175,23 @@ final class FixStepTests: StubbedOllamaTestCase {
         let prompt = try XCTUnwrap(body["prompt"] as? String)
         XCTAssertTrue(prompt.contains("Text: ask Claud about it"))
         XCTAssertFalse(prompt.contains("Text: the first one"))
+    }
+
+    func testTheEveryScopeSendsSegmentsWhisperWasSureOf() async throws {
+        StubOllama.install(.json(editsReply([
+            ["segment": 0, "span": "Claud", "replacement": "Claude", "key_term": "Claude"],
+        ])))
+
+        let outcome = await Pipeline.fix(transcript([seg("ask Claud", -0.05, flagged: false), seg("about it", -0.1)]),
+                                         settings: settings(terms: ["Claude"]), scope: .every)
+
+        XCTAssertTrue(outcome.askedOllama)
+        XCTAssertEqual(outcome.flagged, [0, 1])
+        XCTAssertEqual(outcome.text, "ask Claude about it")
+        XCTAssertEqual(outcome.edits.map(\.applied), [true])
+        let prompt = try XCTUnwrap(StubOllama.requests.first?.json["prompt"] as? String)
+        XCTAssertTrue(prompt.contains("Text: ask Claud"))
+        XCTAssertTrue(prompt.contains("Text: about it"))
     }
 
     func testAFailedFixKeepsWhispersText() async {

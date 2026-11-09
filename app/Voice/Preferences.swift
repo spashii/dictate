@@ -26,7 +26,7 @@ final class Preferences {
     var microphoneUID: String { didSet { save(microphoneUID, "microphoneUID") } }
     /// Whisper's language code, or "auto" to detect it.
     var language: String { didSet { save(language, "language") } }
-    /// Whether the segments whisper was unsure of go to the fix step before the paste.
+    /// Whether the text goes to the fix step before the paste.
     var runPrompt: Bool { didSet { UserDefaults.standard.set(runPrompt, forKey: "runPrompt") } }
     var ollamaModel: String { didSet { save(ollamaModel, "ollamaModel") } }
     /// Comma or newline separated.

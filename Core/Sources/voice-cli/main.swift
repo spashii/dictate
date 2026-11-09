@@ -11,10 +11,11 @@ import whisper
 //       --context, each prompt is FIRST's text for the utterance spoken just before it
 //   voice-cli cleanup-batch IN OUT [--uids FILE] [--temperature T]
 //       runs the prompt over IN's texts (batch output), a JSON line per utterance
-//   voice-cli fix-batch IN OUT [--whole] [--uids FILE] [--temperature T]
-//       runs the app's fix step over IN's segments (batch output): the flagged segments
-//       as edits, or with --whole the whole text by the prompt. A JSON line per utterance
-//       with the text, the edits, whether Ollama was asked and the seconds the step took
+//   voice-cli fix-batch IN OUT [--scope every|flagged|whole] [--uids FILE] [--temperature T]
+//       runs the app's fix step over IN's segments (batch output): every segment as edits,
+//       as the app does, only the flagged ones, or the whole text by the prompt (--whole
+//       too). A JSON line per utterance with the text, the edits, whether Ollama was asked
+//       and the seconds the step took
 //   voice-cli live FILE [--speed X]                    feeds FILE through the live chunker at X
 //       times real time (1; 0 is as fast as it decodes), printing each chunk, then compares
 //       the joined chunks with a whole-file decode
@@ -97,7 +98,10 @@ if let terms = option("--terms") { cleanup.keyTerms = terms.split(separator: ","
 if let temperature = option("--temperature").flatMap(Double.init) { cleanup.temperature = temperature }
 let cleanupCount = option("--cleanup").flatMap(Int.init)
 let cleanupOne = flag("--cleanup")
-let fixScope: FixScope = flag("--whole") ? .whole : .flagged
+let scopeName = option("--scope") ?? (flag("--whole") ? "whole" : "every")
+guard let fixScope = FixScope(rawValue: scopeName) else {
+    fail("--scope is every, flagged or whole")
+}
 if let beam = option("--beam").flatMap(Int.init) { whisper.beamSize = beam }
 let contextPath = option("--context")
 let whisperTerms = flag("--whisper-terms")

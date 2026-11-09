@@ -19,10 +19,10 @@ public final class Pipeline: Sendable {
     }
 
     /// `stoppedAt` is when the recording was stopped, from which retries that delay the
-    /// paste are counted. With `cleanup`, the fix step runs on `fixScope`: by default only
-    /// the flagged segments, so a dictation with none goes straight to the paste.
+    /// paste are counted. With `cleanup`, the fix step runs on `fixScope`: by default every
+    /// segment, answered with edits.
     public func run(_ audio: URL, recordMs: Int? = nil, whisper: WhisperOptions = WhisperOptions(),
-                    cleanup: CleanupSettings? = nil, fixScope: FixScope = .flagged,
+                    cleanup: CleanupSettings? = nil, fixScope: FixScope = .every,
                     live: LiveTranscription? = nil, stoppedAt: ContinuousClock.Instant = .now,
                     onStage: @escaping @Sendable (Stage) -> Void = { _ in }) async throws -> Dictation {
         onStage(.transcribing)
@@ -65,7 +65,7 @@ public final class Pipeline: Sendable {
                 onStage(.cleaningUp)
             })
             dictation.finalText = outcome.text
-            if fixScope == .flagged { dictation.fixEdits = outcome.edits }
+            if fixScope != .whole { dictation.fixEdits = outcome.edits }
             if outcome.askedOllama { dictation.timings.cleanup = Self.ms(outcome.seconds) }
             dictation.error = outcome.error
         }
@@ -74,13 +74,13 @@ public final class Pipeline: Sendable {
     }
 
     /// The fix step on its own, as the app runs it, so voice-cli can measure exactly this.
-    /// Flagged scope with no flagged segment returns at once without touching Ollama or
-    /// whisper. A failure keeps whisper's text and says why, so the words aren't lost.
+    /// A scope that sends no segment returns at once without touching Ollama or whisper. A
+    /// failure keeps whisper's text and says why, so the words aren't lost.
     public static func fix(_ transcript: Transcript, settings: CleanupSettings, scope: FixScope,
                            flagBelow: Double = SegmentRetry().logprobBelow,
                            beforeOllama: @Sendable () async -> Void = {}) async -> FixOutcome {
-        let flagged = scope == .flagged ? TargetedFix.flagged(transcript.segments, below: flagBelow)
-            : Array(transcript.segments.indices)
+        let segments = transcript.segments
+        let flagged = TargetedFix.sent(segments, scope: scope, flagBelow: flagBelow)
         var outcome = FixOutcome(text: transcript.text, flagged: flagged, edits: [], askedOllama: false, seconds: 0)
         guard !transcript.text.isEmpty, !flagged.isEmpty else { return outcome }
         await beforeOllama()
@@ -91,11 +91,11 @@ public final class Pipeline: Sendable {
             case .whole:
                 let result = try await Ollama().cleanup(transcript.text, settings: settings)
                 if !result.text.isEmpty { outcome.text = result.text }
-            case .flagged:
-                let proposed = try await Ollama().edits(transcript.segments, flagged: flagged, settings: settings).edits
-                outcome.edits = TargetedFix.validate(proposed, segments: transcript.segments, flagged: flagged)
+            case .every, .flagged:
+                let proposed = try await Ollama().edits(segments, flagged: flagged, settings: settings).edits
+                outcome.edits = TargetedFix.validate(proposed, segments: segments, flagged: flagged)
                 if outcome.edits.contains(where: \.applied) {
-                    outcome.text = TargetedFix.join(TargetedFix.apply(outcome.edits, to: transcript.segments))
+                    outcome.text = TargetedFix.join(TargetedFix.apply(outcome.edits, to: segments))
                 }
             }
         } catch {

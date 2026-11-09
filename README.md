@@ -17,7 +17,7 @@ Dictation is the base: press ``Option+` `` in any text field, talk, and press it
 - Live text. Voice cuts the speech at pauses and transcribes each piece while you are still talking, so stopping costs only the last piece.
 - Pasting is Cmd+V into the app in front, and then the clipboard is restored to what it held. Without Accessibility access the text stays on the clipboard.
 - Key terms: names and words Whisper gets wrong, spelled as they should be. The list starts empty.
-- An optional fix step: a model in [Ollama](https://ollama.com) suggests edits to the segments Voice flags as unsure, using your key terms, before the text is pasted. If Ollama isn't running or the step fails, Whisper's text is pasted as it is.
+- An optional fix step: a model in [Ollama](https://ollama.com) suggests edits to the text, using your key terms, before it is pasted. If Ollama isn't running or the step fails, Whisper's text is pasted as it is.
 - The menu lists your last five dictations and three online calls. Click one to copy it.
 
 ## Requirements

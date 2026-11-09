@@ -7,7 +7,7 @@ public struct Dictation: Sendable, Codable, Identifiable {
         case plain
         /// Whisper's text rewritten by the cleanup prompt.
         case cleanup
-        /// The fix step was on: flagged segments went to it and came back as edits.
+        /// The fix step was on: segments went to it and came back as edits.
         case fix
     }
 
