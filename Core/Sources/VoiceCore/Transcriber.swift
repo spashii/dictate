@@ -35,6 +35,12 @@ public struct Transcript: Sendable {
     public var retrySpans: [Range<ContinuousClock.Instant>] = []
     /// Retry seconds spent after the recording stopped: what retries added before the paste.
     public var retryAfterStop = 0.0
+
+    public init(text: String, segments: [Segment], seconds: Double) {
+        self.text = text
+        self.segments = segments
+        self.seconds = seconds
+    }
 }
 
 public struct WhisperOptions: Sendable, Codable {

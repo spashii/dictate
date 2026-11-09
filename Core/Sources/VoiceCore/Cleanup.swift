@@ -1,7 +1,8 @@
 import Foundation
 
-/// The optional step after whisper: a local model through Ollama rewrites the text by the
-/// prompt the user writes.
+/// The optional step after whisper: a local model through Ollama. In the app it sees only
+/// the flagged segments and answers with edits (Fix.swift); the whole-text rewrite by a
+/// prompt stays for the evaluation.
 public struct CleanupSettings: Sendable, Codable, Equatable {
     public var ollamaURL: URL
     public var model: String
@@ -51,11 +52,6 @@ public struct Ollama: Sendable {
     public init() {}
 
     public func cleanup(_ text: String, settings: CleanupSettings) async throws -> CleanupResult {
-        var request = URLRequest(url: settings.ollamaURL.appending(path: "api/generate"))
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        // A cold 27B model takes about 16 s to load on a 16 GB Mac before it writes anything.
-        request.timeoutInterval = 180
         let body: [String: Any] = [
             "model": settings.model,
             "system": settings.system,
@@ -68,6 +64,16 @@ public struct Ollama: Sendable {
             "keep_alive": "2m",
             "options": ["temperature": settings.temperature],
         ]
+        return try await generate(body, settings: settings)
+    }
+
+    /// One request to /api/generate, checked for the ways Ollama fails while answering 200.
+    func generate(_ body: [String: Any], settings: CleanupSettings) async throws -> CleanupResult {
+        var request = URLRequest(url: settings.ollamaURL.appending(path: "api/generate"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // A cold 27B model takes about 16 s to load on a 16 GB Mac before it writes anything.
+        request.timeoutInterval = 180
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         let start = ContinuousClock.now
         let data: Data

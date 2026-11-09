@@ -350,6 +350,14 @@ public final class CallStore: @unchecked Sendable {
                         noSpeechProb: row.double(4), compressionRatio: row.double(5), speechSeconds: row.double(6),
                         wordsPerSecond: row.double(7))
             }
+            let edits = try db.query("""
+                SELECT segment_idx, span, replacement, key_term, char_offset, rejected
+                FROM fix_edits WHERE dictation_id = ? ORDER BY idx
+                """, [id]) { row in
+                FixEdit(segment: row.int(0), span: row.text(1), replacement: row.text(2), keyTerm: row.string(3),
+                        offset: row.optionalInt(4), rejected: row.string(5).flatMap(FixEdit.Rejection.init))
+            }
+            if dictation.mode == .fix || !edits.isEmpty { dictation.fixEdits = edits }
             return dictation
         }
     }
@@ -556,6 +564,24 @@ public final class CallStore: @unchecked Sendable {
               decision_edit INTEGER,
               decided_at REAL
             );
+            """),
+        // Every edit the fix step proposed for a dictation's flagged segments, in the order the
+        // model gave them: applied ones with rejected NULL, the rest with why
+        // (FixEdit.Rejection). char_offset is in characters of the segment's stored text.
+        ("fixes-1", """
+            CREATE TABLE fix_edits (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              dictation_id TEXT NOT NULL,
+              idx INTEGER NOT NULL,
+              segment_idx INTEGER NOT NULL,
+              span TEXT NOT NULL,
+              replacement TEXT NOT NULL,
+              key_term TEXT,
+              char_offset INTEGER,
+              rejected TEXT,
+              created_at REAL NOT NULL
+            );
+            CREATE INDEX fix_edits_dictation ON fix_edits(dictation_id, idx);
             """),
     ]
 

@@ -1,6 +1,6 @@
 import Foundation
 
-/// A recording in, a stored dictation out: whisper, then the cleanup prompt when asked for.
+/// A recording in, a stored dictation out: whisper, then the fix step when asked for.
 /// The app and voice-cli both go through here, so what the evaluation measures is what
 /// gets pasted.
 public final class Pipeline: Sendable {
@@ -19,10 +19,11 @@ public final class Pipeline: Sendable {
     }
 
     /// `stoppedAt` is when the recording was stopped, from which retries that delay the
-    /// paste are counted.
+    /// paste are counted. With `cleanup`, the fix step runs on `fixScope`: by default only
+    /// the flagged segments, so a dictation with none goes straight to the paste.
     public func run(_ audio: URL, recordMs: Int? = nil, whisper: WhisperOptions = WhisperOptions(),
-                    cleanup: CleanupSettings? = nil, live: LiveTranscription? = nil,
-                    stoppedAt: ContinuousClock.Instant = .now,
+                    cleanup: CleanupSettings? = nil, fixScope: FixScope = .flagged,
+                    live: LiveTranscription? = nil, stoppedAt: ContinuousClock.Instant = .now,
                     onStage: @escaping @Sendable (Stage) -> Void = { _ in }) async throws -> Dictation {
         onStage(.transcribing)
         var loadSeconds = 0.0
@@ -43,32 +44,65 @@ public final class Pipeline: Sendable {
             transcript = whole
             duration = Double(samples.count) / Audio.sampleRate
         }
+        let mode: Dictation.Mode = cleanup == nil ? .plain : fixScope == .whole ? .cleanup : .fix
         var dictation = Dictation(
             id: UUID().uuidString, createdAt: Date(), audioPath: audio.path,
             duration: duration,
-            mode: cleanup == nil ? .plain : .cleanup, whisperModel: transcriber.modelName,
+            mode: mode, whisperModel: transcriber.modelName,
             rawText: transcript.text, finalText: transcript.text,
-            cleanupModel: cleanup?.model, cleanupSystem: cleanup?.system,
+            cleanupModel: cleanup?.model, cleanupSystem: cleanup.map { fixScope == .whole ? $0.system : TargetedFix.system },
             timings: .init(record: recordMs, load: Self.ms(loadSeconds), transcribe: Self.ms(transcript.seconds),
                            retry: Self.ms(transcript.retryAfterStop)),
             segments: transcript.segments)
-        if let cleanup, !transcript.text.isEmpty {
-            // On a 16 GB Mac, whisper's GPU memory plus a 27B model's is more than Metal
-            // allows, and Ollama's runner then fails every request until its model is
-            // unloaded. Whisper gives its memory back first; reloading it costs 0.4 s.
-            await transcriber.unload()
-            onStage(.cleaningUp)
-            // A failed cleanup still pastes whisper's text, so the words aren't lost.
-            do {
-                let result = try await ollama.cleanup(transcript.text, settings: cleanup)
-                dictation.timings.cleanup = Self.ms(result.seconds)
-                if !result.text.isEmpty { dictation.finalText = result.text }
-            } catch {
-                dictation.error = "\(error)"
-            }
+        if let cleanup {
+            let transcriber = transcriber
+            let outcome = await Self.fix(transcript, settings: cleanup, scope: fixScope,
+                                         flagBelow: whisper.retry.logprobBelow, beforeOllama: {
+                // On a 16 GB Mac, whisper's GPU memory plus a 27B model's is more than Metal
+                // allows, and Ollama's runner then fails every request until its model is
+                // unloaded. Whisper gives its memory back first; reloading it costs 0.4 s.
+                await transcriber.unload()
+                onStage(.cleaningUp)
+            })
+            dictation.finalText = outcome.text
+            if fixScope == .flagged { dictation.fixEdits = outcome.edits }
+            if outcome.askedOllama { dictation.timings.cleanup = Self.ms(outcome.seconds) }
+            dictation.error = outcome.error
         }
         try store?.insert(dictation)
         return dictation
+    }
+
+    /// The fix step on its own, as the app runs it, so voice-cli can measure exactly this.
+    /// Flagged scope with no flagged segment returns at once without touching Ollama or
+    /// whisper. A failure keeps whisper's text and says why, so the words aren't lost.
+    public static func fix(_ transcript: Transcript, settings: CleanupSettings, scope: FixScope,
+                           flagBelow: Double = SegmentRetry().logprobBelow,
+                           beforeOllama: @Sendable () async -> Void = {}) async -> FixOutcome {
+        let flagged = scope == .flagged ? TargetedFix.flagged(transcript.segments, below: flagBelow)
+            : Array(transcript.segments.indices)
+        var outcome = FixOutcome(text: transcript.text, flagged: flagged, edits: [], askedOllama: false, seconds: 0)
+        guard !transcript.text.isEmpty, !flagged.isEmpty else { return outcome }
+        await beforeOllama()
+        let start = ContinuousClock.now
+        outcome.askedOllama = true
+        do {
+            switch scope {
+            case .whole:
+                let result = try await Ollama().cleanup(transcript.text, settings: settings)
+                if !result.text.isEmpty { outcome.text = result.text }
+            case .flagged:
+                let proposed = try await Ollama().edits(transcript.segments, flagged: flagged, settings: settings).edits
+                outcome.edits = TargetedFix.validate(proposed, segments: transcript.segments, flagged: flagged)
+                if outcome.edits.contains(where: \.applied) {
+                    outcome.text = TargetedFix.join(TargetedFix.apply(outcome.edits, to: transcript.segments))
+                }
+            }
+        } catch {
+            outcome.error = "\(error)"
+        }
+        outcome.seconds = (ContinuousClock.now - start).seconds
+        return outcome
     }
 
     static func ms(_ seconds: Double) -> Int { Int((seconds * 1000).rounded()) }

@@ -7,6 +7,8 @@ public struct Dictation: Sendable, Codable, Identifiable {
         case plain
         /// Whisper's text rewritten by the cleanup prompt.
         case cleanup
+        /// The fix step was on: flagged segments went to it and came back as edits.
+        case fix
     }
 
     /// Milliseconds spent in each stage, for finding where the wait goes.
@@ -40,6 +42,8 @@ public struct Dictation: Sendable, Codable, Identifiable {
     /// The text it had before an agent corrected it, when `finalText` is the correction.
     /// Whisper's own text stays in `rawText` either way.
     public var originalText: String? = nil
+    /// Every edit the fix step proposed, applied or not; nil when it didn't run.
+    public var fixEdits: [FixEdit]? = nil
 
     public var corrected: Bool { originalText != nil }
 
@@ -119,6 +123,7 @@ public final class Store: @unchecked Sendable {
                 // would otherwise keep the old row's trailing segments.
                 try run("DELETE FROM segments WHERE dictation_id = ?", [d.id])
                 try run("DELETE FROM segment_retries WHERE dictation_id = ?", [d.id])
+                try run("DELETE FROM fix_edits WHERE dictation_id = ?", [d.id])
                 try run("""
                     INSERT OR REPLACE INTO dictations (id, created_at, audio_path, duration, mode,
                       whisper_model, raw_text, final_text, cleanup_model, cleanup_system, record_ms,
@@ -145,6 +150,14 @@ public final class Store: @unchecked Sendable {
                                   r.flagged ? 1 : 0, r.kept ? 1 : 0, r.seconds, r.changed ? 1 : 0,
                                   r.skipped?.rawValue, d.createdAt.timeIntervalSince1970])
                     }
+                }
+                for (i, e) in (d.fixEdits ?? []).enumerated() {
+                    try run("""
+                        INSERT INTO fix_edits (dictation_id, idx, segment_idx, span, replacement, key_term, char_offset,
+                          rejected, created_at)
+                        VALUES (?,?,?,?,?,?,?,?,?)
+                        """, [d.id, i, e.segment, e.span, e.replacement, e.keyTerm, e.offset, e.rejected?.rawValue,
+                              d.createdAt.timeIntervalSince1970])
                 }
                 try exec("COMMIT")
             } catch {
@@ -185,6 +198,7 @@ public final class Store: @unchecked Sendable {
         queue.sync {
             _ = try? run("DELETE FROM segments WHERE dictation_id = ?", [id])
             _ = try? run("DELETE FROM segment_retries WHERE dictation_id = ?", [id])
+            _ = try? run("DELETE FROM fix_edits WHERE dictation_id = ?", [id])
             _ = try? run("DELETE FROM dictations WHERE id = ?", [id])
         }
     }
@@ -226,7 +240,7 @@ public final class Store: @unchecked Sendable {
             // Foreign keys are off in SQLite by default, so the segments go explicitly.
             do {
                 try exec("BEGIN")
-                for child in ["segments", "segment_retries"] {
+                for child in ["segments", "segment_retries", "fix_edits"] {
                     try run("""
                         DELETE FROM \(child) WHERE dictation_id IN
                           (SELECT id FROM dictations WHERE created_at < ? AND \(Self.notImported))
