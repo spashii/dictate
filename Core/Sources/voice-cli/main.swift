@@ -11,6 +11,10 @@ import whisper
 //       --context, each prompt is FIRST's text for the utterance spoken just before it
 //   voice-cli cleanup-batch IN OUT [--uids FILE] [--temperature T]
 //       runs the prompt over IN's texts (batch output), a JSON line per utterance
+//   voice-cli fix-batch IN OUT [--whole] [--uids FILE] [--temperature T]
+//       runs the app's fix step over IN's segments (batch output): the flagged segments
+//       as edits, or with --whole the whole text by the prompt. A JSON line per utterance
+//       with the text, the edits, whether Ollama was asked and the seconds the step took
 //   voice-cli live FILE [--speed X]                    feeds FILE through the live chunker at X
 //       times real time (1; 0 is as fast as it decodes), printing each chunk, then compares
 //       the joined chunks with a whole-file decode
@@ -27,7 +31,7 @@ import whisper
 // fallback off), --retry [--retry-budget X] [--retry-below LOGPROB] (segment retries),
 // --uids FILE (only these).
 //
-// batch and cleanup-batch skip what OUT already holds, so an interrupted run picks up.
+// batch, cleanup-batch and fix-batch skip what OUT already holds, so an interrupted run picks up.
 //
 // Options: --model PATH, --vad-model PATH, --no-vad, --db PATH, --ollama-model NAME,
 // --prompt TEXT, --terms "A, B, C".
@@ -93,6 +97,7 @@ if let terms = option("--terms") { cleanup.keyTerms = terms.split(separator: ","
 if let temperature = option("--temperature").flatMap(Double.init) { cleanup.temperature = temperature }
 let cleanupCount = option("--cleanup").flatMap(Int.init)
 let cleanupOne = flag("--cleanup")
+let fixScope: FixScope = flag("--whole") ? .whole : .flagged
 if let beam = option("--beam").flatMap(Int.init) { whisper.beamSize = beam }
 let contextPath = option("--context")
 let whisperTerms = flag("--whisper-terms")
@@ -123,8 +128,8 @@ if args == ["defaults"] {
           + "beam_size \(p.beam_search.beam_size)")
     exit(0)
 }
-guard args.count == 2 || (args.count == 3 && ["batch", "cleanup-batch"].contains(args[0])) else {
-    fail("usage: voice-cli transcribe FILE [--cleanup] | voice-cli eval DIR [--cleanup N] | voice-cli batch MANIFEST OUT | voice-cli cleanup-batch IN OUT")
+guard args.count == 2 || (args.count == 3 && ["batch", "cleanup-batch", "fix-batch"].contains(args[0])) else {
+    fail("usage: voice-cli transcribe FILE [--cleanup] | voice-cli eval DIR [--cleanup N] | voice-cli batch MANIFEST OUT | voice-cli cleanup-batch IN OUT | voice-cli fix-batch IN OUT")
 }
 let command = args[0]
 let target = URL(fileURLWithPath: args[1])
@@ -141,7 +146,8 @@ switch command {
 case "transcribe":
     let store = try dbPath.map { try Store(url: URL(fileURLWithPath: $0)) }
     let pipeline = Pipeline(transcriber: transcriber, store: store)
-    let dictation = try await pipeline.run(target, whisper: whisper, cleanup: cleanupOne ? cleanup : nil)
+    let dictation = try await pipeline.run(target, whisper: whisper, cleanup: cleanupOne ? cleanup : nil,
+                                           fixScope: fixScope)
     printJSON(dictation)
 
 case "eval":
@@ -155,6 +161,9 @@ case "batch":
 
 case "cleanup-batch":
     try await cleanupBatch(input: target, output: URL(fileURLWithPath: args[2]))
+
+case "fix-batch":
+    try await fixBatch(input: target, output: URL(fileURLWithPath: args[2]))
 
 default:
     fail("unknown command \(command)")
@@ -469,5 +478,47 @@ func cleanupBatch(input: URL, output: URL) async throws {
     // Gives the model's memory back to the Mac as soon as the run ends.
     await ollama.unload(cleanup)
     FileHandle.standardError.write(Data("cleanup-batch: \(count) cleaned, \(done.count) already done\n".utf8))
+    print(count)
+}
+
+struct FixLine: Codable {
+    var uid: String
+    var scope: FixScope
+    var before: String
+    var after: String
+    var flagged: [Int]
+    var edits: [FixEdit]
+    var askedOllama: Bool
+    var seconds: Double
+    var error: String?
+}
+
+/// The fix step exactly as Pipeline.run calls it, over whisper's segments from a batch run,
+/// so the time it adds and the edits it makes are measured on the same code that pastes.
+/// Whisper isn't loaded here, so nothing has to be unloaded first.
+@MainActor
+func fixBatch(input: URL, output: URL) async throws {
+    var lines = readLines(input, as: BatchLine.self)
+    if let uidsPath {
+        let wanted = Set(try String(contentsOfFile: uidsPath, encoding: .utf8).split(separator: "\n").map(String.init))
+        lines = lines.filter { wanted.contains($0.uid) }
+    }
+    let done = Set(readLines(output, as: FixLine.self).map(\.uid))
+    let handle = try openForAppend(output)
+    defer { try? handle.close() }
+    var count = 0
+    for line in lines where !done.contains(line.uid) {
+        if count >= maxItems { break }
+        let transcript = Transcript(text: line.text, segments: line.segments, seconds: line.decodeSeconds)
+        let outcome = await Pipeline.fix(transcript, settings: cleanup, scope: fixScope,
+                                         flagBelow: whisper.retry.logprobBelow)
+        try appendLine(FixLine(uid: line.uid, scope: fixScope, before: line.text, after: outcome.text,
+                               flagged: outcome.flagged, edits: outcome.edits, askedOllama: outcome.askedOllama,
+                               seconds: outcome.seconds, error: outcome.error), to: handle)
+        count += 1
+    }
+    // Gives the model's memory back to the Mac as soon as the run ends.
+    await Ollama().unload(cleanup)
+    FileHandle.standardError.write(Data("fix-batch: \(count) fixed, \(done.count) already done\n".utf8))
     print(count)
 }
