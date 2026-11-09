@@ -62,7 +62,7 @@ Agents:
 - `AppModel.swift`: the dictation state (idle, recording, transcribing, cleaning up, a notice), one pipeline per Whisper model, recovery at launch and the paste.
 - `Calls.swift` (`CallsModel`): detection to prompt, the call shortcut, the source, record and stop, rebuild and compress at launch, and the warning when a call app reads the mix. Also the prompt panel and the menu and Settings parts.
 - `AgentAccess.swift`: runs the MCP server while the app runs, with the Settings switch, the addresses and the token.
-- `Updates.swift`: Sparkle, the Check for Updates button and the automatic switch.
+- `Updates.swift`: Sparkle, the Check for Updates button and the automatic switch. An update Sparkle downloads on its own would wait for a quit; Voice takes it over and installs it the first time nothing is recording, transcribing or fixing and no call app is in a call (`Activity` in VoiceCore), watching the dictation phase and the calls until then.
 - `HistoryWindow.swift`, `EditsText.swift`: the History window, opened only from the menu's Recent section and from Settings, never at launch, reading off the main thread; a play button on each flagged or changed segment plays that stretch of the recording through the default output when clicked. After a paste, the dictation pill shows the words the retries and the fix changed for 3 seconds, the old struck through; the paste never waits for it.
 - `Indicator.swift`, `CallPill.swift`, `Paster.swift`, `Preferences.swift`, `SettingsView.swift`, `RetryStatsView.swift`, `Setup.swift`, `Downloads.swift`: the pills (a dictation's, and a call's while it records, with the call's newest three lines from `LiveCallLines`, fed by the same wait as `wait_for_transcript` and emptied after 20 quiet seconds), the paste, UserDefaults, Settings and the retry numbers in it, the first-run window and the model downloads.
 
@@ -182,6 +182,6 @@ Smaller rules:
 
 ## Tests
 
-`cd Core && swift test` covers the store and its index, segment retries and their records, the word diff and the retry numbers, the cursor and the wait, the MCP server and its limits, call source choice, call detection, channel handling, rebuild, AAC conversion, the chunkers, recovery, input loss and write errors, the fix step, its edits and their checks, the history view model, and the pipeline, and the OpenSuperWhisper import. Ollama is stubbed with a `URLProtocol`. The tests that need Whisper run only when `VOICE_TEST_WHISPER_MODEL` points at a model.
+`cd Core && swift test` covers the store and its index, segment retries and their records, the word diff and the retry numbers, the cursor and the wait, the MCP server and its limits, call source choice, call detection, channel handling, rebuild, AAC conversion, the chunkers, recovery, input loss and write errors, the fix step, its edits and their checks, the history view model, and the pipeline, the OpenSuperWhisper import, and when a staged update may install. Ollama is stubbed with a `URLProtocol`. The tests that need Whisper run only when `VOICE_TEST_WHISPER_MODEL` points at a model.
 
 `voice-cli` is the manual side. `call --file` plays a stereo WAV as a live call, `fake-call` writes a call that gains a segment every 2 seconds, and `watch-calls --raw` prints call detection and every process using audio. `live` compares the live chunks with a whole-file decode.

@@ -79,6 +79,36 @@ final class AppModel {
         if case .recording = phase { true } else { false }
     }
 
+    /// What Voice is doing now, from the dictation's phase and the calls.
+    var activity: Activity {
+        var activity = Activity()
+        switch phase {
+        case .recording: activity.dictationRecording = true
+        case .transcribing: activity.dictationTranscribing = true
+        case .cleaningUp: activity.fixing = true
+        case .idle, .notice, .edits: break
+        }
+        if let calls {
+            activity.callRecording = calls.recording != nil || calls.starting
+            activity.callTranscribing = calls.transcribing
+            activity.callAppInCall = !calls.detected.isEmpty
+        }
+        return activity
+    }
+
+    /// Installs a staged update the first time Voice is quiet. Until then it watches the
+    /// phase and the calls, and checks again when either changes.
+    func installUpdateWhenQuiet() {
+        guard updates.hasStagedUpdate else { return }
+        if activity.isQuiet {
+            updates.installStagedUpdate()
+            return
+        }
+        withObservationTracking { _ = activity } onChange: { [weak self] in
+            Task { @MainActor in self?.installUpdateWhenQuiet() }
+        }
+    }
+
     var isWorking: Bool {
         phase == .transcribing || phase == .cleaningUp
     }
@@ -126,6 +156,8 @@ final class AppModel {
         setDefaultLoginItem()
         refreshDevices()
         agents.launch()
+        updates.onStaged = { [weak self] in self?.installUpdateWhenQuiet() }
+        installUpdateWhenQuiet()
         // Ollama can start or stop at any time; a localhost check every half minute keeps
         // the menu's "whisper only" honest without asking on every keypress.
         Task {

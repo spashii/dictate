@@ -7,6 +7,10 @@ import Sparkle
 /// signing key in Info.plist, and asks before installing. On the second launch it asks
 /// whether to check automatically. Apart from the speech model downloads, nothing else in
 /// Voice goes online.
+///
+/// An update Sparkle downloads on its own waits for Voice to quit, and a menu bar app that
+/// opens at login is almost never quit, so it could stay staged for weeks. Voice takes the
+/// install over instead and runs it the first time it is quiet (AppModel).
 @MainActor
 @Observable
 final class Updates {
@@ -14,6 +18,11 @@ final class Updates {
     @ObservationIgnored private let delegate: UpdaterDelegate
     @ObservationIgnored private let controller: SPUStandardUpdaterController
     @ObservationIgnored private var observations: [NSKeyValueObservation] = []
+
+    /// Sparkle's install-now block for a staged update, kept until Voice is quiet.
+    @ObservationIgnored private var stagedInstall: (() -> Void)?
+    /// Told when Sparkle stages an update.
+    @ObservationIgnored var onStaged: (() -> Void)?
 
     /// False while a check is already under way.
     private(set) var canCheck = false
@@ -43,10 +52,25 @@ final class Updates {
                 }
             },
         ]
+        delegate.staged = { [weak self] install in
+            MainActor.assumeIsolated {
+                self?.stagedInstall = install
+                self?.onStaged?()
+            }
+        }
     }
 
     func check() {
         controller.checkForUpdates(nil)
+    }
+
+    var hasStagedUpdate: Bool { stagedInstall != nil }
+
+    /// Quits Voice, installs the staged update and relaunches it.
+    func installStagedUpdate() {
+        let install = stagedInstall
+        stagedInstall = nil
+        install?()
     }
 }
 
@@ -54,6 +78,17 @@ final class Updates {
 /// apps.idea2prod.in can leave them out. Sparkle adds the pair to the appcast's query; every
 /// other Mac sends no parameters, and the system profile stays off.
 final class UpdaterDelegate: NSObject, SPUUpdaterDelegate {
+    /// Takes Sparkle's install-now block for a staged update; set by Updates.
+    var staged: ((@escaping () -> Void) -> Void)?
+
+    /// True tells Sparkle Voice will install the update itself, by calling the block.
+    func updater(_ updater: SPUUpdater, willInstallUpdateOnQuit item: SUAppcastItem,
+                 immediateInstallationBlock immediateInstallHandler: @escaping () -> Void) -> Bool {
+        guard let staged else { return false }
+        staged(immediateInstallHandler)
+        return true
+    }
+
     func feedParameters(for updater: SPUUpdater, sendingSystemProfile sendingProfile: Bool) -> [[String: String]] {
         UserDefaults.standard.bool(forKey: "OwnerMac") ? [["key": "self", "value": "1"]] : []
     }
