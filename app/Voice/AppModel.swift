@@ -160,7 +160,7 @@ final class AppModel {
     /// the start, so changing the setting mid-dictation doesn't change what this one does.
     func toggle() {
         switch phase {
-        case .idle, .notice: start(preferences.runPrompt && calls?.usesWhisper != true ? .cleanup : .plain)
+        case .idle, .notice: start(preferences.runPrompt && calls?.usesWhisper != true ? .fix : .plain)
         case .recording: stop()
         case .transcribing, .cleaningUp: break
         }
@@ -314,7 +314,7 @@ final class AppModel {
         phase = .transcribing
         let recordMs = Int(Date().timeIntervalSince(began) * 1000)
         // A call that started mid-dictation holds whisper too.
-        let cleanup = mode == .cleanup && calls?.usesWhisper != true ? preferences.cleanup : nil
+        let cleanup = mode == .fix && calls?.usesWhisper != true ? preferences.cleanup : nil
         let whisper = preferences.whisper
         let pipeline = currentPipeline()
         var live = self.live
@@ -415,7 +415,7 @@ final class AppModel {
         } else if !pasted {
             show("Copied. Allow Voice in Accessibility to paste for you.", action: .allowAccessibility)
         } else if let error = dictation.error {
-            show("Pasted whisper's text; the prompt failed: \(error)")
+            show("Pasted whisper's text; the fix failed: \(error)")
             await refreshOllama()
         } else if inputLost {
             show("\(lost) and pasted what it heard before.")

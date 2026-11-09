@@ -26,10 +26,9 @@ final class Preferences {
     var microphoneUID: String { didSet { save(microphoneUID, "microphoneUID") } }
     /// Whisper's language code, or "auto" to detect it.
     var language: String { didSet { save(language, "language") } }
-    /// Whether whisper's text goes through the prompt before it's pasted.
+    /// Whether the segments whisper was unsure of go to the fix step before the paste.
     var runPrompt: Bool { didSet { UserDefaults.standard.set(runPrompt, forKey: "runPrompt") } }
     var ollamaModel: String { didSet { save(ollamaModel, "ollamaModel") } }
-    var prompt: String { didSet { save(prompt, "prompt") } }
     /// Comma or newline separated.
     var keyTerms: String { didSet { save(keyTerms, "keyTerms") } }
     var whisperModel: WhisperModel { didSet { save(whisperModel.rawValue, "whisperModel") } }
@@ -49,7 +48,6 @@ final class Preferences {
         language = defaults.string(forKey: "language") ?? "en"
         runPrompt = defaults.object(forKey: "runPrompt") as? Bool ?? false
         ollamaModel = defaults.string(forKey: "ollamaModel") ?? "qwen3.5:9b"
-        prompt = defaults.string(forKey: "prompt") ?? CleanupSettings.defaultPrompt
         keyTerms = defaults.string(forKey: "keyTerms") ?? Self.defaultKeyTerms
         whisperModel = defaults.string(forKey: "whisperModel").flatMap(WhisperModel.init) ?? .largeV3Turbo
         history = defaults.string(forKey: "history").flatMap(History.init) ?? .forever
@@ -68,8 +66,7 @@ final class Preferences {
     var cleanup: CleanupSettings {
         CleanupSettings(
             ollamaURL: URL(string: ollamaURL) ?? URL(string: "http://127.0.0.1:11434")!,
-            model: ollamaModel, prompt: prompt,
-            keyTerms: KeyTerms.parse(keyTerms))
+            model: ollamaModel, keyTerms: KeyTerms.parse(keyTerms))
     }
 
     /// The key terms open whisper's prompt: on a set of real dictations that took exactly

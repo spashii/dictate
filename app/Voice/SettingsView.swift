@@ -32,16 +32,8 @@ struct SettingsView: View {
 
             Section("Fix the text") {
                 Toggle("Fix the text before pasting", isOn: $preferences.runPrompt)
-                Help("A model on this Mac fixes misheard words and punctuation. If it is off or fails, whisper's text is pasted as it is.")
+                Help("Only the parts whisper was unsure of go to a model on this Mac, which can change a few words in them. Text with none is pasted at once.")
                 OllamaModelRow()
-                VStack(alignment: .trailing, spacing: 6) {
-                    TextEditor(text: $preferences.prompt)
-                        .font(.body)
-                        .frame(minHeight: 110)
-                    Button("Restore default") { preferences.prompt = CleanupSettings.defaultPrompt }
-                        .controlSize(.small)
-                        .disabled(preferences.prompt == CleanupSettings.defaultPrompt)
-                }
                 TextField("Key terms", text: $preferences.keyTerms, axis: .vertical)
                 Help("Names and words whisper gets wrong, as they should be spelled.")
                 SuggestedTermsView()
