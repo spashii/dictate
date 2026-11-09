@@ -235,7 +235,7 @@ extension CallStore {
 
     /// Runs inside the caller's transaction, on the queue.
     func insertEdit(_ kind: Edit.Kind, target: String, client: String?, before: Edit.Value?,
-                            after: Edit.Value?, undoes: Int64? = nil) throws -> Edit {
+                    after: Edit.Value?, undoes: Int64? = nil) throws -> Edit {
         let now = Date()
         try db.run("""
             INSERT INTO edits (created_at, client, kind, target, old_value, new_value, undoes)
