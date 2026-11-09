@@ -84,12 +84,11 @@ public struct SegmentRetry: Sendable, Codable {
     /// batch measures the first pass unless told otherwise.
     public var enabled = false
     /// Segments whose mean token log probability is below this are candidates. Of the
-    /// checker's signals it is the one that finds bad segments (AUC 0.80 on open test sets);
+    /// checker's signals it is the one that finds bad segments (AUC 0.79 per segment against 25%+ WER on seven open test sets);
     /// compression ratio and words per second barely do.
     public var logprobBelow = -0.6
-    /// Retry time allowed, as a share of the first decode's. On VoxPopuli a retry of every
-    /// flagged segment cost 12.7 times the first decode; within half of it a second decode
-    /// still caught about 7.5% of the errors.
+    /// Retry time allowed, as a share of the first decode's. On seven open test sets the
+    /// flagged segments' retries cost 3.4% of all first-decode time (1.05 times it in utterances with one) and cut errors 3.2%.
     public var budget = 0.5
     public var beamSize = 5
     /// Seconds of audio kept on each side of the segment.
