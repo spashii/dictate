@@ -204,10 +204,15 @@ public enum TargetedFix {
 
     /// The segments' texts with the applied edits in place.
     public static func apply(_ edits: [FixEdit], to segments: [Segment]) -> [String] {
-        var texts = segments.map(\.text)
+        apply(edits, toTexts: segments.map(\.text))
+    }
+
+    public static func apply(_ edits: [FixEdit], toTexts texts: [String]) -> [String] {
+        var texts = texts
         let applied = edits.filter(\.applied).sorted { ($0.segment, $0.offset ?? 0) > ($1.segment, $1.offset ?? 0) }
         for edit in applied {
-            guard let offset = edit.offset, texts.indices.contains(edit.segment) else { continue }
+            guard let offset = edit.offset, texts.indices.contains(edit.segment),
+                  offset + edit.span.count <= texts[edit.segment].count else { continue }
             var text = texts[edit.segment]
             let lower = text.index(text.startIndex, offsetBy: offset)
             let upper = text.index(lower, offsetBy: edit.span.count)

@@ -1,0 +1,257 @@
+import Foundation
+
+/// What the History window lists: one row per dictation or call, newest first.
+public struct HistoryEntry: Sendable, Identifiable, Equatable, Hashable {
+    public enum Kind: String, Sendable {
+        case dictation
+        case call
+    }
+
+    public var kind: Kind
+    /// The dictation's or call's id.
+    public var ref: String
+    public var at: Date
+    public var duration: Double
+    /// The text's start, or the call's name.
+    public var title: String
+    /// How many changes it holds: retries that changed words, fix edits and corrections.
+    public var changes: Int
+
+    public var id: String { "\(kind.rawValue):\(ref)" }
+}
+
+/// One dictation or call, line by line, with everything that changed its words.
+public struct HistoryDetail: Sendable, Equatable {
+    public var entry: HistoryEntry
+    /// The recording the play buttons read; nil when it is gone.
+    public var audioPath: String?
+    public var lines: [HistoryLine]
+    /// Changes to all of the text rather than one line: a dictation's corrections, and a fix
+    /// edit naming a line that isn't there.
+    public var textChanges: [HistoryChange]
+
+    /// Every change, line by line and then the text's own.
+    public var allChanges: [HistoryChange] { lines.flatMap(\.changes) + textChanges }
+}
+
+/// A segment: whisper's text, its time in the recording, and what changed it.
+public struct HistoryLine: Sendable, Equatable, Identifiable {
+    public var id: Int
+    /// "Me" or "Call" on a split call; nil for a dictation and for mixed audio.
+    public var speaker: String?
+    public var t0: Double
+    public var t1: Double
+    /// Whisper's text, before any retry, fix or correction.
+    public var whisper: String
+    /// The retry signals marked it unsure.
+    public var flagged: Bool
+    public var changes: [HistoryChange]
+
+    /// Worth hearing again: whisper was unsure of it, or something changed its words.
+    public var playable: Bool { flagged || !changes.isEmpty }
+}
+
+/// One change to the words, from whichever step made it.
+public struct HistoryChange: Sendable, Equatable, Identifiable {
+    public enum Source: String, Sendable {
+        case retry
+        case fix
+        case correction
+    }
+
+    public var source: Source
+    public var before: String
+    public var after: String
+    /// The words that differ, case counted.
+    public var diff: WordDiff
+    /// False for a fix edit that was checked and rejected.
+    public var applied: Bool
+    /// The key term a fix restored, why it was rejected, or the client that corrected it.
+    public var note: String?
+    /// The stored row it was read from, as `table:id`: segment_retries, fix_edits or edits.
+    public var record: String
+
+    public var id: String { record }
+
+    init(_ source: Source, before: String, after: String, applied: Bool = true, note: String? = nil,
+         record: String) {
+        self.source = source
+        self.before = before
+        self.after = after
+        self.diff = WordDiff(before, after, ignoringCase: false)
+        self.applied = applied
+        self.note = note
+        self.record = record
+    }
+}
+
+extension CallStore {
+    /// Dictations with text and calls, newest first.
+    public func historyEntries(limit: Int = 200) throws -> [HistoryEntry] {
+        try queue.sync {
+            let dictations = try db.query("""
+                SELECT d.id, d.created_at, d.duration, coalesce(d.corrected_text, d.final_text),
+                  (SELECT count(*) FROM segment_retries r WHERE r.dictation_id = d.id AND r.kept = 1 AND r.changed = 1)
+                  + (SELECT count(*) FROM fix_edits f WHERE f.dictation_id = d.id)
+                  + (SELECT count(*) FROM edits e WHERE e.target = 'dictation:' || d.id)
+                FROM dictations d WHERE d.duration >= ? AND coalesce(d.corrected_text, d.final_text) <> ''
+                ORDER BY d.created_at DESC LIMIT ?
+                """, [Dictation.tooShort, limit]) { row in
+                HistoryEntry(kind: .dictation, ref: row.text(0), at: row.date(1), duration: row.double(2),
+                             title: Self.preview(row.text(3)), changes: row.int(4))
+            }
+            let calls = try db.query("""
+                SELECT c.id, c.started_at, coalesce(c.ended_at, c.started_at) - c.started_at,
+                  coalesce(c.title, c.app_name || ' call', 'Call'),
+                  (SELECT count(*) FROM segment_retries r WHERE r.call_id = c.id AND r.kept = 1 AND r.changed = 1)
+                  + (SELECT count(*) FROM edits e WHERE e.target LIKE 'call:' || c.id || '/segment:%')
+                FROM calls c ORDER BY c.started_at DESC LIMIT ?
+                """, [limit]) { row in
+                HistoryEntry(kind: .call, ref: row.text(0), at: row.date(1), duration: row.double(2),
+                             title: row.text(3), changes: row.int(4))
+            }
+            return Array((dictations + calls).sorted { $0.at > $1.at }.prefix(limit))
+        }
+    }
+
+    /// One entry's lines and changes, read in one go.
+    public func historyDetail(_ entry: HistoryEntry) throws -> HistoryDetail? {
+        try queue.sync {
+            switch entry.kind {
+            case .dictation: try dictationHistory(entry)
+            case .call: try callHistory(entry)
+            }
+        }
+    }
+
+    private struct RetryRow {
+        var id: Int64
+        var key: Int64
+        var first: String
+        var retried: String?
+        var flagged: Bool
+        var kept: Bool
+        var changed: Bool
+    }
+
+    private func retryRows(_ column: String, _ keyColumn: String, _ ref: String) throws -> [Int64: RetryRow] {
+        let rows = try db.query("""
+            SELECT id, \(keyColumn), first_text, retried_text, flagged, kept, changed
+            FROM segment_retries WHERE \(column) = ? ORDER BY id
+            """, [ref]) { row in
+            RetryRow(id: row.int64(0), key: row.int64(1), first: row.text(2), retried: row.string(3),
+                     flagged: row.int(4) != 0, kept: row.int(5) != 0, changed: row.int(6) != 0)
+        }
+        return Dictionary(rows.map { ($0.key, $0) }, uniquingKeysWith: { _, last in last })
+    }
+
+    private func retryChange(_ retry: RetryRow?) -> [HistoryChange] {
+        guard let retry, retry.kept, retry.changed, let retried = retry.retried else { return [] }
+        return [HistoryChange(.retry, before: retry.first, after: retried, record: "segment_retries:\(retry.id)")]
+    }
+
+    /// Corrections and their undos, oldest first, each as the text it found and left.
+    private func correctionChanges(_ target: String) throws -> [Int64: [HistoryChange]] {
+        let edits = try db.query("""
+            SELECT id, client, old_value, new_value, target FROM edits
+            WHERE (target = ?1 OR target LIKE ?1 || '/segment:%') AND kind IN ('correct_dictation', 'correct_segment', 'undo')
+            ORDER BY id
+            """, [target]) { row in
+            (id: row.int64(0), client: row.string(1), before: Self.editText(row.string(2)),
+             after: Self.editText(row.string(3)), target: row.text(4))
+        }
+        var byLine: [Int64: [HistoryChange]] = [:]
+        for edit in edits {
+            let line = edit.target.range(of: "/segment:").flatMap { Int64(edit.target[$0.upperBound...]) } ?? -1
+            byLine[line, default: []].append(HistoryChange(.correction, before: edit.before ?? "", after: edit.after ?? "",
+                                                           note: edit.client, record: "edits:\(edit.id)"))
+        }
+        return byLine
+    }
+
+    private func dictationHistory(_ entry: HistoryEntry) throws -> HistoryDetail? {
+        guard let audio = try db.query("SELECT audio_path FROM dictations WHERE id = ?", [entry.ref],
+                                       { $0.string(0) }).first else { return nil }
+        let segments = try db.query("""
+            SELECT idx, t0, t1, text, avg_logprob FROM segments WHERE dictation_id = ? ORDER BY idx
+            """, [entry.ref]) { (idx: $0.int64(0), t0: $0.double(1), t1: $0.double(2), text: $0.text(3), logprob: $0.double(4)) }
+        let retries = try retryRows("dictation_id", "segment_idx", entry.ref)
+        let fixes = try db.query("""
+            SELECT id, segment_idx, span, replacement, key_term, char_offset, rejected
+            FROM fix_edits WHERE dictation_id = ? ORDER BY idx
+            """, [entry.ref]) { row in
+            (id: row.int64(0), edit: FixEdit(segment: row.int(1), span: row.text(2), replacement: row.text(3),
+                                             keyTerm: row.string(4), offset: row.optionalInt(5),
+                                             rejected: row.string(6).flatMap(FixEdit.Rejection.init)))
+        }
+        let threshold = SegmentRetry().logprobBelow
+        var lines = segments.map { s in
+            let retry = retries[s.idx]
+            return HistoryLine(id: Int(s.idx), speaker: nil, t0: s.t0, t1: s.t1, whisper: retry?.first ?? s.text,
+                               flagged: retry?.flagged ?? (s.logprob < threshold), changes: retryChange(retry))
+        }
+        var textChanges: [HistoryChange] = []
+        for fix in fixes {
+            let edit = fix.edit
+            let record = "fix_edits:\(fix.id)"
+            let change: HistoryChange
+            if edit.applied, lines.indices.contains(edit.segment) {
+                let text = segments[edit.segment].text
+                var alone = edit
+                alone.segment = 0
+                change = HistoryChange(.fix, before: text, after: TargetedFix.apply([alone], toTexts: [text])[0],
+                                       note: edit.keyTerm, record: record)
+            } else {
+                // A rejected edit is shown as the model asked for it, with why it wasn't applied.
+                change = HistoryChange(.fix, before: edit.span, after: edit.replacement, applied: edit.applied,
+                                       note: edit.rejected?.rawValue ?? edit.keyTerm, record: record)
+            }
+            if lines.indices.contains(edit.segment) {
+                lines[edit.segment].changes.append(change)
+            } else {
+                textChanges.append(change)
+            }
+        }
+        textChanges += try correctionChanges("dictation:\(entry.ref)")[-1] ?? []
+        return HistoryDetail(entry: entry, audioPath: audio, lines: lines, textChanges: textChanges)
+    }
+
+    private func callHistory(_ entry: HistoryEntry) throws -> HistoryDetail? {
+        guard let call = try db.query("SELECT \(Self.callHistoryColumns) FROM calls WHERE id = ?", [entry.ref],
+                                      { (audio: $0.string(0), speakers: $0.string(1)) }).first else { return nil }
+        let speakers = call.speakers.map { $0.split(separator: "\u{1F}", omittingEmptySubsequences: false).map(String.init) }
+        let segments = try db.query("""
+            SELECT id, channel, start_ms, end_ms, text, avg_logprob FROM call_segments WHERE call_id = ?
+            ORDER BY start_ms, id
+            """, [entry.ref]) { row in
+            (id: row.int64(0), channel: CallSegment.Channel(rawValue: row.text(1)) ?? .mix, start: row.int(2),
+             end: row.int(3), text: row.text(4), logprob: row.optionalDouble(5))
+        }
+        let retries = try retryRows("call_id", "call_segment_id", entry.ref)
+        let corrections = try correctionChanges("call:\(entry.ref)")
+        let threshold = SegmentRetry().logprobBelow
+        let lines = segments.map { s in
+            let retry = retries[s.id]
+            let speaker: String? = switch s.channel {
+            case .me: speakers?.first ?? "Me"
+            case .call: speakers?.last ?? "Call"
+            case .mix: nil
+            }
+            return HistoryLine(id: Int(s.id), speaker: speaker, t0: Double(s.start) / 1000, t1: Double(s.end) / 1000,
+                               whisper: retry?.first ?? s.text,
+                               flagged: retry?.flagged ?? ((s.logprob ?? 0) < threshold),
+                               changes: retryChange(retry) + (corrections[s.id] ?? []))
+        }
+        return HistoryDetail(entry: entry, audioPath: call.audio, lines: lines, textChanges: [])
+    }
+
+    private static let callHistoryColumns = "audio_path, speakers"
+
+    private static func editText(_ json: String?) -> String? {
+        json.flatMap { try? JSONDecoder().decode(Edit.Value.self, from: Data($0.utf8)) }?.text
+    }
+
+    static func preview(_ text: String) -> String {
+        text.count > 80 ? String(text.prefix(80)) + "…" : text
+    }
+}

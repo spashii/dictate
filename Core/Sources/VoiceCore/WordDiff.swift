@@ -32,9 +32,12 @@ public struct WordDiff: Sendable, Equatable {
 
     public var isEmpty: Bool { changes.isEmpty }
 
-    public init(_ before: String, _ after: String) {
+    /// `ignoringCase` false counts a word whose capitals changed, as a fix to a name's
+    /// spelling does; retries are measured with it true.
+    public init(_ before: String, _ after: String, ignoringCase: Bool = true) {
         let a = Self.words(before), b = Self.words(after)
-        let x = a.map(Self.key), y = b.map(Self.key)
+        let key = { (word: String) in ignoringCase ? Self.key(word) : word.replacingOccurrences(of: "’", with: "'") }
+        let x = a.map(key), y = b.map(key)
         // shared[i][j]: the most words x[i...] and y[j...] have in common, in order.
         var shared = [[Int]](repeating: [Int](repeating: 0, count: y.count + 1), count: x.count + 1)
         for i in stride(from: x.count - 1, through: 0, by: -1) {
