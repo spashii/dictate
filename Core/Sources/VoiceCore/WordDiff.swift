@@ -17,7 +17,15 @@ public struct WordDiff: Sendable, Equatable {
         }
     }
 
+    /// Where each change sits, as ranges into `words(before)` and `words(after)`: one per
+    /// change, in the same order.
+    public struct Span: Sendable, Equatable {
+        public var before: Range<Int>
+        public var after: Range<Int>
+    }
+
     public var changes: [Change] = []
+    public var spans: [Span] = []
     public var replaced = 0
     public var added = 0
     public var removed = 0
@@ -37,9 +45,12 @@ public struct WordDiff: Sendable, Equatable {
         var i = 0, j = 0
         var open = Change(before: [], after: [])
         var changes: [Change] = []
+        var spans: [Span] = []
+        // Called with i and j just past the open change.
         func close() {
             guard !open.before.isEmpty || !open.after.isEmpty else { return }
             changes.append(open)
+            spans.append(Span(before: (i - open.before.count)..<i, after: (j - open.after.count)..<j))
             open = Change(before: [], after: [])
         }
         while i < x.count || j < y.count {
@@ -57,6 +68,7 @@ public struct WordDiff: Sendable, Equatable {
         }
         close()
         self.changes = changes
+        self.spans = spans
         for change in changes {
             let pairs = min(change.before.count, change.after.count)
             replaced += pairs
@@ -68,22 +80,34 @@ public struct WordDiff: Sendable, Equatable {
     /// Words as written: runs of letters, digits and apostrophes, without apostrophes at
     /// either end, so quotes and punctuation fall away.
     public static func words(_ text: String) -> [String] {
-        var words: [String] = []
-        var current = ""
-        func flush() {
-            let word = current.trimmingCharacters(in: CharacterSet(charactersIn: "'’"))
-            if !word.isEmpty { words.append(word) }
-            current = ""
+        wordRanges(text).map { String(text[$0]) }
+    }
+
+    /// Where each of `words(text)` sits in the text, so a change can be quoted as written.
+    public static func wordRanges(_ text: String) -> [Range<String.Index>] {
+        let isApostrophe = { (c: Character) in c == "'" || c == "’" }
+        var ranges: [Range<String.Index>] = []
+        var start: String.Index?
+        func flush(_ end: String.Index) {
+            guard var lower = start else { return }
+            var upper = end
+            while lower < upper, isApostrophe(text[lower]) { lower = text.index(after: lower) }
+            while lower < upper, isApostrophe(text[text.index(before: upper)]) { upper = text.index(before: upper) }
+            if lower < upper { ranges.append(lower..<upper) }
+            start = nil
         }
-        for character in text {
-            if character.isLetter || character.isNumber || character == "'" || character == "’" {
-                current.append(character)
+        var index = text.startIndex
+        while index < text.endIndex {
+            let character = text[index]
+            if character.isLetter || character.isNumber || isApostrophe(character) {
+                if start == nil { start = index }
             } else {
-                flush()
+                flush(index)
             }
+            index = text.index(after: index)
         }
-        flush()
-        return words
+        flush(text.endIndex)
+        return ranges
     }
 
     /// What two words are compared by: case and the kind of apostrophe set aside.
