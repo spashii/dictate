@@ -88,6 +88,9 @@ struct MicrophonesPane: View {
                 Text("On speakers, Dictate takes the call out of what your microphone hears. Other sound from your Mac stays.")
             }
             Section {
+                BlendMicNote()
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
                 CallAudioPermissionRow()
                 CallAudioPicker()
                 if let warning = calls.warning {
@@ -96,8 +99,6 @@ struct MicrophonesPane: View {
                 }
             } header: {
                 Text("Call audio")
-            } footer: {
-                BlendMicNote()
             }
         }
         .formStyle(.grouped)
@@ -377,7 +378,7 @@ private struct ConnectSheet: View {
             }
             HStack {
                 Spacer()
-                Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
+                Button("Close") { dismiss() }.keyboardShortcut(.cancelAction)
             }
         }
         .padding(20)
