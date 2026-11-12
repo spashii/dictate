@@ -239,6 +239,7 @@ struct AgentsPane: View {
     @State private var portText = ""
     @State private var addressError: String?
     @State private var confirmRegenerate = false
+    @State private var showingSetup = false
     @FocusState private var focus: Field?
 
     private enum Field { case host, port }
@@ -254,7 +255,7 @@ struct AgentsPane: View {
             }
             if agents.enabled {
                 server(agents)
-                connect(agents)
+                connect()
                 tools(agents)
             }
         }
@@ -263,6 +264,7 @@ struct AgentsPane: View {
             hostText = agents.host
             portText = String(agents.port)
         }
+        .sheet(isPresented: $showingSetup) { ConnectSheet(agents: agents) }
         .confirmationDialog("Make a new token?", isPresented: $confirmRegenerate) {
             Button("Regenerate", role: .destructive) { agents.regenerateToken() }
         } message: {
@@ -304,39 +306,15 @@ struct AgentsPane: View {
         }
     }
 
-    private func connect(_ agents: AgentAccess) -> some View {
-        let setup = agents.displayedSetup
-        return Section("Connect") {
+    private func connect() -> some View {
+        Section {
             LabeledContent {
-                Button {
-                    agents.copySetup()
-                } label: {
-                    Label("Copy MCP setup", systemImage: "doc.on.doc")
-                }
+                Button("Show") { showingSetup = true }
             } label: {
                 Text("Connect an agent app")
-                Text("Copies this config, with your token, ready to paste into an agent app.")
+                Text("The config for an agent app, with your token.")
             }
-            HStack(alignment: .top, spacing: 12) {
-                snippet("JSON", setup.json)
-                snippet("Or, in Claude Code", setup.command)
-            }
-            .padding(.vertical, 4)
         }
-    }
-
-    private func snippet(_ title: String, _ text: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.callout).foregroundStyle(.secondary)
-            Text(text)
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(8)
-                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
-        }
-        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     private func tools(_ agents: AgentAccess) -> some View {
@@ -378,6 +356,50 @@ struct AgentsPane: View {
         hostText = host
         portText = String(port)
         model.agents.setAddress(host: host, port: port)
+    }
+}
+
+/// The config an agent app needs, with the real token. The token is read when the sheet opens
+/// and dropped when it closes, and it is shown nowhere else.
+private struct ConnectSheet: View {
+    let agents: AgentAccess
+    @Environment(\.dismiss) private var dismiss
+    @State private var setup: MCPSetup?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Connect an agent app").font(.title3.weight(.semibold))
+            if let setup {
+                snippet("JSON config", setup.json)
+                snippet("Claude Code", setup.command)
+            } else {
+                Text("The token could not be read.").foregroundStyle(.secondary)
+            }
+            HStack {
+                Spacer()
+                Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 560)
+        .onAppear { setup = agents.setupWithToken() }
+        .onDisappear { setup = nil }
+    }
+
+    private func snippet(_ title: String, _ text: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(title).font(.callout).foregroundStyle(.secondary)
+                Spacer()
+                Button("Copy") { agents.copy(text) }
+            }
+            Text(text)
+                .font(.system(size: 11, design: .monospaced))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(8)
+                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+        }
     }
 }
 

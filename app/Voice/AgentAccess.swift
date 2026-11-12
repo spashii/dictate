@@ -62,18 +62,16 @@ final class AgentAccess {
         return String(repeating: "\u{2022}", count: 12) + token.suffix(4)
     }
 
-    /// What the Connect box shows: the token is not on screen.
-    var displayedSetup: MCPSetup { MCPSetup(host: host, port: port, token: "<token>") }
-
     func copyToken() {
         guard let token = token ?? (try? MCPToken.load()) else { return }
         copy(token)
     }
 
-    /// The JSON and the command, with this Mac's address and token filled in.
-    func copySetup() {
-        guard let token = token ?? (try? MCPToken.load()) else { return }
-        copy(MCPSetup(host: host, port: port, token: token).copied)
+    /// The JSON and the command with this Mac's address and the real token. Read when the
+    /// sheet that shows them opens, and held only while it is open.
+    func setupWithToken() -> MCPSetup? {
+        guard let token = token ?? (try? MCPToken.load()) else { return nil }
+        return MCPSetup(host: host, port: port, token: token)
     }
 
     /// A new token. Agents holding the old one are refused until they get this one, and the
@@ -109,7 +107,7 @@ final class AgentAccess {
         server?.disabledTools = disabledTools
     }
 
-    private func copy(_ text: String) {
+    func copy(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
     }
