@@ -51,7 +51,16 @@ final class AgentAccess {
         token = try? MCPToken.load()
     }
 
+    /// The server runs only while Dictate may record; set by the lock.
+    @ObservationIgnored private var unlocked = false
+
     func launch() {
+        apply()
+    }
+
+    func setUnlocked(_ on: Bool) {
+        guard on != unlocked else { return }
+        unlocked = on
         apply()
     }
 
@@ -120,7 +129,7 @@ final class AgentAccess {
         let current = generation
         server?.stop()
         server = nil
-        guard enabled else {
+        guard enabled, unlocked else {
             status = .off
             return
         }

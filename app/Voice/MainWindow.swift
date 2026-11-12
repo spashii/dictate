@@ -2,42 +2,6 @@ import AppKit
 import SwiftUI
 import VoiceCore
 
-/// The panes of the main window: History in the Library, and the settings.
-enum MainPane: String, CaseIterable, Identifiable {
-    case welcome, history, setup, shortcuts, microphones, model, agents, about
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .welcome: "Welcome"
-        case .history: "History"
-        case .setup: "Setup"
-        case .shortcuts: "Shortcuts"
-        case .microphones: "Microphones"
-        case .model: "Model"
-        case .agents: "Agents"
-        case .about: "About"
-        }
-    }
-
-    var symbol: String {
-        switch self {
-        case .welcome: "hand.wave"
-        case .history: "clock.arrow.circlepath"
-        case .setup: "checkmark.circle"
-        case .shortcuts: "keyboard"
-        case .microphones: "mic"
-        case .model: "waveform"
-        case .agents: "terminal"
-        case .about: "info.circle"
-        }
-    }
-
-    static let library: [MainPane] = [.history]
-    static let settings: [MainPane] = [.setup, .shortcuts, .microphones, .model, .agents, .about]
-}
-
 @MainActor @Observable
 final class MainNavigation {
     var selection: MainPane? = .history
@@ -97,22 +61,25 @@ struct MainView: View {
 
     var body: some View {
         @Bindable var navigation = navigation
+        let policy = LockPolicy(model.activation)
         NavigationSplitView {
             List(selection: $navigation.selection) {
                 if !model.activation.isActivated {
                     Section { row(.welcome) }
                 }
-                Section("Library") {
-                    ForEach(MainPane.library) { row($0) }
+                if policy.unlocked {
+                    Section("Library") {
+                        ForEach(MainPane.library) { row($0) }
+                    }
                 }
                 Section("Settings") {
-                    ForEach(MainPane.settings) { row($0) }
+                    ForEach(MainPane.settings.filter(policy.reaches)) { row($0) }
                 }
             }
             .listStyle(.sidebar)
             .navigationSplitViewColumnWidth(min: 170, ideal: 200, max: 260)
         } detail: {
-            let pane = navigation.selection ?? .history
+            let pane = policy.landing(for: navigation.selection ?? .history)
             Group {
                 switch pane {
                 case .welcome: WelcomePane()

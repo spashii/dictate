@@ -138,6 +138,8 @@ targets:
       - path: Voice/BundleRename.swift
       - path: Voice/OtherInstance.swift
       - path: Voice/RecordingGate.swift
+      - path: Voice/LockPolicy.swift
+      - path: Voice/MainPane.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.spashii.voice.tests

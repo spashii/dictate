@@ -70,6 +70,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if migration == .bothExist { explainBothFolders() }
         model.launch()
         calls.launch(model: model)
+        // After both shortcut handlers exist, so a locked Dictate registers neither.
+        model.applyLock()
     }
 
     /// Both Application Support/Voice and Dictate exist, so nothing was moved. Said once, with
@@ -106,33 +108,35 @@ struct MenuContent: View {
             Button("Activate Dictate\u{2026}") { model.beginActivation() }
             Divider()
         }
-        Text(model.statusText)
-        Button(model.isRecording ? "Stop and paste" : "Dictate  \(KeyboardShortcuts.getShortcut(for: .dictate)?.description ?? "")") {
-            model.toggle()
-        }
-        .disabled(model.isWorking)
-        CallMenuItems()
-        if !model.recent.isEmpty || !calls.recent.isEmpty {
-            Divider()
-            Section("Recent") {
-                ForEach(model.recent) { dictation in
-                    Button(Self.label(dictation)) {
-                        if RowMenu.rightClicked, !dictation.finalText.isEmpty {
-                            RowMenu.copyTranscript { model.copy(dictation) }
-                        } else {
-                            model.open(dictation)
-                        }
-                    }
-                        .help(dictation.finalText.isEmpty && dictation.error != nil ? "Click to try again" : "Click to copy")
-                        .disabled(dictation.finalText.isEmpty && dictation.error == nil)
-                }
-                RecentCalls()
-                Button("Open History") { model.openHistory() }
+        if LockPolicy(model.activation).showsRecordingMenu {
+            Text(model.statusText)
+            Button(model.isRecording ? "Stop and paste" : "Dictate  \(KeyboardShortcuts.getShortcut(for: .dictate)?.description ?? "")") {
+                model.toggle()
             }
+            .disabled(model.isWorking)
+            CallMenuItems()
+            if !model.recent.isEmpty || !calls.recent.isEmpty {
+                Divider()
+                Section("Recent") {
+                    ForEach(model.recent) { dictation in
+                        Button(Self.label(dictation)) {
+                            if RowMenu.rightClicked, !dictation.finalText.isEmpty {
+                                RowMenu.copyTranscript { model.copy(dictation) }
+                            } else {
+                                model.open(dictation)
+                            }
+                        }
+                            .help(dictation.finalText.isEmpty && dictation.error != nil ? "Click to try again" : "Click to copy")
+                            .disabled(dictation.finalText.isEmpty && dictation.error == nil)
+                    }
+                    RecentCalls()
+                    Button("Open History") { model.openHistory() }
+                }
+            }
+            Divider()
+            Button("Settings…") { model.openSettings() }
+                .keyboardShortcut(",")
         }
-        Divider()
-        Button("Settings…") { model.openSettings() }
-            .keyboardShortcut(",")
         ForEach(SupportItem.allCases, id: \.self) { item in
             Button(item.title) { open(item) }
                 .disabled(item == .checkForUpdates && !model.updates.canCheck)

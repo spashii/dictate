@@ -61,6 +61,10 @@ final class AppModel {
     let agents = AgentAccess()
     let updates = Updates()
     let activation = Activation(store: KeychainActivationStore())
+    /// Held only while Dictate may record.
+    @ObservationIgnored let hotkeys = Hotkeys(
+        enable: { KeyboardShortcuts.enable(.dictate, .recordCall) },
+        disable: { KeyboardShortcuts.disable(.dictate, .recordCall) })
     /// What the Welcome pane says about the last activation attempt.
     var activationMessage: String?
 
@@ -169,6 +173,13 @@ final class AppModel {
         }
         setDefaultLoginItem()
         refreshDevices()
+        // The 7 days end while Dictate runs.
+        Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(60))
+                applyLock()
+            }
+        }
         agents.launch()
         updates.onStaged = { [weak self] in self?.installUpdateWhenQuiet() }
         installUpdateWhenQuiet()
@@ -519,7 +530,7 @@ final class AppModel {
     /// Cmd+,, and at launch while setup is unfinished.
     func openMainWindow(_ pane: MainPane) {
         guard let calls else { return }
-        mainWindow.show(pane, calls: calls)
+        mainWindow.show(LockPolicy(activation).landing(for: pane), calls: calls)
     }
 
     func openHistory() { openMainWindow(.history) }
@@ -575,8 +586,18 @@ final class AppModel {
         }
     }
 
-    private func activationChanged() {
+    /// Brings what a locked Dictate keeps off in line with the state: the shortcuts, the agent
+    /// server and the call prompt. Runs at launch, after activation and when the 7 days end.
+    func applyLock() {
+        activation.refresh()
+        let policy = LockPolicy(activation)
+        hotkeys.apply(policy)
+        agents.setUnlocked(policy.startsAgentServer)
         calls?.activationChanged()
+    }
+
+    private func activationChanged() {
+        applyLock()
     }
 
     /// A notice from outside dictation. Mid-dictation the indicator stays on the dictation
