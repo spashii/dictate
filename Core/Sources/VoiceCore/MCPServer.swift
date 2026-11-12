@@ -21,10 +21,11 @@ public enum MCPServerError: Error, CustomStringConvertible {
 }
 
 /// MCP over Streamable HTTP, for agents to read calls and dictations: JSON-RPC posted to
-/// /mcp on 127.0.0.1, every request carrying the bearer token. Each POST gets one JSON
-/// answer, with no event stream, which the spec leaves optional; that keeps a 60 second
-/// wait_for_transcript on its own request without holding up others. The session id only
-/// carries the client's name, for the edits it makes; nothing is kept per session.
+/// /mcp on 127.0.0.1 unless another address is set, every request carrying the bearer
+/// token. Each POST gets one JSON answer, with no event stream, which the spec leaves
+/// optional; that keeps a 60 second wait_for_transcript on its own request without holding
+/// up others. The session id only carries the client's name, for the edits it makes;
+/// nothing is kept per session.
 ///
 /// It is written on Network.framework rather than the MCP Swift SDK (0.12.1): the SDK's HTTP
 /// server transports leave the listener to the host, so this would be needed anyway, and its
@@ -37,6 +38,7 @@ public final class MCPServer: @unchecked Sendable {
     private let router: MCPRouter
     private let token: Data
     private let requestedPort: UInt16
+    private let host: String
     private let queue = DispatchQueue(label: "voice.mcp")
     private var listener: NWListener?
     private var connections: [ObjectIdentifier: HTTPConnection] = [:]
@@ -48,21 +50,32 @@ public final class MCPServer: @unchecked Sendable {
     public init(store: CallStore, token: String, port: UInt16 = defaultPort, recording: (any RecordingControl)? = nil,
                 recordingUnavailable: String = "Recording is only available in the Dictate app; this server runs from dictate-cli.",
                 keyTerms: (any KeyTermsSettings)? = nil, tokenizer: (any PromptTokenizer)? = nil,
-                version: String = "0") {
+                version: String = "0", host: String = MCPEndpoint.defaultHost, disabledTools: Set<String> = []) {
         router = MCPRouter(store: store, recording: recording, recordingUnavailable: recordingUnavailable,
                            version: version,
                            keyTerms: keyTerms.map { KeyTermsEditor(settings: $0, tokenizer: tokenizer ?? WhisperTokenizer(),
-                                                                   store: store) })
+                                                                   store: store) },
+                           switches: ToolSwitches(disabled: disabledTools))
+        self.host = host
         self.token = Data(token.utf8)
         requestedPort = port
     }
 
-    /// Listens on 127.0.0.1 only and returns the port, which differs from the one asked for
-    /// only when that was 0.
+    /// The tools agents can't see or call, changed while the server runs.
+    public var disabledTools: Set<String> {
+        get { router.switches.disabled }
+        set { router.switches.disabled = newValue }
+    }
+
+    /// Listens on the one address it was given, 127.0.0.1 unless Settings says otherwise, and
+    /// returns the port, which differs from the one asked for only when that was 0.
     @discardableResult
     public func start() async throws -> UInt16 {
+        guard let address = MCPEndpoint.address(host: host), let ipv4 = IPv4Address(address) else {
+            throw MCPServerError.failed("\(host) isn't an IPv4 address.")
+        }
         let parameters = NWParameters.tcp
-        parameters.requiredLocalEndpoint = .hostPort(host: .ipv4(.loopback),
+        parameters.requiredLocalEndpoint = .hostPort(host: .ipv4(ipv4),
                                                      port: NWEndpoint.Port(rawValue: requestedPort) ?? .any)
         let listener: NWListener
         do {

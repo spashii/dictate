@@ -34,6 +34,28 @@ public enum MCPToken {
         return token
     }
 
+    /// Replaces the token with a new one. Agents holding the old one are refused until they are
+    /// given this. The file is swapped in one rename, so a reader never sees half a token.
+    @discardableResult
+    public static func regenerate(at url: URL = file) throws -> String {
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        var bytes = [UInt8](repeating: 0, count: 32)
+        guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else {
+            throw VoiceError.store("Couldn't make a random token.")
+        }
+        let token = bytes.map { String(format: "%02x", $0) }.joined()
+        let staged = url.deletingLastPathComponent().appending(path: ".mcp-token-\(UUID().uuidString)")
+        guard FileManager.default.createFile(atPath: staged.path, contents: Data((token + "\n").utf8),
+                                             attributes: [.posixPermissions: 0o600]) else {
+            throw VoiceError.store("Can't write \(url.path).")
+        }
+        guard rename(staged.path, url.path) == 0 else {
+            try? FileManager.default.removeItem(at: staged)
+            throw VoiceError.store("Can't replace \(url.path).")
+        }
+        return token
+    }
+
     /// The token in the file, or nil when there is no file or it is still being written.
     private static func read(_ url: URL) throws -> String? {
         guard FileManager.default.fileExists(atPath: url.path) else { return nil }

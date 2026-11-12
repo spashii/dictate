@@ -24,6 +24,8 @@ struct MCPRouter: Sendable {
     let version: String
     /// Where key-term changes go; nil where there is no app to change them for.
     var keyTerms: KeyTermsEditor? = nil
+    /// Which tools are turned off. Read on every request, so a change applies at once.
+    var switches = ToolSwitches()
 
     /// The HTTP status and body for one POST. Notifications and responses get 202 and no
     /// body; a batch gets an array of answers. `client` names the MCP client in the edits
@@ -89,12 +91,13 @@ struct MCPRouter: Sendable {
         case "ping":
             return [String: Any]()
         case "tools/list":
-            return ["tools": Self.tools]
+            return ["tools": Self.tools.filter { switches.isOn($0["name"] as? String ?? "") }]
         case "tools/call":
             guard let name = params["name"] as? String else { throw RPCError(-32602, "tools/call needs a name.") }
             guard Self.tools.contains(where: { $0["name"] as? String == name }) else {
                 throw RPCError(-32602, "No tool \(name).")
             }
+            guard switches.isOn(name) else { throw RPCError(-32602, "\(name) is turned off in Dictate's settings.") }
             let arguments = Arguments(params["arguments"] as? [String: Any] ?? [:])
             do {
                 return Self.content(try await tool(name, arguments, client: client))

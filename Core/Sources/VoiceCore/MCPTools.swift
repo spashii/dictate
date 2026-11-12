@@ -1,0 +1,66 @@
+import Foundation
+
+/// The tools a person has turned off in Settings. An agent neither sees a disabled tool in
+/// tools/list nor can call it. The router reads this on every request, so a change applies
+/// to connected agents without restarting the server.
+public final class ToolSwitches: @unchecked Sendable {
+    private let lock = NSLock()
+    private var off: Set<String>
+
+    public init(disabled: Set<String> = []) {
+        off = disabled
+    }
+
+    public var disabled: Set<String> {
+        get { lock.withLock { off } }
+        set { lock.withLock { off = newValue } }
+    }
+
+    func isOn(_ name: String) -> Bool {
+        lock.withLock { !off.contains(name) }
+    }
+}
+
+/// A tool as Settings lists it.
+public struct MCPToolInfo: Sendable, Equatable, Identifiable {
+    public var name: String
+    /// The first sentence of the tool's description.
+    public var summary: String
+
+    public var id: String { name }
+}
+
+extension MCPServer {
+    /// Every tool the server offers, in the order tools/list gives them.
+    public static var toolCatalog: [MCPToolInfo] {
+        MCPRouter.tools.compactMap { tool in
+            guard let name = tool["name"] as? String else { return nil }
+            let description = tool["description"] as? String ?? ""
+            let first = description.firstIndex(of: ".").map { String(description[..<$0]) } ?? description
+            return MCPToolInfo(name: name, summary: first + ".")
+        }
+    }
+}
+
+/// Where the server listens, as a person types it in Settings.
+public enum MCPEndpoint {
+    /// "localhost" or an IPv4 address; nil for anything else. Not a host name: the server binds
+    /// to one address, and a name could resolve to several.
+    public static func address(host: String) -> String? {
+        let trimmed = host.trimmingCharacters(in: .whitespaces)
+        if trimmed.lowercased() == "localhost" { return "127.0.0.1" }
+        let parts = trimmed.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 4,
+              parts.allSatisfy({ !$0.isEmpty && $0.count <= 3 && $0.allSatisfy(\.isASCII) && $0.allSatisfy(\.isNumber) && Int($0)! <= 255 })
+        else { return nil }
+        return parts.map { String(Int($0)!) }.joined(separator: ".")
+    }
+
+    /// A port above the ones only root can open.
+    public static func port(_ text: String) -> UInt16? {
+        guard let value = UInt16(text.trimmingCharacters(in: .whitespaces)), value >= 1024 else { return nil }
+        return value
+    }
+
+    public static let defaultHost = "127.0.0.1"
+}
