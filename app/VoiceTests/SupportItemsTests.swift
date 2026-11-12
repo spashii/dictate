@@ -7,13 +7,13 @@ final class SupportItemsTests: XCTestCase {
     }
 
     func testRepository() {
-        XCTAssertEqual(SupportItem.repository.absoluteString, "https://github.com/spashii/voice")
+        XCTAssertEqual(SupportItem.repository.absoluteString, "https://github.com/spashii/dictate")
     }
 
     func testIssueBodyHoldsOnlyTheVersions() throws {
         let url = SupportItem.issueURL(appVersion: "0.11.0", macOS: "Version 26.6.2 (Build 25G100)")
         XCTAssertEqual(url.absoluteString,
-                       "https://github.com/spashii/voice/issues/new?body=App%20version:%200.11.0%0AmacOS:%20Version%2026.6.2%20(Build%2025G100)%0A%0A")
+                       "https://github.com/spashii/dictate/issues/new?body=App%20version:%200.11.0%0AmacOS:%20Version%2026.6.2%20(Build%2025G100)%0A%0A")
         let items = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
         XCTAssertEqual(items, [URLQueryItem(name: "body",
                                             value: "App version: 0.11.0\nmacOS: Version 26.6.2 (Build 25G100)\n\n")])

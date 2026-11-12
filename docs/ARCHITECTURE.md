@@ -1,9 +1,9 @@
-# How Voice works
+# How Dictate works
 
-Voice has three parts:
+Dictate has three parts:
 
 - **VoiceCore** (`Core/Sources/VoiceCore`, Swift 6): records, transcribes, cleans up, stores, detects calls and serves MCP. It has no UI code. It builds on whisper.cpp's prebuilt xcframework (release b5454, which is v1.9.5, with Metal built in) and the system SQLite.
-- **voice-cli** (`Core/Sources/voice-cli`): runs the same code from a shell, with no window and no sound. Batch transcription, the call tests and the MCP server without the app all use it.
+- **dictate-cli** (`Core/Sources/dictate-cli`): runs the same code from a shell, with no window and no sound. Batch transcription, the call tests and the MCP server without the app all use it.
 - **Voice.app** (`app/Voice`, SwiftUI and AppKit): the menu bar, the indicator, the call prompt, Settings, the global shortcuts (the KeyboardShortcuts package) and the paste. It decides when the core runs and shows the result. It has no recording or transcription logic of its own.
 
 Beside them, `tools/` (zsh) builds, releases, syncs and fetches models, and `site/` is the website and the update feed.
@@ -22,7 +22,7 @@ Blend mix ─► CallRecorder ─► WAV on disk, then AAC
 
 Audio in:
 
-- `Audio.swift`: the 16 kHz mono format Whisper takes, `Audio.load` (any file to that format), `Paths` (everything under `~/Library/Application Support/Voice`), and the format an input node really delivers.
+- `Audio.swift`: the 16 kHz mono format Whisper takes, `Audio.load` (any file to that format), `Paths` (everything under `~/Library/Application Support/Dictate`), and the format an input node really delivers.
 - `Devices.swift`: lists input devices and finds one by UID. The UID survives restarts and unplugging; the device ID doesn't.
 - `Recorder.swift`: a microphone to a 16 kHz mono WAV. `Sink` converts and writes on the tap's thread, and `InputWatch` notices when the engine stops under it.
 
@@ -34,11 +34,11 @@ Speech to text:
 
 Dictation:
 
-- `Pipeline.swift`: a recording in, a stored dictation out. The app and voice-cli both go through it, so what voice-cli measures is what gets pasted.
-- `Cleanup.swift`, `Fix.swift`: the fix step. Its settings and requests to Ollama; the request for edits to the segments, the checks that accept or reject each one, and applying them. The whole-text rewrite stays for the evaluation (`voice-cli fix-batch --whole`).
+- `Pipeline.swift`: a recording in, a stored dictation out. The app and dictate-cli both go through it, so what dictate-cli measures is what gets pasted.
+- `Cleanup.swift`, `Fix.swift`: the fix step. Its settings and requests to Ollama; the request for edits to the segments, the checks that accept or reject each one, and applying them. The whole-text rewrite stays for the evaluation (`dictate-cli fix-batch --whole`).
 - `Recovery.swift`: finds WAVs the history doesn't know and repairs their headers.
 - `Store.swift`: dictations and their segments, in SQLite.
-- `RetryStats.swift`, `WordDiff.swift`: what the retries did, read from their records: segments, unsure, retried, changed, the words each changed, the median confidence change and the paste time added, for the last 7 days and all time. Settings shows it under the retry switch, and `voice-cli retry-report [--json]` prints the numbers.
+- `RetryStats.swift`, `WordDiff.swift`: what the retries did, read from their records: segments, unsure, retried, changed, the words each changed, the median confidence change and the paste time added, for the last 7 days and all time. Settings shows it under the retry switch, and `dictate-cli retry-report [--json]` prints the numbers.
 - `History.swift`: what the History window shows, read from the tables: dictations and calls newest first, and for one, each segment's whisper text, time and flag, with every retry that changed words, every fix edit (rejected ones too) and every correction and undo over MCP, as word diffs that count capitals. A key term a correction suggested, and Settings' Add or Dismiss on it, shows beside that correction as a key-term event, not as a change to the transcript.
 - `OpenSuperWhisperImport.swift`: copies OpenSuperWhisper's history in as dictations with origin `imported`, as a test set.
 - `TranscriptCopy.swift`: what every Copy puts on the clipboard. A call is both sides merged by time with Me and Call labels, a dictation its final text, corrections in place of whisper's text in both; with no words, nothing is copied and no "Copied" shows.
@@ -63,7 +63,7 @@ Agents:
 - `AppModel.swift`: the dictation state (idle, recording, transcribing, cleaning up, a notice), one pipeline per Whisper model, recovery at launch and the paste.
 - `Calls.swift` (`CallsModel`): detection to prompt, the call shortcut, the source, record and stop, rebuild and compress at launch, and the warning when a call app reads the mix. Also the prompt panel and the menu and Settings parts.
 - `AgentAccess.swift`: runs the MCP server while the app runs, with the Settings switch, the addresses and the token.
-- `Updates.swift`: Sparkle, the Check for Updates button and the automatic switch. An update Sparkle downloads on its own would wait for a quit; Voice takes it over and installs it the first time nothing is recording, transcribing or fixing and no call app is in a call (`Activity` in VoiceCore), watching the dictation phase and the calls until then.
+- `Updates.swift`: Sparkle, the Check for Updates button and the automatic switch. An update Sparkle downloads on its own would wait for a quit; Dictate takes it over and installs it the first time nothing is recording, transcribing or fixing and no call app is in a call (`Activity` in VoiceCore), watching the dictation phase and the calls until then.
 - `HistoryWindow.swift`, `EditsText.swift`: the History window, opened only from the menu's Recent section and from Settings, never at launch, reading off the main thread; a play button on each flagged or changed segment plays that stretch of the recording through the default output when clicked. After a paste, the dictation pill shows the words the retries and the fix changed for 3 seconds, the old struck through; the paste never waits for it.
 - `Indicator.swift`, `CallPill.swift`, `Paster.swift`, `Preferences.swift`, `SettingsView.swift`, `RetryStatsView.swift`, `Setup.swift`, `Downloads.swift`: the pills (a dictation's, and a call's while it records, with the call's newest three lines from `LiveCallLines`, fed by the same wait as `wait_for_transcript` and emptied after 20 quiet seconds), the paste, UserDefaults, Settings and the retry numbers in it, the first-run window and the model downloads.
 
@@ -79,13 +79,13 @@ Agents:
 8. **Store.** `Store.insert` writes the dictation and its segments in one transaction, with the time each stage took (record, load, transcribe, fix, paste).
 9. **Paste.** `Paster` saves the clipboard, sets the text, sends Cmd+V with the modifier flags set outright (so an Option still held from the shortcut changes nothing), waits half a second and restores the clipboard if it still holds the text. Without Accessibility the text stays on the clipboard and a notice offers Allow.
 
-At launch the app opens the history, prunes it, lists the inputs off the main thread, starts the MCP server and polls Ollama every 30 seconds. If setup is complete it loads Whisper ahead of the first dictation and recovers recordings: each WAV with no history row, oldest first, one at a time and only while Voice is otherwise idle. A recovered recording has its header rewritten from the file's length, is transcribed without pasting, and is dated by its file name.
+At launch the app opens the history, prunes it, lists the inputs off the main thread, starts the MCP server and polls Ollama every 30 seconds. If setup is complete it loads Whisper ahead of the first dictation and recovers recordings: each WAV with no history row, oldest first, one at a time and only while Dictate is otherwise idle. A recovered recording has its header rewritten from the file's length, is transcribed without pasting, and is dated by its file name.
 
 At quit, the app stops the live session, closes the recording (kept, not deleted) and unloads Whisper, because ggml's Metal device asserts at exit while a model still holds it.
 
 ## A call
 
-1. **Detect.** Every second `CallDetector` lists the processes using audio and credits each helper process to the app responsible for it. A call starts when a call app uses the microphone for 5 seconds, or a browser uses both microphone and speakers for 10. It ends once the app has used neither for 15 seconds. Voice, Blend, OpenSuperWhisper, Siri and macOS dictation are never calls.
+1. **Detect.** Every second `CallDetector` lists the processes using audio and credits each helper process to the app responsible for it. A call starts when a call app uses the microphone for 5 seconds, or a browser uses both microphone and speakers for 10. It ends once the app has used neither for 15 seconds. Dictate, Blend, OpenSuperWhisper, Siri and macOS dictation are never calls.
 2. **Prompt.** If Ask to record calls is on, nothing is recording and the app wasn't dismissed, `CallsModel` shows "Record this call?" in a panel that never takes focus. Not now lasts until that app's call ends. The call shortcut (Option+Shift+` unless changed) and the menu start a recording at any time, with or without a call app, and an agent can start one over MCP. A recording started for a call app ends with its call; one started with none runs until stopped. While it records, a second pill under the dictation one shows the clock and the key that stops it, and the menu bar glyph has all its pills filled and a dot.
 3. **Source.** `CallSources.all` lists what Settings offers under Record from: Blend's connected mixes from its `devices.json` (Blend's `docs/MIXES-FOR-APPS.md` describes it), then the system default, then the other inputs. A split mix is labelled with its sides, such as "Blend Mic (you left, call right)"; anything else is recorded as one channel and labelled "mix". Until one is chosen, `CallSources.automatic` takes the split mix if there is one and the system default otherwise, and a chosen input that isn't connected falls back to the same, with a notice. In a split mix, a microphone is Me and an app or system sound is Call, whichever side Blend put them on. Two of a kind take their sources' names.
 4. **Start.** `CallRecorder` points an engine at the source's device and taps it in the device's own format. A split source has to arrive as exactly two channels. If it doesn't, the call is created, failed with the reason and kept, and the same error is thrown. Otherwise the call is a row in `calls` with status recording and the WAV's path.
@@ -102,8 +102,10 @@ Quitting during a call closes the WAV without waiting for the transcript and lea
 
 ## Storage
 
+- The data folder is `~/Library/Application Support/Dictate`. At launch, before any store opens, `DataMigration` renames an existing `Voice` folder there once (one `rename(2)`, no copy), writes `.migrated-from-voice` inside it and leaves `Voice` as a link to it. If both folders exist it leaves both alone and uses `Dictate`. Until the app has run, `Paths` and `dictate-cli` use `Voice` where only that exists. The database keeps its name, `voice.sqlite`.
+
 - `voice.sqlite` holds everything: `dictations` and `segments` (Store), `calls`, `call_segments`, `call_tags` and the `transcript_search` index (CallStore), `segment_retries`, `fix_edits` (each edit the fix step proposed: segment, span, replacement, key term, character offset, and `rejected` with the reason when it wasn't applied), `edits`, and `voice_migrations`. A flagged segment that wasn't retried records why (`skipped`: off, budget or no-audio). Store runs the migrations too, so a process that opens only Store finds the schema current.
-- Every store opens its own connection to the file: the app's history, the call recorder's, the MCP server's and voice-cli's. The journal is WAL, a writer waits up to 5 seconds for another, and a transaction that reads before it writes begins immediate, so another process can't overtake it between the two.
+- Every store opens its own connection to the file: the app's history, the call recorder's, the MCP server's and dictate-cli's. The journal is WAL, a writer waits up to 5 seconds for another, and a transaction that reads before it writes begins immediate, so another process can't overtake it between the two.
 - CallStore opens Store first, so the dictation tables exist before the search index's triggers attach to them. Each migration is applied once and recorded by name. A shipped one never changes; a schema change is a new entry at the end.
 - `transcript_search` is FTS5 (Porter stemming, no diacritics) over call segments and each dictation's final text, kept current by triggers. A search needs every word, and falls back to any word when nothing has them all.
 - Foreign keys are off, so every delete names its children.
@@ -114,8 +116,8 @@ Quitting during a call closes the WAV without waiting for the transcript and lea
 
 - One endpoint, `POST /mcp` on `127.0.0.1:7766`, JSON-RPC, one JSON answer per request. No event stream and no sessions, both of which the spec leaves optional, so a 60 second `wait_for_transcript` doesn't hold up anyone else.
 - Every request needs the bearer token, from this Mac too. The comparison looks at every byte. If there is an `Origin` header, it has to be local or the request's own host, so a web page can't try. A body is limited to 4 MB with a token and 64 KB without, a batch to 10 messages, and a closed connection cancels its request.
-- The app hosts it through `AgentAccess` while it runs. `voice-cli mcp` serves the same against the same file when it doesn't, and only one of the two can hold the port.
-- Reads go to the database, often written by another process, so a wait looks at the file every 500 ms. `start_recording` and `stop_recording` go back into the app through `RecordingControl`, which `CallsModel` implements; voice-cli has none and answers with an error.
+- The app hosts it through `AgentAccess` while it runs. `dictate-cli mcp` serves the same against the same file when it doesn't, and only one of the two can hold the port.
+- Reads go to the database, often written by another process, so a wait looks at the file every 500 ms. `start_recording` and `stop_recording` go back into the app through `RecordingControl`, which `CallsModel` implements; dictate-cli has none and answers with an error.
 - If you set up Tailscale Serve, it puts HTTPS on your tailnet and reaches the server from `127.0.0.1`, so to the server a tailnet agent looks local. The token is what keeps other devices out.
 
 [MCP.md](MCP.md) has the addresses, the tools and the call store's tables.
@@ -157,11 +159,11 @@ Smaller rules:
 - A call ends only after 15 seconds with neither input nor output, so a mute or a device switch doesn't make two recordings.
 - A split call that doesn't arrive as two channels fails at once, since it would otherwise end as a finished call with a side missing.
 - A rebuild keeps the call's old segments until its first chunk has decoded, so audio or a model that can't be read leaves the transcript it had.
-- Only Voice reads the Blend mix it records. Blend leaves any app reading a mix out of that mix's System audio, so a call app set to it would be missing from the call side. Voice warns when one is.
+- Only Dictate reads the Blend mix it records. Blend leaves any app reading a mix out of that mix's System audio, so a call app set to it would be missing from the call side. Dictate warns when one is.
 
 ## Choices
 
-- **whisper.cpp's prebuilt framework.** It has Metal and its shaders built in, so the app and voice-cli link one binary and run the same decode.
+- **whisper.cpp's prebuilt framework.** It has Metal and its shaders built in, so the app and dictate-cli link one binary and run the same decode.
 - **The chunks are the dictation.** A whole-file decode on top would wait out the fix step's model and hold Whisper's queue against the next dictation. The file stays the record, and a failed chunk falls back to it.
 - **A loudness gate to cut chunks, with Silero inside the decode.** Cutting only has to find a pause, not judge speech. Whisper's own voice activity detection still drops the silence in each chunk.
 - **50 words of context, not all of it.** Whisper keeps the end of a long prompt and drops its start, which is where the key terms are.
@@ -179,10 +181,10 @@ Smaller rules:
 - A call has two sides, Me and Call, not one name for each person on the call.
 - The language is one setting, for dictation and calls alike.
 - The call path has no accuracy measurement of its own.
-- The MCP server is up only while Voice runs. When Voice is closed the tailnet address returns 502.
+- The MCP server is up only while Dictate runs. When Dictate is closed the tailnet address returns 502.
 
 ## Tests
 
 `cd Core && swift test` covers the store and its index, segment retries and their records, the word diff and the retry numbers, the cursor and the wait, the MCP server and its limits, call source choice, call detection, channel handling, rebuild, AAC conversion, the chunkers, recovery, input loss and write errors, the fix step, its edits and their checks, the history view model, and the pipeline, the OpenSuperWhisper import, and when a staged update may install. Ollama is stubbed with a `URLProtocol`. The tests that need Whisper run only when `VOICE_TEST_WHISPER_MODEL` points at a model.
 
-`voice-cli` is the manual side. `call --file` plays a stereo WAV as a live call, `fake-call` writes a call that gains a segment every 2 seconds, and `watch-calls --raw` prints call detection and every process using audio. `live` compares the live chunks with a whole-file decode.
+`dictate-cli` is the manual side. `call --file` plays a stereo WAV as a live call, `fake-call` writes a call that gains a segment every 2 seconds, and `watch-calls --raw` prints call detection and every process using audio. `live` compares the live chunks with a whole-file decode.

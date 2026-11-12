@@ -1,11 +1,11 @@
-cask "voice" do
+cask "dictate" do
   version "0.11.0"
   sha256 "325edd8b57d947bb383b4b9d05476d703a68ce78185ad3c885d58f7bb26a6545"
 
   url "https://apps.idea2prod.in/voice/download/#{version}"
-  name "Voice"
+  name "Dictate"
   desc "Dictation and call transcripts with Whisper running on the Mac"
-  homepage "https://spashii.github.io/voice/"
+  homepage "https://spashii.github.io/dictate/"
 
   auto_updates true
   depends_on arch: :arm64
@@ -17,6 +17,7 @@ cask "voice" do
 
   # Every recording and transcript is in Application Support, so only --zap removes them.
   zap trash: [
+    "~/Library/Application Support/Dictate",
     "~/Library/Application Support/Voice",
     "~/Library/Caches/io.github.spashii.voice",
     "~/Library/HTTPStorages/io.github.spashii.voice",

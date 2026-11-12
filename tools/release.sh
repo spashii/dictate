@@ -138,7 +138,7 @@ cp -f $dmg $out/Dictate.dmg
 # Both are files in the repo, published by committing them after the GitHub release.
 sparkle=${VOICE_SPARKLE_DIR:-$HOME/.blend-signing/sparkle-2.10.1}
 sparkleKey=${VOICE_SPARKLE_KEY:-$HOME/.blend-signing/sparkle-private-key}
-releases=${VOICE_RELEASES_URL:-https://github.com/spashii/voice/releases/download}
+releases=${VOICE_RELEASES_URL:-https://github.com/spashii/dictate/releases/download}
 if [[ -f $sparkleKey ]]; then
   signature=$($sparkle/bin/sign_update --ed-key-file $sparkleKey $dmg)
   item="    <item>

@@ -15,7 +15,7 @@ enum SupportItem: CaseIterable {
         }
     }
 
-    static let repository = URL(string: "https://github.com/spashii/voice")!
+    static let repository = URL(string: "https://github.com/spashii/dictate")!
 
     /// A new issue whose body holds the two versions and nothing else from this Mac: no logs,
     /// no dictations, no settings.

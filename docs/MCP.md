@@ -1,4 +1,4 @@
-# Voice over MCP
+# Dictate over MCP
 
 Agents read dictations and call transcripts, live calls included, through an MCP server: Claude Code, Codex or any MCP client on this Mac, and, if you choose, on your other devices over Tailscale.
 
@@ -11,26 +11,30 @@ Every request carries `Authorization: Bearer <token>`, from this Mac too; withou
 
 ## Who serves it
 
-Voice hosts the server while it runs, unless Settings, General, "Agents can read transcripts" is off. That row shows both addresses and copies the token. When Voice isn't running nothing answers, and the tailnet address returns 502.
+Dictate hosts the server while it runs, unless Settings, General, "Agents can read transcripts" is off. That row shows both addresses and copies the token. When Dictate isn't running nothing answers, and the tailnet address returns 502.
 
-`voice-cli mcp` serves the same thing without the app, against the same database:
+`dictate-cli mcp` serves the same thing without the app, against the same database:
 
 ```sh
-Core/.build/release/voice-cli mcp            # [--port N] [--db PATH]
+Core/.build/release/dictate-cli mcp            # [--port N] [--db PATH]
 ```
 
 Only one of the two can hold port 7766; the second to start reports that the port is in use. The server listens on 127.0.0.1 only.
 
 ## The token
 
-`~/Library/Application Support/Voice/mcp-token`: 32 random bytes in hex, mode 0600, made by whichever of the app or `voice-cli mcp` starts first. To change it, delete the file and restart whatever serves; every client then needs the new one.
+`~/Library/Application Support/Dictate/mcp-token`: 32 random bytes in hex, mode 0600, made by whichever of the app or `dictate-cli mcp` starts first. To change it, delete the file and restart whatever serves; every client then needs the new one.
 
-To add Voice to Claude Code on this Mac:
+To add Dictate to Claude Code on this Mac:
 
 ```sh
-claude mcp add --transport http --scope user voice http://127.0.0.1:7766/mcp \
-  --header "Authorization: Bearer $(cat ~/Library/Application\ Support/Voice/mcp-token)"
+claude mcp add --transport http --scope user dictate http://127.0.0.1:7766/mcp \
+  --header "Authorization: Bearer $(cat ~/Library/Application\ Support/Dictate/mcp-token)"
 ```
+
+The server reports `"name": "dictate"` and `"title": "Dictate"` in `serverInfo`. The endpoint is still `/mcp` on port 7766, and the token is unchanged by the rename. A client registered as `voice` keeps working: a client keys on the name in its own configuration, not on `serverInfo`, and its tools stay `mcp__voice__*` until it is registered again under another name.
+
+`~/Library/Application Support/Voice` is a link to `Dictate` after the data folder moves, so `~/Library/Application Support/Voice/mcp-token` still reads the same token.
 
 From another device, use the tailnet address instead, and keep the token in that device's own secret store rather than in a shell history.
 
@@ -46,7 +50,7 @@ $TS serve --https=8443 off                            # off
 $TS status --json | jq -r .Self.DNSName               # your Mac's tailnet name
 ```
 
-Serve terminates TLS and connects from 127.0.0.1, so the token is what keeps other tailnet devices out. Voice's Settings show the tailnet address once Serve forwards to it.
+Serve terminates TLS and connects from 127.0.0.1, so the token is what keeps other tailnet devices out. Dictate's Settings show the tailnet address once Serve forwards to it.
 
 ## Tools
 
@@ -61,13 +65,13 @@ Serve terminates TLS and connects from 127.0.0.1, so the token is what keeps oth
 | `tag_call` | `id`, `add`, `remove` |
 | `list_dictations` | dictations newest first; `since`, `limit` |
 | `get_dictation` | one dictation with raw and final text, timings and segments, and `fix_edits` when the fix step ran: each edit's segment, span, replacement, key_term, offset, and rejected with the reason when it wasn't applied |
-| `start_recording`, `stop_recording` | record a call from the source in Settings, Calls, and stop it once the last words are transcribed; only the app can, so `voice-cli mcp` answers with an error |
+| `start_recording`, `stop_recording` | record a call from the source in Settings, Calls, and stop it once the last words are transcribed; only the app can, so `dictate-cli mcp` answers with an error |
 | `correct_dictation` | `id`, `text`: stores the correction beside the dictation's text, which reads and search then return with `corrected: true` and `original_text`, and pastes nothing |
 | `correct_segment` | `call_id`, `segment_id` (the `id` from `get_transcript` in format segments), `text`: the same for one segment of a call |
 | `list_key_terms` | the key terms from Settings, with the tokens they take of whisper's prompt, counted with whisper.cpp's tokenizer, and its limit of 224 |
 | `add_key_terms` | `terms`: adds those not already listed in any case, refusing the whole add when the prompt would pass 224 tokens and naming the tokens left and the terms that fit |
 | `remove_key_terms` | `terms`: removes them from the list, matching without case |
-| `list_key_term_suggestions` | `status` pending (the default), accepted, dismissed or all, `limit`: the key terms Voice proposed from corrections, each the words a correction put where whisper wrote others, with how whisper heard them, the correction it came from and its status; only Add in Settings puts one in the list, recorded as an `add_key_terms` edit, and Dismiss as a `dismiss_key_term` edit |
+| `list_key_term_suggestions` | `status` pending (the default), accepted, dismissed or all, `limit`: the key terms Dictate proposed from corrections, each the words a correction put where whisper wrote others, with how whisper heard them, the correction it came from and its status; only Add in Settings puts one in the list, recorded as an `add_key_terms` edit, and Dismiss as a `dismiss_key_term` edit |
 | `list_edits` | `since`, `target`, `limit`: every correction, key-term change and tag change agents made, newest first, with time, client, kind, target, before and after |
 | `undo_edit` | `id`: reverts one edit, putting a correction back to the text before it and a key-term or tag change back as it was, and records the undo as an edit |
 
@@ -89,22 +93,22 @@ To follow a live call, take the cursor from `current_call`, then call `wait_for_
 
 The recorder writes with `createCall`, `appendSegments`, `markTranscribing`, `finishCall`, `failCall`, `setTitle` and `tagCall`, and calls `failInterruptedCalls` at launch so a call cut off by a crash stops counting as current.
 
-`CallRecorder` (Core) writes each call to `~/Library/Application Support/Voice/calls/<ms>-<id>.wav` at the device's rate, me on the left and the call on the right, and transcribes each side at its pauses while the call runs. While the call records the WAV is the source of truth: at launch the app takes the calls still marked live, fails them with `failInterruptedCalls`, then rebuilds their transcripts from the file (`voice-cli call --rebuild ID` does the same by hand). When a call's status becomes `done`, `CallAudio` re-encodes the WAV as AAC (`<ms>-<id>.m4a`, the WAV's own sample rate and channels, 48 kbps a channel, about 45 MB an hour of stereo against 690 MB), checks that the .m4a opens with the WAV's channels and a duration within 0.5 s, then points the call at it and deletes the WAV. If any step fails the WAV and the path stay and the failure is logged (`log show --predicate 'category == "call-audio"'`); the app retries at the next launch. Rebuild reads either format. Settings, Keep history, 30 days deletes calls older than that, with their audio, as it does dictations; calls still recording or transcribing are never deleted. The source is the input chosen in Settings, Calls, Record from; until one is chosen, the split Blend mix from `~/Library/Application Support/Blend/devices.json`, else the system default input as one channel.
+`CallRecorder` (Core) writes each call to `~/Library/Application Support/Dictate/calls/<ms>-<id>.wav` at the device's rate, me on the left and the call on the right, and transcribes each side at its pauses while the call runs. While the call records the WAV is the source of truth: at launch the app takes the calls still marked live, fails them with `failInterruptedCalls`, then rebuilds their transcripts from the file (`dictate-cli call --rebuild ID` does the same by hand). When a call's status becomes `done`, `CallAudio` re-encodes the WAV as AAC (`<ms>-<id>.m4a`, the WAV's own sample rate and channels, 48 kbps a channel, about 45 MB an hour of stereo against 690 MB), checks that the .m4a opens with the WAV's channels and a duration within 0.5 s, then points the call at it and deletes the WAV. If any step fails the WAV and the path stay and the failure is logged (`log show --predicate 'category == "call-audio"'`); the app retries at the next launch. Rebuild reads either format. Settings, Keep history, 30 days deletes calls older than that, with their audio, as it does dictations; calls still recording or transcribing are never deleted. The source is the input chosen in Settings, Calls, Record from; until one is chosen, the split Blend mix from `~/Library/Application Support/Blend/devices.json`, else the system default input as one channel.
 
 ## Testing
 
 ```sh
 cd Core && swift test                                   # store, index, cursor, server, source, chunker
-.build/release/voice-cli call --file stereo.wav         # plays a WAV as a live call: left me, right call
-.build/release/voice-cli call --remove                  # deletes those test calls and their audio
-.build/release/voice-cli watch-calls --raw              # call detection, and every process using audio
-.build/release/voice-cli fake-call                      # a live call, a segment every 2 s; prints its id
-.build/release/voice-cli fake-call --remove             # deletes every call fake-call wrote
+.build/release/dictate-cli call --file stereo.wav         # plays a WAV as a live call: left me, right call
+.build/release/dictate-cli call --remove                  # deletes those test calls and their audio
+.build/release/dictate-cli watch-calls --raw              # call detection, and every process using audio
+.build/release/dictate-cli fake-call                      # a live call, a segment every 2 s; prints its id
+.build/release/dictate-cli fake-call --remove             # deletes every call fake-call wrote
 ```
 
 ```sh
 curl -s -X POST http://127.0.0.1:7766/mcp \
-  -H "Authorization: Bearer $(cat ~/Library/Application\ Support/Voice/mcp-token)" \
+  -H "Authorization: Bearer $(cat ~/Library/Application\ Support/Dictate/mcp-token)" \
   -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"current_call","arguments":{}}}'
 ```
