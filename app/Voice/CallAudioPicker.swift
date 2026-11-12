@@ -61,29 +61,27 @@ struct CallAudioPicker: View {
 
     var body: some View {
         let apps = RunningCallApp.grouped(calls.running)
-        let rows = 1 + apps.reduce(0) { $0 + $1.apps.count } + calls.mixes.count
-        let sections = apps.count + (calls.mixes.isEmpty ? 0 : 1)
-        List(selection: selection) {
+        // Not a List: a scrolling list inside the settings form takes the scroll wheel and
+        // cuts off the apps below its height. These rows are the form's own, so all of them
+        // can be reached.
+        VStack(alignment: .leading, spacing: 2) {
             row(title: "Automatic", detail: automaticDetail, symbol: "wand.and.stars", id: Self.automatic)
             ForEach(apps, id: \.group) { group in
-                Section(group.group.title) {
-                    ForEach(group.apps) { app in
-                        row(title: app.name, detail: CallAudioText.status(playing: app.playing, listening: app.listening),
-                            icon: icon(for: app), id: CallAudioChoice.app(bundleID: app.bundleID).stored)
-                    }
+                caption(group.group.title)
+                ForEach(group.apps) { app in
+                    row(title: app.name, detail: CallAudioText.status(playing: app.playing, listening: app.listening),
+                        icon: icon(for: app), id: CallAudioChoice.app(bundleID: app.bundleID).stored)
                 }
             }
             if !calls.mixes.isEmpty {
-                Section("Blend Mic mixes") {
-                    ForEach(calls.mixes) { mix in
-                        row(title: mix.label, detail: nil, symbol: "waveform",
-                            id: CallAudioChoice.blendMix(deviceUID: mix.deviceUID ?? "").stored)
-                    }
+                caption("Blend Mic mixes")
+                ForEach(calls.mixes) { mix in
+                    row(title: mix.label, detail: nil, symbol: "waveform",
+                        id: CallAudioChoice.blendMix(deviceUID: mix.deviceUID ?? "").stored)
                 }
             }
         }
-        .listStyle(.inset)
-        .frame(height: min(CGFloat(rows) * 34 + CGFloat(sections) * 28 + 8, 320))
+        .accessibilityElement(children: .contain)
         .accessibilityLabel("Call audio")
         .task { await keepCurrent() }
         .onChange(of: meterTarget) { _, target in levels.watch(target, permission: calls.capturePermission) }
@@ -91,9 +89,13 @@ struct CallAudioPicker: View {
         .onDisappear { levels.stop() }
     }
 
-    private var selection: Binding<String?> {
-        Binding(get: { Self.selectedID(calls) },
-                set: { calls.audioChoice = CallAudioChoice(stored: $0 == Self.automatic ? "" : $0 ?? "") })
+    private func choose(_ id: String) {
+        calls.audioChoice = CallAudioChoice(stored: id == Self.automatic ? "" : id)
+    }
+
+    private func caption(_ title: String) -> some View {
+        Text(title).font(.caption).foregroundStyle(.secondary).padding(.top, 8).padding(.leading, 4)
+            .accessibilityAddTraits(.isHeader)
     }
 
     private static func selectedID(_ calls: CallsModel) -> String {
@@ -142,9 +144,15 @@ struct CallAudioPicker: View {
                 Image(systemName: "checkmark").foregroundStyle(.tint).accessibilityHidden(true)
             }
         }
-        .padding(.vertical, 2)
-        .tag(id)
+        .padding(.vertical, 4)
+        .padding(.horizontal, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(selected ? Color.accentColor.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 6))
+        .contentShape(Rectangle())
+        .onTapGesture { choose(id) }
         .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAction { choose(id) }
         .accessibilityLabel(title)
         .accessibilityValue(CallAudioText.accessibilityValue(status: detail, level: shows ? levels.level : nil,
                                                              selected: selected))
