@@ -52,7 +52,6 @@
 <nav class="nav" aria-label="Main">
   <a class="brand" href="./"><img src="icon.svg" alt="" width="24" height="24">Dictate</a>
   <div class="links">
-    <a href="evals.html">Evals</a>
     <a href="#questions">Questions</a>
     <a href="https://github.com/spashii/dictate">GitHub</a>
     <a class="button primary small" href="#get">Get Dictate</a>
@@ -64,19 +63,8 @@
     <div>
       <h1>Dictation and call recording for Mac.</h1>
       <p class="lede">Dictate types what you say into any app, and records your online calls with your side and theirs kept apart. It runs on your Mac, and no bot joins the call.</p>
-      <form class="signup" method="post" action="https://dictate.firstversion.in/api/signup">
-        <label class="l" for="email-top">Email address</label>
-        <div class="field">
-          <input id="email-top" name="email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" required maxlength="254">
-          <button class="button primary" type="submit">Email me the link</button>
-        </div>
-        <div class="hp" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div>
-        <input type="hidden" name="source" value=""><input type="hidden" name="utm_source" value=""><input type="hidden" name="utm_medium" value=""><input type="hidden" name="utm_campaign" value="">
-        <div class="cf-turnstile" data-sitekey="0x4AAAAAAF-MEHP47FLn7LEY" data-appearance="interaction-only"></div>
-        <p class="err" role="alert" hidden></p>
-        <p class="fine">There is no public download during the beta. Free during the beta, and beta users keep it. I use your email for the link and beta news. Reply to be removed.</p>
-      </form>
-      <p class="meta">Apple silicon, macOS 15 or later.</p>
+      <p class="cta"><a class="button primary" href="https://dictate.firstversion.in/download/0.12.1">Download for Mac</a></p>
+      <p class="meta">Free during the beta. Apple silicon, macOS 15 or later.</p>
     </div>
 
     <div class="demo-wrap">
@@ -146,7 +134,7 @@
     <div class="faq-list">
       <details open>
         <summary><h3>How is it different from Handy and OpenSuperWhisper?</h3></summary>
-        <p>At the core they are close: all three run on your Mac with no sign-in. <a href="https://handy.computer">Handy</a> also runs Parakeet, works on Windows and Linux, and has a public download. What Dictate adds is retries, online calls with both sides apart, and a local MCP server for your agents.</p>
+        <p>At the core they are close: all three run on your Mac with no sign-in. <a href="https://handy.computer">Handy</a> also runs Parakeet and works on Windows and Linux. What Dictate adds is retries, online calls with both sides apart, and a local MCP server for your agents.</p>
       </details>
       <details>
         <summary><h3>Why Whisper and not Parakeet?</h3></summary>
@@ -169,10 +157,6 @@
         <p>Your dictations and call transcripts, through the tools you leave on. The server listens only on your Mac and needs the token in Settings, Agents. Tools that record or change anything start off, because your agent reads what the other side of a call says, and that could steer it.</p>
       </details>
       <details>
-        <summary><h3>Why the email?</h3></summary>
-        <p>The link is personal, so I know who is running Dictate and can tell you when something breaks. The app itself has no sign-in.</p>
-      </details>
-      <details>
         <summary><h3>I use OpenSuperWhisper. Will they clash?</h3></summary>
         <p>Both start on Option+`. Change one in Settings, Shortcuts. If OpenSuperWhisper already has the speech model, Dictate reuses it instead of downloading 1.6 GB again.</p>
       </details>
@@ -182,26 +166,15 @@
       </details>
       <details>
         <summary><h3>Which languages?</h3></summary>
-        <p>Whisper detects the language. Large v3 (3.1 GB) is there for languages where turbo does worse. The published tests are English only.</p>
+        <p>Whisper detects the language. Large v3 (3.1 GB) is there for languages where turbo does worse.</p>
       </details>
     </div>
   </section>
 
   <section class="bottom" id="get">
     <h2>Get Dictate</h2>
-    <form class="signup" method="post" action="https://dictate.firstversion.in/api/signup">
-      <label class="l" for="email-end">Email address</label>
-      <div class="field">
-        <input id="email-end" name="email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" required maxlength="254">
-        <button class="button primary" type="submit">Email me the link</button>
-      </div>
-      <div class="hp" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div>
-      <input type="hidden" name="source" value=""><input type="hidden" name="utm_source" value=""><input type="hidden" name="utm_medium" value=""><input type="hidden" name="utm_campaign" value="">
-      <div class="cf-turnstile" data-sitekey="0x4AAAAAAF-MEHP47FLn7LEY" data-appearance="interaction-only"></div>
-      <p class="err" role="alert" hidden></p>
-      <p class="fine">There is no public download during the beta. Free during the beta, and beta users keep it. I use your email for the link and beta news. Reply to be removed.</p>
-    </form>
-    <p class="meta">Apple silicon, macOS 15 or later.</p>
+    <p class="cta"><a class="button primary" href="https://dictate.firstversion.in/download/0.12.1">Download for Mac</a></p>
+    <p class="meta">Free during the beta. Apple silicon, macOS 15 or later.</p>
   </section>
 
   <section class="recommend">
@@ -215,10 +188,8 @@
     </div>
   </section>
 </main>
-<footer class="site">Made by <a href="https://github.com/spashii">Sameer</a>. Source available (FSL-1.1-MIT). <a href="https://github.com/spashii/dictate">GitHub</a>. <a href="evals.html">Evals</a>. <a href="privacy.html">Privacy</a>.</footer>
+<footer class="site">Made by <a href="https://github.com/spashii">Sameer</a>. Source available (FSL-1.1-MIT). <a href="https://github.com/spashii/dictate">GitHub</a>. <a href="privacy.html">Privacy</a>.</footer>
 
-<script src="form.js" defer></script>
-<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 <script>
 if (location.hostname === "spashii.github.io") {
   const s = document.createElement("script");
