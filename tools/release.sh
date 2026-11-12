@@ -154,6 +154,6 @@ if $publish; then
   [[ -x $publishTool ]] || { print -u2 "Not published: $publishTool is missing."; exit 1 }
   $publishTool $version $dmg $feed
 else
-  echo "Upload the image without changing the feed:  $publishTool $version $dmg"
-  [[ -z $feed ]] || echo "Upload it and replace the feed:             $publishTool $version $dmg $feed   (or rerun with --publish)"
+  echo "Stage it (not latest, not public, pinned links work):  $publishTool --no-latest $version $dmg${feed:+ $feed}"
+  echo "Release it to everyone once checked:                    $publishTool --promote $version   (or rerun with --publish to skip staging)"
 fi
