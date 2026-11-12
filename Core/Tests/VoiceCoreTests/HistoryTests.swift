@@ -118,6 +118,18 @@ final class HistoryTests: StoreTestCase {
         XCTAssertEqual(try found("  ").count, 4, "blank shows everything")
     }
 
+    func testHalfTypedAndMidWordFragmentsStillFindTheRecording() throws {
+        try store.insert(try dictation("pricing", text: "the pricing update ships Friday",
+                                        segments: [seg("the pricing update ships Friday", t0: 0, t1: 2)]))
+        let calls = try CallStore(url: databaseURL)
+        func found(_ query: String) throws -> Set<String> { Set(try calls.historyEntries(matching: query).map(\.id)) }
+
+        // The index stems whole words, so "prici" is in no token; the text match finds it.
+        XCTAssertEqual(try found("prici"), ["dictation:pricing"])
+        XCTAssertEqual(try found("ricing upd"), ["dictation:pricing"], "from the middle of a word")
+        XCTAssertEqual(try found("pricing update"), ["dictation:pricing"])
+    }
+
     func testKeyTermDecisionsShowAsKeyTermEventsNotTranscriptEdits() throws {
         let calls = try fixtures()
         let all = try calls.historyEntries().compactMap { try calls.historyDetail($0) }.flatMap(\.allChanges)
