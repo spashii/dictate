@@ -15,15 +15,7 @@ I wanted really fast transcription on my own Whisper pipeline, one I could hack 
 
 ## Install
 
-Download the DMG from the [latest release](https://github.com/spashii/dictate/releases/latest), open it, and drag Dictate to Applications. Or use Homebrew:
-
-```sh
-brew tap spashii/dictate https://github.com/spashii/dictate
-brew trust spashii/dictate
-brew install --cask dictate
-```
-
-Dictate opens its window on Setup, with three steps: allow the microphone, allow Accessibility so it can paste into other apps, and download the speech model (1.6 GB, from Hugging Face). After that it opens at login and updates itself.
+Get the signed build by email at [spashii.github.io/dictate](https://spashii.github.io/dictate/), open the DMG, and drag Dictate to Applications. Dictate opens its window on Setup with three steps: allow the microphone, allow Accessibility so it can paste into other apps, and download the speech model (1.6 GB, from Hugging Face). After that it opens at login and updates itself.
 
 ## Requirements
 
@@ -49,7 +41,7 @@ Your audio never leaves your Mac, and there are no accounts. Dictate goes online
 - [Where your data lives](./docs/user/data.md)
 - [Uninstall](./docs/user/uninstall.md)
 
-Building from source? Start at [docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md). How it works is in [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md), and every MCP tool is in [docs/MCP.md](./docs/MCP.md).
+Every MCP tool is in [docs/MCP.md](./docs/MCP.md).
 
 ## License
 
