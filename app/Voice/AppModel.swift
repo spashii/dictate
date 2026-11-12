@@ -555,7 +555,7 @@ final class AppModel {
     /// Opens the activation page in the browser with this Mac's nonce, and Welcome here.
     func beginActivation() {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
-        NSWorkspace.shared.open(activation.pageURL(base: BuildFlavor.activationBase, version: version,
+        NSWorkspace.shared.open(activation.pageURL(page: BuildFlavor.activationPage, version: version,
                                                    scheme: BuildFlavor.isDev ? BuildFlavor.urlScheme : nil))
         openMainWindow(.welcome)
     }

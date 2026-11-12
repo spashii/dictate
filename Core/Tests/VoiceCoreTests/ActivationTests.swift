@@ -123,13 +123,13 @@ func refusal(_ result: Result<Void, Activation.Refusal>) -> Activation.Refusal? 
 
     @Test func pageURLCarriesNonceAndVersionInTheFragment() {
         let activation = make()
-        let url = activation.pageURL(base: URL(string: "https://dictate.firstversion.in")!, version: "0.13.0")
-        #expect(url.absoluteString == "https://dictate.firstversion.in/activate#n=n1&v=0.13.0")
+        let url = activation.pageURL(page: URL(string: "https://spashii.github.io/dictate/activate/")!, version: "0.13.0")
+        #expect(url.absoluteString == "https://spashii.github.io/dictate/activate/#n=n1&v=0.13.0")
         #expect(url.query == nil)
     }
 
     @Test func pageURLNamesAnOwnScheme() {
-        let url = make().pageURL(base: URL(string: "http://localhost:8787")!, version: "0.13.0",
+        let url = make().pageURL(page: URL(string: "http://localhost:8787/activate")!, version: "0.13.0",
                                  scheme: "in.firstversion.dictate.dev")
         #expect(url.absoluteString == "http://localhost:8787/activate#n=n1&v=0.13.0&s=in.firstversion.dictate.dev")
     }

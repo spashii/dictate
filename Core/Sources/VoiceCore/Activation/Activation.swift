@@ -98,13 +98,13 @@ public final class Activation {
         return nonce
     }
 
-    /// The address to open: the page, with the nonce and version in the fragment so they
+    /// The address to open: `page`, with the nonce and version in the fragment so they
     /// never go to a server in a request.
     /// A build with its own URL scheme (the Debug one) names it as `s`, so the page returns to it.
-    public func pageURL(base: URL, version: String, scheme: String? = nil) -> URL {
+    public func pageURL(page: URL, version: String, scheme: String? = nil) -> URL {
         let nonce = begin()
         let own = scheme.map { "&s=\($0)" } ?? ""
-        return URL(string: base.appending(path: "activate").absoluteString + "#n=\(nonce)&v=\(version)\(own)")!
+        return URL(string: page.absoluteString + "#n=\(nonce)&v=\(version)\(own)")!
     }
 
     /// A link in the app's scheme: `<scheme>://activate?t=<token>`.

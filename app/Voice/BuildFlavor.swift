@@ -13,8 +13,8 @@ enum BuildFlavor {
     }
 
     /// Where the activation page is, from Info.plist so each configuration has its own.
-    static var activationBase: URL {
+    static var activationPage: URL {
         (Bundle.main.object(forInfoDictionaryKey: "DictateActivationURL") as? String).flatMap(URL.init(string:))
-            ?? URL(string: "https://dictate.firstversion.in")!
+            ?? URL(string: "https://spashii.github.io/dictate/activate/")!
     }
 }
