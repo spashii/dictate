@@ -1,4 +1,5 @@
 import AppKit
+import BlendKit
 import Observation
 import SwiftUI
 import VoiceCore
@@ -10,7 +11,7 @@ import VoiceCore
 final class CallLevelModel {
     private(set) var level: Float = 0
     @ObservationIgnored private var target: CallTapTarget?
-    @ObservationIgnored private var meter: AppLevelMeter?
+    @ObservationIgnored private var probes: LevelProbes?
     @ObservationIgnored private var reading: Task<Void, Never>?
 
     func watch(_ target: CallTapTarget?, permission: AudioCapturePermission) {
@@ -21,13 +22,13 @@ final class CallLevelModel {
         guard target != self.target else { return }
         stop()
         self.target = target
-        let meter = AppLevelMeter(target)
-        self.meter = meter
+        let probes = LevelProbes(label: "Dictate")
+        self.probes = probes
         reading = Task { [weak self] in
             // Off the main thread: making the tap asks coreaudiod.
-            let started = await Task.detached(priority: .utility) { meter.start() }.value
-            while started, !Task.isCancelled {
-                let peak = meter.read()
+            await Task.detached(priority: .utility) { probes.set([TapTarget(bundleID: target.bundleID)]) }.value
+            while !Task.isCancelled {
+                let peak = probes.levels().first ?? 0
                 guard let self else { return }
                 level = max(peak, level * 0.85)
                 try? await Task.sleep(for: .milliseconds(100))
@@ -38,11 +39,12 @@ final class CallLevelModel {
     func stop() {
         reading?.cancel()
         reading = nil
-        let meter = meter
-        self.meter = nil
+        let probes = probes
+        self.probes = nil
         target = nil
         level = 0
-        if let meter { Task.detached(priority: .utility) { meter.stop() } }
+        // An empty list ends the taps; the probes themselves go with their last reference.
+        if let probes { Task.detached(priority: .utility) { probes.set([]) } }
     }
 }
 
