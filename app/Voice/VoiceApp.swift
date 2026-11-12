@@ -48,7 +48,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         super.init()
     }
 
+    private var launched = false
+
+    /// Activation comes back as a link in the app's own scheme. The log line says whether the
+    /// link arrived on a cold launch or while running, and never holds the token.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls {
+            DevLog.write("open \(url.scheme ?? "")://\(url.host ?? "") query=\(url.query?.count ?? 0) launched=\(launched)")
+        }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        launched = true
+        DevLog.write("launched")
         model.agents.recording = calls
         model.agents.keyTerms = PreferencesKeyTerms(preferences: model.preferences)
         model.calls = calls

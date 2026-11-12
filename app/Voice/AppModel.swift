@@ -8,10 +8,11 @@ extension KeyboardShortcuts.Name {
     /// The shortcut OpenSuperWhisper used, so the habit carries over.
     /// The only way to start and stop: nothing else ends a recording, so no stray key can
     /// throw one away.
-    static let dictate = Self("dictate", initial: .init(.backtick, modifiers: [.option]))
+    /// A development build has none, so it never answers the installed app's key.
+    static let dictate = Self("dictate", initial: BuildFlavor.isDev ? nil : .init(.backtick, modifiers: [.option]))
     /// Starts a call recording whether or not a call app is in a call, and stops it. Its own
     /// key, so dictating stays on Option+` during a call.
-    static let recordCall = Self("recordCall", initial: .init(.backtick, modifiers: [.option, .shift]))
+    static let recordCall = Self("recordCall", initial: BuildFlavor.isDev ? nil : .init(.backtick, modifiers: [.option, .shift]))
 }
 
 @MainActor @Observable
@@ -533,7 +534,7 @@ final class AppModel {
     /// Open at login is on by default, once: after that the switch in Settings decides.
     private func setDefaultLoginItem() {
         let key = "loginItemDefaulted"
-        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        guard !BuildFlavor.isDev, !UserDefaults.standard.bool(forKey: key) else { return }
         UserDefaults.standard.set(true, forKey: key)
         setOpenAtLogin(true)
     }

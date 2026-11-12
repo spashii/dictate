@@ -15,7 +15,8 @@ final class AgentAccess {
         case failed(String)
     }
 
-    /// On by default: an agent also needs the token, and the server listens on this Mac only
+    /// On by default, except in a development build, which would fight the installed app for
+    /// the port: an agent also needs the token, and the server listens on this Mac only
     /// unless the address says otherwise.
     var enabled: Bool {
         didSet {
@@ -41,7 +42,7 @@ final class AgentAccess {
 
     init() {
         let defaults = UserDefaults.standard
-        enabled = defaults.object(forKey: "agentAccess") as? Bool ?? true
+        enabled = defaults.object(forKey: "agentAccess") as? Bool ?? !BuildFlavor.isDev
         host = defaults.string(forKey: "agentHost").flatMap(MCPEndpoint.address(host:)) ?? MCPEndpoint.defaultHost
         port = (defaults.object(forKey: "agentPort") as? Int).flatMap { UInt16(exactly: $0) } ?? MCPServer.defaultPort
         // An explicit choice, even all on, is kept; the new-install defaults apply only to a Mac

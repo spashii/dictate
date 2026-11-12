@@ -32,7 +32,7 @@ final class Updates {
     init() {
         let delegate = UpdaterDelegate()
         self.delegate = delegate
-        controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: delegate,
+        controller = SPUStandardUpdaterController(startingUpdater: !BuildFlavor.isDev, updaterDelegate: delegate,
                                                   userDriverDelegate: nil)
         automatic = controller.updater.automaticallyChecksForUpdates
         canCheck = controller.updater.canCheckForUpdates
