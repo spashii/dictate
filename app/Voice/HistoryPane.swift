@@ -25,6 +25,19 @@ final class HistoryModel {
     private(set) var detail: HistoryDetail?
     /// The detail's blocks, made once when it loads instead of on every redraw.
     private(set) var blocks: [DisplayBlock] = []
+    /// The words searched for inside the open recording, and where each is: a stretch of one
+    /// block's text, as TextKit counts it. Searching walks each block's string once; nothing
+    /// is laid out per match.
+    var findText = "" {
+        didSet { if findText != oldValue { rebuildMatches(restart: true) } }
+    }
+    struct FindMatch: Equatable {
+        let block: Int
+        let range: Range<Int>
+    }
+    private(set) var matches: [FindMatch] = []
+    private(set) var currentMatch = 0
+    private(set) var matchesByBlock: [Int: [Range<Int>]] = [:]
     @ObservationIgnored private var blockOfLine: [Int: Int] = [:]
     @ObservationIgnored private var loads = 0
     /// Makes each set of blocks differ from the last, so a row redraws only when its text did.
@@ -46,6 +59,41 @@ final class HistoryModel {
     }
 
     var selected: HistoryEntry? { visible.first { $0.id == selection } }
+
+    var activeMatch: FindMatch? { matches.indices.contains(currentMatch) ? matches[currentMatch] : nil }
+
+    /// Which of a block's matches is the one stepped to, if it is in that block.
+    func activeIndex(inBlock id: Int) -> Int? {
+        guard let active = activeMatch, active.block == id else { return nil }
+        return matchesByBlock[id]?.firstIndex(of: active.range)
+    }
+
+    /// Moves to the next match, or the previous with a negative step, wrapping round.
+    func stepMatch(_ step: Int) {
+        guard !matches.isEmpty else { return }
+        currentMatch = (currentMatch + step + matches.count) % matches.count
+    }
+
+    private func rebuildMatches(restart: Bool) {
+        let needle = findText.trimmingCharacters(in: .whitespacesAndNewlines)
+        var found: [FindMatch] = []
+        if !needle.isEmpty {
+            for block in blocks {
+                let text = block.string as NSString
+                var from = 0
+                while from < text.length {
+                    let range = text.range(of: needle, options: [.caseInsensitive, .diacriticInsensitive],
+                                           range: NSRange(location: from, length: text.length - from))
+                    guard range.location != NSNotFound, range.length > 0 else { break }
+                    found.append(FindMatch(block: block.id, range: range.location..<range.location + range.length))
+                    from = range.location + range.length
+                }
+            }
+        }
+        matches = found
+        matchesByBlock = Dictionary(grouping: found, by: \.block).mapValues { $0.map(\.range) }
+        if restart || currentMatch >= found.count { currentMatch = 0 }
+    }
 
     /// The list as it is now, for the search text. The selection and the open detail stay put,
     /// so a refresh while someone reads or listens changes nothing they are looking at, unless
@@ -92,6 +140,7 @@ final class HistoryModel {
         guard let entry = visible.first(where: { $0.id == id }) else {
             detail = nil
             blocks = []
+            rebuildMatches(restart: true)
             blockOfLine = [:]
             waveform = []
             return
@@ -112,6 +161,7 @@ final class HistoryModel {
             player.load(audio)
             detail = shown
             blocks = read?.1 ?? []
+            rebuildMatches(restart: true)
             blockOfLine = Dictionary(blocks.flatMap { block in block.lines.map { ($0.id, block.id) } },
                                      uniquingKeysWith: { first, _ in first })
             waveform = []
@@ -213,6 +263,7 @@ final class HistoryModel {
             player.lineAt = { seconds in read.0.line(at: seconds)?.id }
             detail = read.0
             blocks = read.1
+            rebuildMatches(restart: false)
             blockOfLine = Dictionary(read.1.flatMap { block in block.lines.map { ($0.id, block.id) } },
                                      uniquingKeysWith: { first, _ in first })
         }
@@ -348,7 +399,7 @@ private struct HistoryList: View {
                             .accessibilityAction(named: "Rename") { history.beginRename(entry) }
                             .accessibilityAction(named: "Delete") { history.pendingDelete = entry }
                     }
-                    .listStyle(.plain)
+                    .listStyle(.inset)
                     // Return renames the selected row, as in Finder.
                     .onKeyPress(.return) {
                         guard history.renaming == nil, let entry = history.selected else { return .ignored }
@@ -479,11 +530,14 @@ private struct HistoryDetailView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(entry.customTitle ?? date)
                         .font(.title3.weight(.semibold))
+                        .lineLimit(1)
                     Text([entry.customTitle == nil ? nil : date, entry.kindLabel, HistoryTime.elapsed(entry.duration)]
                         .compactMap { $0 }.joined(separator: " \u{00B7} "))
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
-                Spacer()
+                Spacer(minLength: 12)
+                FindBar(history: history)
                 Menu {
                     Picker("Time", selection: $preferences.historyTimes) {
                         ForEach(HistoryTimeMode.allCases) { Text($0.title).tag($0) }
@@ -507,11 +561,16 @@ private struct HistoryDetailView: View {
                 .fixedSize()
                 .help("More")
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
             Divider()
             ScrollViewReader { proxy in
                 ScrollView {
+                    if blocks.isEmpty {
+                        ContentUnavailableView("No transcript", systemImage: "text.alignleft",
+                                               description: Text("Nothing was transcribed for this recording."))
+                            .padding(.top, 60)
+                    }
                     // Lazy, with a row's work done when the recording opened: scrolling only
                     // lays out the rows that come into view.
                     LazyVStack(alignment: .leading, spacing: 4) {
@@ -524,6 +583,8 @@ private struct HistoryDetailView: View {
                                                 showCorrections: preferences.showCorrections,
                                                 play: { player.play(from: $0) },
                                                 correctable: detail.canCorrect,
+                                                find: history.matchesByBlock[block.id] ?? [],
+                                                activeFind: history.activeIndex(inBlock: block.id),
                                                 draft: { history.correction(in: $0, range: $1) },
                                                 save: { await history.save($0, to: $1, known: KeyTerms.parse(preferences.keyTerms)) })
                                 .equatable()
@@ -533,9 +594,16 @@ private struct HistoryDetailView: View {
                         }
                     }
                     .padding(.vertical, 12)
+                    .padding(.horizontal, 8)
                 }
                 // A new recording starts at the top; the swap is still one step.
                 .id(detail.entry.id)
+                .onChange(of: history.currentMatch) {
+                    if let block = history.activeMatch?.block { proxy.scrollTo(block, anchor: .center) }
+                }
+                .onChange(of: history.findText) {
+                    if let block = history.activeMatch?.block { proxy.scrollTo(block, anchor: .center) }
+                }
                 .onChange(of: playingBlock) { _, id in
                     guard player.isPlaying, let id else { return }
                     proxy.scrollTo(id)
@@ -544,6 +612,54 @@ private struct HistoryDetailView: View {
             Divider()
             PlayBar(player: player, waveform: history.waveform, duration: detail.entry.duration)
         }
+    }
+}
+
+/// The search inside the open recording: a field with the count and steppers. Return and Cmd+G
+/// go to the next match, Shift+Return and Shift+Cmd+G to the one before, and Cmd+F comes here.
+private struct FindBar: View {
+    @Bindable var history: HistoryModel
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if !history.findText.isEmpty {
+                Text(history.matches.isEmpty ? "No matches" : "\(history.currentMatch + 1) of \(history.matches.count)")
+                    .font(.callout)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel(history.matches.isEmpty ? "No matches"
+                                        : "Match \(history.currentMatch + 1) of \(history.matches.count)")
+                Button { history.stepMatch(-1) } label: { Image(systemName: "chevron.up") }
+                    .help("Previous match")
+                    .accessibilityLabel("Previous match")
+                Button { history.stepMatch(1) } label: { Image(systemName: "chevron.down") }
+                    .help("Next match")
+                    .accessibilityLabel("Next match")
+            }
+            TextField("Find", text: $history.findText)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 170)
+                .focused($focused)
+                .onSubmit { history.stepMatch(1) }
+                .onExitCommand {
+                    history.findText = ""
+                    focused = false
+                }
+                .accessibilityLabel("Find in this recording")
+            // Shortcuts with no place of their own on screen.
+            Group {
+                Button("Previous match") { history.stepMatch(-1) }.keyboardShortcut(.return, modifiers: .shift)
+                Button("Next match") { history.stepMatch(1) }.keyboardShortcut("g", modifiers: .command)
+                Button("Previous match") { history.stepMatch(-1) }.keyboardShortcut("g", modifiers: [.command, .shift])
+                Button("Find") { focused = true }.keyboardShortcut("f", modifiers: .command)
+            }
+            .frame(width: 0, height: 0)
+            .opacity(0)
+            .accessibilityHidden(true)
+        }
+        .buttonStyle(.borderless)
+        .controlSize(.small)
     }
 }
 
@@ -565,6 +681,9 @@ private struct TranscriptBlockView: View, @MainActor Equatable {
     /// save when it worked, else what went wrong.
     /// False when what is drawn isn't the stored text, so a correction would change the wrong words.
     let correctable: Bool
+    /// The found words in this block, and which of them is the one stepped to.
+    let find: [Range<Int>]
+    let activeFind: Int?
     let draft: (DisplayBlock, Range<Int>) -> HandCorrection?
     let save: (HandCorrection, String) async -> String?
     @State private var hovered = false
@@ -579,7 +698,7 @@ private struct TranscriptBlockView: View, @MainActor Equatable {
     @State private var markFrame: CGRect = .zero
 
     static func == (a: Self, b: Self) -> Bool {
-        a.block == b.block && a.correctable == b.correctable && a.isCall == b.isCall && a.playing == b.playing && a.times == b.times
+        a.block == b.block && a.correctable == b.correctable && a.find == b.find && a.activeFind == b.activeFind && a.isCall == b.isCall && a.playing == b.playing && a.times == b.times
             && a.showCorrections == b.showCorrections
     }
 
@@ -642,7 +761,7 @@ private struct TranscriptBlockView: View, @MainActor Equatable {
         .padding(.horizontal, 12)
         .padding(.vertical, 3)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(hovered ? Color.primary.opacity(0.05) : .clear)
+        .background(hovered ? Color.primary.opacity(0.05) : .clear, in: RoundedRectangle(cornerRadius: 6))
         .contentShape(Rectangle())
         .onHover { hovered = $0 }
         .onTapGesture {
@@ -674,6 +793,11 @@ extension TranscriptBlockView {
     /// The block's text with the line being heard and the selected words marked.
     private var shownText: AttributedString {
         var text = block.text(heard: playing)
+        for (index, found) in find.enumerated() {
+            if let range = Range(NSRange(location: found.lowerBound, length: found.count), in: text) {
+                text[range].swiftUI.backgroundColor = Color.accentColor.opacity(index == activeFind ? 0.5 : 0.22)
+            }
+        }
         if let selection, let range = Range(NSRange(location: selection.lowerBound, length: selection.count), in: text) {
             text[range].swiftUI.backgroundColor = Color(nsColor: .selectedTextBackgroundColor)
         }
