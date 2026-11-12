@@ -63,21 +63,8 @@ struct MainView: View {
         @Bindable var navigation = navigation
         let policy = model.lock
         NavigationSplitView {
-            List(selection: $navigation.selection) {
-                if !model.activation.isActivated {
-                    Section { row(.welcome) }
-                }
-                if policy.unlocked {
-                    Section("Library") {
-                        ForEach(MainPane.library) { row($0) }
-                    }
-                }
-                Section("Settings") {
-                    ForEach(MainPane.settings.filter(policy.reaches)) { row($0) }
-                }
-            }
-            .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 170, ideal: 200, max: 260)
+            MainSidebar(navigation: navigation)
+                .navigationSplitViewColumnWidth(min: 170, ideal: 200, max: 260)
         } detail: {
             let pane = policy.landing(for: navigation.selection ?? .history)
             Group {
@@ -109,6 +96,32 @@ struct MainView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             model.refreshPermissions()
         }
+    }
+}
+
+/// The Library and Settings list. A view of its own so the app-shots run can draw it where
+/// a bitmap draw of the window leaves the sidebar blank.
+struct MainSidebar: View {
+    @Environment(AppModel.self) private var model
+    let navigation: MainNavigation
+
+    var body: some View {
+        @Bindable var navigation = navigation
+        let policy = model.lock
+        List(selection: $navigation.selection) {
+            if !model.activation.isActivated {
+                Section { row(.welcome) }
+            }
+            if policy.unlocked {
+                Section("Library") {
+                    ForEach(MainPane.library) { row($0) }
+                }
+            }
+            Section("Settings") {
+                ForEach(MainPane.settings.filter(policy.reaches)) { row($0) }
+            }
+        }
+        .listStyle(.sidebar)
     }
 
     private func row(_ pane: MainPane) -> some View {

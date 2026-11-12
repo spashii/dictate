@@ -6,6 +6,11 @@ import Foundation
 public struct DetectedCall: Sendable, Hashable {
     public var bundleID: String
     public var name: String
+
+    public init(bundleID: String, name: String) {
+        self.bundleID = bundleID
+        self.name = name
+    }
 }
 
 /// Watches which apps use the microphone, through Core Audio's process objects, and reports

@@ -39,6 +39,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// folder moves under its open database. The agent defaults are settled before anything
     /// creates the folders that would make a new install look like an old one.
     override init() {
+        #if DEBUG
+        // The app-shots run draws views and quits: no other copy to check, nothing to migrate.
+        if Snapshots.folder != nil {
+            migration = .nothingToDo
+            model = AppModel(activation: Activation(store: MemoryActivationStore()))
+            calls = CallsModel()
+            super.init()
+            return
+        }
+        #endif
         if let renamed = BundleRename.renameIfNeeded() { BundleRename.relaunchAndExit(renamed) }
         guard OtherInstance.ensureSole() else { exit(0) }
         _ = AgentSettings.disabledTools(in: .standard, existingInstall: AgentSettings.isExistingInstall())
@@ -60,6 +70,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        #if DEBUG
+        if let folder = Snapshots.folder {
+            Task { await Snapshots.run(into: folder) }
+            return
+        }
+        #endif
         launched = true
         DevLog.write("launched")
         model.agents.recording = calls
@@ -135,7 +151,7 @@ struct MenuContent: View {
         // be highlighted like an item.
         if !model.activation.isActivated {
             Section {
-                Button("Activate Dictate\u{2026}") { model.beginActivation() }
+                Button("Activate in Browser") { model.beginActivation() }
             }
         }
         if model.lock.showsRecordingMenu {
@@ -144,7 +160,7 @@ struct MenuContent: View {
                 if let holder = model.secureInput {
                     Text(holder.menuText)
                 }
-                Button(model.isRecording ? "Stop and paste" : "Dictate  \(KeyboardShortcuts.getShortcut(for: .dictate)?.description ?? "")") {
+                Button(model.isRecording ? "Stop and Paste" : "Dictate  \(KeyboardShortcuts.getShortcut(for: .dictate)?.description ?? "")") {
                     model.toggle()
                 }
                 .disabled(model.isWorking)

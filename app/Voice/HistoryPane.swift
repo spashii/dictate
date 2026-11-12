@@ -50,6 +50,10 @@ final class HistoryModel {
     @ObservationIgnored private var limit = HistoryModel.page
     private static let page = 200
 
+    init(store: CallStore? = nil) {
+        self.store = store
+    }
+
     var visible: [HistoryEntry] {
         switch filter {
         case .all: entries
@@ -880,7 +884,7 @@ private struct CorrectionEditorHost: ViewModifier {
                                  save: { await save(request, $0) },
                                  done: { editing = nil })
             } else {
-                Text("Clean-up rewrote this dictation, so its words can't be corrected here.")
+                Text("Fix the text before pasting changed this dictation, so its words can't be corrected here.")
                     .padding(12)
                     .frame(width: 260, alignment: .leading)
             }
@@ -1080,7 +1084,7 @@ private struct PlayBar: View {
     }
 }
 
-/// Bars for the loudness of the recording, the played part in the accent colour. Click or drag to
+/// Bars for the loudness of the recording, the played part in the accent color. Click or drag to
 /// move the playhead.
 private struct WaveformScrubber: View {
     let peaks: [Float]

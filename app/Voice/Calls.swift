@@ -100,6 +100,14 @@ final class CallsModel {
         }
     }
 
+    #if DEBUG
+    /// The app-shots run asks the prompt to show for an app without a detector.
+    func promptForSnapshots(_ app: DetectedCall, model: AppModel) {
+        self.model = model
+        detected = [app]
+    }
+    #endif
+
     private func migrateLegacyInput() {
         let defaults = UserDefaults.standard
         guard defaults.string(forKey: "callAudio") == nil else { return }
@@ -629,10 +637,10 @@ struct CallMenuItems: View {
             if model.preferences.runPrompt {
                 Text("Whisper only during calls")
             }
-            Button("Stop recording" + keys) { Task { await calls.stop() } }
+            Button("Stop Recording" + keys) { Task { await calls.stop() } }
         } else {
             let app = calls.detected.first
-            Button((app == nil ? "Record a call" : "Record this call") + keys) { calls.recordFromMenu(app) }
+            Button((app == nil ? "Record a Call" : "Record This Call") + keys) { calls.recordFromMenu(app) }
                 .disabled(calls.starting)
         }
         if let warning = calls.warning {
