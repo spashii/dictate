@@ -18,8 +18,8 @@ public struct HistoryEntry: Sendable, Identifiable, Equatable, Hashable {
     public var title: String
     /// How many changes it holds: retries that changed words, fix edits and corrections.
     public var changes: Int
-    /// Whether it has words to copy. A dictation listed always has; a call that heard nothing
-    /// has none, and the window offers no Copy for it.
+    /// Whether it has words to copy. A dictation listed always has; a call still recording
+    /// or transcribing may not yet.
     public var hasText = true
     /// The recording the entry keeps, whether or not the file is still there.
     public var audioPath: String? = nil
@@ -99,7 +99,7 @@ public struct HistoryChange: Sendable, Equatable, Identifiable {
 }
 
 extension CallStore {
-    /// Dictations with text and calls, newest first.
+    /// Dictations with text and calls, newest first. Calls that heard nothing are left out.
     public func historyEntries(limit: Int = 200) throws -> [HistoryEntry] {
         try queue.sync {
             let dictations = try db.query("""
@@ -121,7 +121,8 @@ extension CallStore {
                   + (SELECT count(*) FROM edits e WHERE e.target LIKE 'call:' || c.id || '/segment:%'),
                   EXISTS (SELECT 1 FROM call_segments s WHERE s.call_id = c.id
                           AND trim(coalesce(s.corrected_text, s.text), ' ' || char(9, 10, 13)) <> '')
-                FROM calls c ORDER BY c.started_at DESC LIMIT ?
+                FROM calls c WHERE \(Self.heardSomething("c"))
+                ORDER BY c.started_at DESC LIMIT ?
                 """, [limit]) { row in
                 HistoryEntry(kind: .call, ref: row.text(0), at: row.date(1), timeZone: row.string(4),
                              duration: row.double(2), title: row.text(3), changes: row.int(6), hasText: row.int(7) != 0,

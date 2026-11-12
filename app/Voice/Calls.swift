@@ -382,7 +382,7 @@ final class CallsModel {
     }
 
     private func refreshRecent() {
-        recent = (try? store?.calls(limit: 3)) ?? []
+        recent = (try? store?.recentCalls(limit: 3)) ?? []
     }
 }
 

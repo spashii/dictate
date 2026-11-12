@@ -164,6 +164,15 @@ public final class CallStore: @unchecked Sendable {
         }
     }
 
+    /// A call is still being made, failed, or has words in it. Only a finished call with
+    /// nothing in it is a recording that heard nothing.
+    static func heardSomething(_ calls: String = "calls") -> String {
+        """
+        (\(calls).status <> 'done' OR EXISTS (SELECT 1 FROM call_segments s WHERE s.call_id = \(calls).id
+          AND trim(coalesce(s.corrected_text, s.text), ' ' || char(9, 10, 13)) <> ''))
+        """
+    }
+
     /// Removes a call with its segments and tags. The audio file stays where it is.
     public func deleteCall(_ callID: String) throws {
         try queue.sync {
@@ -212,6 +221,15 @@ public final class CallStore: @unchecked Sendable {
 
     /// Newest first.
     public func calls(since: Date? = nil, tag: String? = nil, limit: Int = 20) throws -> [Call] {
+        try calls(since: since, tag: tag, limit: limit, heardSomething: false)
+    }
+
+    /// The newest calls for the menu: a finished call with no words in it is left out.
+    public func recentCalls(limit: Int) throws -> [Call] {
+        try calls(since: nil, tag: nil, limit: limit, heardSomething: true)
+    }
+
+    private func calls(since: Date?, tag: String?, limit: Int, heardSomething: Bool) throws -> [Call] {
         var conditions: [String] = []
         var values: [Any?] = []
         if let since {
@@ -222,6 +240,7 @@ public final class CallStore: @unchecked Sendable {
             conditions.append("id IN (SELECT call_id FROM call_tags WHERE tag = ?)")
             values.append(tag.trimmingCharacters(in: .whitespacesAndNewlines))
         }
+        if heardSomething { conditions.append(Self.heardSomething()) }
         let filter = conditions.isEmpty ? "" : "WHERE " + conditions.joined(separator: " AND ")
         values.append(limit)
         return try queue.sync {

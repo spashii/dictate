@@ -268,8 +268,9 @@ public final class Store: @unchecked Sendable {
     /// NULL origins need their own test: `origin <> 'imported'` is not true for NULL.
     private static let notImported = "(origin IS NULL OR origin <> 'imported')"
 
-    /// The newest dictations, without their segments. Recordings too short to transcribe
-    /// stay in the history but not in this list, since there's nothing in them to copy.
+    /// The newest dictations, without their segments. A recording that heard nothing, or was
+    /// too short to transcribe, is left out: there is nothing in it to copy. One that failed
+    /// to transcribe stays, so it can be tried again.
     public func recent(_ limit: Int) -> [Dictation] {
         queue.sync {
             var statement: OpaquePointer?
@@ -277,6 +278,7 @@ public final class Store: @unchecked Sendable {
                 SELECT id, created_at, audio_path, duration, mode, whisper_model, raw_text,
                        coalesce(corrected_text, final_text), cleanup_model, error, origin, time_zone
                 FROM dictations WHERE duration >= ?
+                  AND (coalesce(corrected_text, final_text) <> '' OR error IS NOT NULL)
                 ORDER BY created_at DESC LIMIT ?
                 """, -1, &statement, nil) == SQLITE_OK else { return [] }
             defer { sqlite3_finalize(statement) }
