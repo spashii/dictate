@@ -55,6 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
             DevLog.write("open \(url.scheme ?? "")://\(url.host ?? "") query=\(url.query?.count ?? 0) launched=\(launched)")
+            model.acceptActivation(url: url)
         }
     }
 
@@ -101,6 +102,10 @@ struct MenuContent: View {
     @Environment(CallsModel.self) private var calls
 
     var body: some View {
+        if !model.activation.isActivated {
+            Button("Activate Dictate\u{2026}") { model.beginActivation() }
+            Divider()
+        }
         Text(model.statusText)
         Button(model.isRecording ? "Stop and paste" : "Dictate  \(KeyboardShortcuts.getShortcut(for: .dictate)?.description ?? "")") {
             model.toggle()

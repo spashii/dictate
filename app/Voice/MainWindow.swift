@@ -4,12 +4,13 @@ import VoiceCore
 
 /// The panes of the main window: History in the Library, and the settings.
 enum MainPane: String, CaseIterable, Identifiable {
-    case history, setup, shortcuts, microphones, model, agents, about
+    case welcome, history, setup, shortcuts, microphones, model, agents, about
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
+        case .welcome: "Welcome"
         case .history: "History"
         case .setup: "Setup"
         case .shortcuts: "Shortcuts"
@@ -22,6 +23,7 @@ enum MainPane: String, CaseIterable, Identifiable {
 
     var symbol: String {
         switch self {
+        case .welcome: "hand.wave"
         case .history: "clock.arrow.circlepath"
         case .setup: "checkmark.circle"
         case .shortcuts: "keyboard"
@@ -97,6 +99,9 @@ struct MainView: View {
         @Bindable var navigation = navigation
         NavigationSplitView {
             List(selection: $navigation.selection) {
+                if !model.activation.isActivated {
+                    Section { row(.welcome) }
+                }
                 Section("Library") {
                     ForEach(MainPane.library) { row($0) }
                 }
@@ -110,6 +115,7 @@ struct MainView: View {
             let pane = navigation.selection ?? .history
             Group {
                 switch pane {
+                case .welcome: WelcomePane()
                 case .history: HistoryPane(history: history)
                 case .setup: SetupPane()
                 case .shortcuts: ShortcutsPane()

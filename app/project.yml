@@ -124,6 +124,9 @@ targets:
   VoiceTests:
     type: bundle.unit-test
     platform: macOS
+    dependencies:
+      - package: VoiceCore
+        product: VoiceCore
     sources:
       - path: VoiceTests
       - path: Voice/SupportItems.swift
@@ -134,6 +137,7 @@ targets:
       - path: Voice/CallAudioText.swift
       - path: Voice/BundleRename.swift
       - path: Voice/OtherInstance.swift
+      - path: Voice/RecordingGate.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.spashii.voice.tests

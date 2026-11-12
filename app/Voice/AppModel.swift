@@ -30,6 +30,14 @@ final class AppModel {
 
     enum NoticeAction: Equatable {
         case allowAccessibility
+        case activate
+
+        var title: String {
+            switch self {
+            case .allowAccessibility: "Allow\u{2026}"
+            case .activate: "Activate"
+            }
+        }
     }
 
     var phase: Phase = .idle {
@@ -52,6 +60,9 @@ final class AppModel {
     let downloads = ModelDownloads()
     let agents = AgentAccess()
     let updates = Updates()
+    let activation = Activation(store: KeychainActivationStore())
+    /// What the Welcome pane says about the last activation attempt.
+    var activationMessage: String?
 
     /// Set at launch; dictation asks it whether a call is using whisper.
     @ObservationIgnored weak var calls: CallsModel?
@@ -176,6 +187,11 @@ final class AppModel {
             recoverRecordings()
         } else {
             if downloads.state(preferences.whisperModel) == .missing { downloads.download(preferences.whisperModel) }
+        }
+        // The model keeps downloading behind Welcome, so Setup is ready once Dictate is activated.
+        if !activation.isActivated && !activation.allowsRecording {
+            openMainWindow(.welcome)
+        } else if !setupComplete {
             openMainWindow(.setup)
         }
         #if DEBUG
@@ -199,7 +215,9 @@ final class AppModel {
     /// the start, so changing the setting mid-dictation doesn't change what this one does.
     func toggle() {
         switch phase {
-        case .idle, .notice, .edits: start(preferences.runPrompt && calls?.usesWhisper != true ? .fix : .plain)
+        case .idle, .notice, .edits:
+            guard requireActivation() else { return }
+            start(preferences.runPrompt && calls?.usesWhisper != true ? .fix : .plain)
         case .recording: stop()
         case .transcribing, .cleaningUp: break
         }
@@ -291,6 +309,7 @@ final class AppModel {
     func noticeAction(_ action: NoticeAction) {
         switch action {
         case .allowAccessibility: Paster.askForAccess()
+        case .activate: beginActivation()
         }
         phase = .idle
         refreshIndicator()
@@ -508,11 +527,63 @@ final class AppModel {
     /// Cmd+, and the menu's Settings: the first settings pane.
     func openSettings() { openMainWindow(.setup) }
 
+    /// True when recording may start. Otherwise the pill offers to activate.
+    func requireActivation() -> Bool {
+        activation.refresh()
+        guard (try? RecordingGate.check(activation)) != nil else {
+            notice("Activate Dictate to start recording", action: .activate)
+            return false
+        }
+        return true
+    }
+
+    /// Opens the activation page in the browser with this Mac's nonce, and Welcome here.
+    func beginActivation() {
+        activationMessage = nil
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
+        NSWorkspace.shared.open(activation.pageURL(base: BuildFlavor.activationBase, version: version))
+        openMainWindow(.welcome)
+    }
+
+    func acceptActivation(url: URL) {
+        finishActivation(activation.accept(url: url))
+    }
+
+    /// The paste field. Returns whether it was accepted.
+    func acceptActivation(text: String) {
+        finishActivation(activation.accept(text: text))
+    }
+
+    func useGrace() {
+        activation.startGrace()
+        activationChanged()
+    }
+
+    private func finishActivation(_ result: Result<Void, Activation.Refusal>) {
+        switch result {
+        case .success:
+            activationMessage = nil
+            activationChanged()
+            openMainWindow(.setup)
+            notice("Dictate is activated")
+        case .failure(.otherRequest):
+            activationMessage = "This activation was for another request. Press Activate again."
+        case .failure(.invalid):
+            activationMessage = "That code is not valid. Copy it again from the page."
+        case .failure(.notSaved):
+            activationMessage = "Dictate could not save the activation in your Keychain."
+        }
+    }
+
+    private func activationChanged() {
+        calls?.activationChanged()
+    }
+
     /// A notice from outside dictation. Mid-dictation the indicator stays on the dictation
     /// and the menu carries the message instead.
-    func notice(_ text: String) {
+    func notice(_ text: String, action: NoticeAction? = nil) {
         switch phase {
-        case .idle, .notice, .edits: show(text)
+        case .idle, .notice, .edits: show(text, action: action)
         case .recording, .transcribing, .cleaningUp: break
         }
     }

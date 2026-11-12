@@ -1,6 +1,21 @@
 import SwiftUI
 import VoiceCore
 
+struct ActivationStep: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        StepRow(title: "Activated", done: model.activation.isActivated, detail: graceText) {
+            Button("Activate\u{2026}") { model.beginActivation() }
+        }
+    }
+
+    private var graceText: String? {
+        guard case .grace(let until) = model.activation.state else { return nil }
+        return "Using Dictate until \(until.formatted(date: .abbreviated, time: .omitted))."
+    }
+}
+
 struct MicrophoneStep: View {
     @Environment(AppModel.self) private var model
 

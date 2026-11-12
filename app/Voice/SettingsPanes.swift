@@ -10,6 +10,7 @@ struct SetupPane: View {
         @Bindable var preferences = model.preferences
         Form {
             Section {
+                ActivationStep()
                 MicrophoneStep()
                 AccessibilityStep()
                 CallAudioStep()
