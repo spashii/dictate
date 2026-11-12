@@ -107,6 +107,8 @@ extension HistoryLine {
 public struct TranscriptBlock: Sendable, Equatable, Identifiable {
     public var speaker: String?
     public var lines: [HistoryLine]
+    /// The previous block is the same speaker's, so a view labels the turn once.
+    public var continuesTurn = false
 
     public var id: Int { lines[0].id }
     /// Where the block starts, for its time label.
@@ -141,6 +143,9 @@ public enum TranscriptBlocks {
                                               lines: Array(lines[index..<min(index + paragraph, lines.count)])))
                 index += paragraph
             }
+        }
+        for index in blocks.indices.dropFirst() {
+            blocks[index].continuesTurn = blocks[index].speaker != nil && blocks[index].speaker == blocks[index - 1].speaker
         }
         return blocks
     }

@@ -29,6 +29,7 @@ private func entry(_ kind: HistoryEntry.Kind) -> HistoryEntry {
         let blocks = TranscriptBlocks.make(HistoryDetail(entry: entry(.call), audioPath: nil, lines: lines,
                                                          textChanges: []))
         #expect(blocks.map { $0.lines.count } == [4, 4, 1])
+        #expect(blocks.map(\.continuesTurn) == [false, true, true], "the speaker is named once per turn")
         #expect(blocks.allSatisfy { $0.speaker == "Call" })
     }
 
