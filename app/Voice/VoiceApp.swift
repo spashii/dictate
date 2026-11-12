@@ -52,6 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model.agents.recording = calls
         model.agents.keyTerms = PreferencesKeyTerms(preferences: model.preferences)
         model.calls = calls
+        CommonWords.onMainThread.isSet = true
         windows.start()
         if migration == .bothExist { explainBothFolders() }
         model.launch()
