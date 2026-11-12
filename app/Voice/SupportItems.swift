@@ -5,13 +5,11 @@ import Foundation
 enum SupportItem: CaseIterable {
     case checkForUpdates
     case reportIssue
-    case viewOnGitHub
 
     var title: String {
         switch self {
         case .checkForUpdates: "Check for Updates…"
         case .reportIssue: "Report an Issue…"
-        case .viewOnGitHub: "View on GitHub"
         }
     }
 
