@@ -81,3 +81,29 @@ enum TokenSupport {
         }
     }
 }
+
+/// A token minted by the site's own signer (dictate-web `test/fixtures/activation-token.json`),
+/// so the two sides agree on the bytes that are signed.
+@Suite struct WorkerFixtureTests {
+    static let key = "E2DuHBFTI9GCt-8qDb1Mt3exNfS1xlhreV6lD_qPT0U"
+    static let token = "dct1.eyJraWQiOiJrMSIsInNpZCI6InMxYTJiM2M0ZDVlNiIsIm4iOiJBQUVDQXdRRkJnY0lDUW9MREEwT0R3IiwiaWF0IjoxNzk0MDAwMDAwfQ.RnpG_GUry7fZmDb3C0f9x3pRT2GXronksYhu3WmZglVsG0PQTmfL1lWcrHBsYoO3RZmrX3lHM-nb9BTxt9OjBA"
+
+    var keys: [String: Curve25519.Signing.PublicKey] {
+        ["k1": try! Curve25519.Signing.PublicKey(rawRepresentation: Base64URL.decode(Self.key)!)]
+    }
+
+    @Test func verifiesTheSitesToken() throws {
+        let token = try ActivationToken.verify(Self.token, keys: keys)
+        #expect(token.signupID == "s1a2b3c4d5e6")
+        #expect(token.nonce == "AAECAwQFBgcICQoLDA0ODw")
+        #expect(token.issuedAt == Date(timeIntervalSince1970: 1_794_000_000))
+    }
+
+    @Test func refusesItOnceTampered() {
+        let parts = Self.token.split(separator: ".")
+        let forged = Base64URL.encode(Data(#"{"kid":"k1","sid":"x","n":"AAECAwQFBgcICQoLDA0ODw","iat":1794000000}"#.utf8))
+        #expect(throws: ActivationToken.Failure.badSignature) {
+            try ActivationToken.verify("dct1.\(forged).\(parts[2])", keys: keys)
+        }
+    }
+}
