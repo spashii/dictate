@@ -234,6 +234,8 @@ final class CallsModel {
 
     func record(_ app: DetectedCall? = nil, title: String? = nil) async throws -> Call {
         guard let recorder, let model else { throw VoiceError.store("Dictate is still starting.") }
+        // Also the way in for an agent's start_recording, which has no pill to show.
+        try RecordingGate.check(model.activation)
         if let recording { return recording }
         guard !starting else { throw VoiceError.store("A call recording is already starting.") }
         dismissStoppedCall()
@@ -269,6 +271,7 @@ final class CallsModel {
     }
 
     func recordFromMenu(_ app: DetectedCall?) {
+        guard model?.requireActivation() != false else { return }
         Task {
             do {
                 _ = try await record(app)
@@ -426,7 +429,7 @@ final class CallsModel {
 
     /// The app the prompt asks about: the first in a call that wasn't dismissed.
     var promptApp: DetectedCall? {
-        guard askToRecord, recording == nil else { return nil }
+        guard askToRecord, recording == nil, model?.activation.allowsRecording == true else { return nil }
         return detected.first { !dismissed.contains($0.bundleID) }
     }
 
@@ -452,6 +455,11 @@ final class CallsModel {
         let text = apps.first { CallApps.reads($0, readers: readers) }.map { CallSource.readsMixNotice($0.name) }
         if let text, text != warning { model?.notice(text) }
         warning = text
+    }
+
+    /// The prompt follows whether Dictate may record.
+    func activationChanged() {
+        updatePrompt()
     }
 
     private func updatePrompt() {
