@@ -13,6 +13,8 @@ public struct TextCorrection: Sendable, Equatable, Identifiable {
     public var confidenceBefore: Double?
     public var confidenceAfter: Double?
     public var record: String
+    /// Who made a correction: the MCP client's name, or `Edit.personClient`.
+    public var client: String?
 
     public var id: String { "\(record)@\(range.lowerBound)" }
 }
@@ -37,7 +39,8 @@ extension HistoryLine {
                 found.append(TextCorrection(source: change.source, range: range, before: words.before.joined(separator: " "),
                                             after: words.after.joined(separator: " "),
                                             confidenceBefore: change.confidenceBefore,
-                                            confidenceAfter: change.confidenceAfter, record: change.record))
+                                            confidenceAfter: change.confidenceAfter, record: change.record,
+                                            client: change.source == .correction ? change.note : nil))
             }
         }
         return found.sorted { $0.range.lowerBound < $1.range.lowerBound }
