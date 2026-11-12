@@ -1,10 +1,10 @@
 # Third-party notices
 
-Voice includes the following software. Each is used under the license reproduced here.
+Dictate includes the following software. Each is used under the license reproduced here.
 
 ## whisper.cpp
 
-https://github.com/ggml-org/whisper.cpp, release b5454 (v1.9.5), embedded as `whisper.framework` with ggml and its Metal shaders. It runs the speech model.
+https://github.com/ggml-org/whisper.cpp, release b5454 (v1.9.5), embedded as `whisper.framework`, which holds whisper.cpp, the ggml tensor library it is built on and ggml's Metal shaders, all under the license below (Copyright (c) 2023-2026 The ggml authors). It runs the speech model.
 
 ```
 MIT License
@@ -48,7 +48,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ## Sparkle
 
-https://sparkle-project.org, version 2.10.1, embedded as `Sparkle.framework`. It checks for and installs updates.
+https://sparkle-project.org, version 2.10.1, embedded as `Sparkle.framework`. It checks for and installs updates. Its own LICENSE file follows in full, including the licenses of the code it bundles: bsdiff and bspatch (Colin Percival), sais-lite (Yuta Mori), the ed25519 implementation (Orson Peters) and SUSignatureVerifier (Mark Hamlin).
 
 ```
 Copyright (c) 2006-2013 Andy Matuschak.
@@ -187,9 +187,58 @@ IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 ```
 
-## Models Voice downloads
+## Whisper model weights
 
-These are not part of Voice. Voice downloads them from Hugging Face at first run, and each is under its own license:
+Not inside the app: Dictate downloads Whisper large v3 turbo and large v3 from https://huggingface.co/ggerganov/whisper.cpp at first run, in whisper.cpp's ggml format, and runs them with whisper.cpp above. The weights are OpenAI's, under the MIT License.
 
-- Whisper large v3 turbo and large v3 (OpenAI), MIT, in whisper.cpp's format from https://huggingface.co/ggerganov/whisper.cpp.
-- Silero VAD v5.1.2 (Silero Team), MIT, in whisper.cpp's format from https://huggingface.co/ggml-org/whisper-vad.
+```
+MIT License
+
+Copyright (c) 2022 OpenAI
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## Silero VAD model weights
+
+Not inside the app: Dictate downloads Silero VAD v5.1.2 from https://huggingface.co/ggml-org/whisper-vad at first run, in whisper.cpp's ggml format. It finds where speech is in a recording. The weights are the Silero Team's, under the MIT License.
+
+```
+MIT License
+
+Copyright (c) 2020-present Silero Team
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
