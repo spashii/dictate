@@ -1,17 +1,17 @@
-# Online calls with Blend Mic
+# Online calls
 
-An online call has two sides, and a microphone hears only yours. [Blend Mic](https://github.com/spashii/blend) makes a microphone that carries yours and the sound your Mac plays on separate channels, and Dictate transcribes each channel on its own. Tell the other side you're recording.
+An online call has two sides. Dictate records your microphone as Me and the sound of the call app as Call, and transcribes each on its own. Tell the other side you're recording.
 
-1. **Make the mix.** In Blend Mic, make a mix with your microphone and turn on System audio. It starts split by channel: your microphone on the left, system audio on the right.
-2. **Leave your call app on its usual microphone.** Only Dictate reads the mix. Blend Mic leaves every app that reads a mix out of that mix's system audio, so a call app set to the mix would be missing from the call side. Dictate warns if one is.
+1. **Allow call audio once.** Setup has a Call audio step. macOS asks to let Dictate record the sound of other apps; it records only the app you are on a call in. Without it Dictate records your microphone alone.
+2. **Use headphones.** On speakers your microphone also hears the call, so its words can appear under Me too.
 3. **Start recording.** After a call app has used the microphone for 5 seconds (10 for a browser using the microphone and speakers), Dictate shows "Record this call?" with Record and Not now. ``Option+Shift+` `` and the menu's "Record this call" start one too.
 4. **Read the transcript.** Each side is cut at its pauses and transcribed while the call goes on, yours as Me and everyone else as Call. While it records, the call pill shows the last three lines. Click the call in the menu to copy it.
-5. **Stop.** Recording stops 15 seconds after the call app stops using audio, with ``Option+Shift+` ``, from the menu, or when an agent says so. Once the transcript is complete, the WAV becomes an AAC `.m4a`: about 45 MB an hour of stereo instead of 690 MB.
+5. **Stop.** Recording stops 15 seconds after the call app stops using audio, with ``Option+Shift+` ``, from the menu, or when an agent says so. Once the transcript is complete, the audio becomes an AAC `.m4a`: about 45 MB an hour of stereo instead of 690 MB.
 
 Quitting during an online call closes the WAV, and the next launch rebuilds the transcript from the file. A mute or a device switch doesn't end a recording: it ends only after 15 seconds with neither input nor output.
 
 Dictate detects online calls in Zoom, Teams, Slack, Discord, FaceTime, WhatsApp, Signal, Telegram, Webex, Skype and Element, and in browsers (Meet, or any call in a tab). An agent can start a recording for any other app.
 
-## Which input records
+## Which audio records
 
-Settings, Microphones, Default microphone for calls lists Blend Mic's mixes with the side each channel carries, then the system default and your other inputs. Until you pick one, Dictate records a split Blend Mic mix if there is one, and otherwise the default microphone, which hears only your side unless the call plays through speakers. If the chosen input is unplugged, the automatic one records instead.
+Settings, Microphones has two choices for calls. Default microphone for calls is Me. Call audio is the other side: Automatic, which is the call app Dictate finds; a specific app from the list, for a call app Dictate doesn't know; or a [Blend Mic](https://spashii.github.io/blend/) mix, for someone who already uses one. If the chosen app isn't running or the microphone is unplugged, Dictate falls back to Automatic or the default microphone and says so. Requires macOS 15 or later.

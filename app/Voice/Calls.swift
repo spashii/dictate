@@ -17,20 +17,27 @@ final class CallsModel {
             updatePrompt()
         }
     }
-    /// What Settings offers under Record from: Blend's mixes, the system default and the
-    /// other inputs, listed off the main thread.
-    private(set) var sources: [CallSource] = [.systemDefault]
-    /// The input chosen under Record from, by UID, empty for the system default. Nil until
-    /// one is chosen, so the split mix records as soon as Blend has one.
-    var chosenSource: String? {
+    /// Blend mixes whose devices are connected, and every input the Mac has, listed off the
+    /// main thread.
+    private(set) var mixes: [CallSource] = []
+    private(set) var devices: [InputDevice] = []
+    /// Apps the call audio picker offers, kept current while Microphones is open.
+    private(set) var running: [RunningCallApp] = []
+    private(set) var capturePermission = AudioCapture.permission()
+    /// Where the other side of a call comes from. Automatic is the call app Dictate finds.
+    var audioChoice: CallAudioChoice {
         didSet {
-            UserDefaults.standard.set(chosenSource, forKey: "callSource")
-            source = CallSources.choose(sources, chosen: chosenSource)
+            UserDefaults.standard.set(audioChoice.stored, forKey: "callAudio")
+            updateMix()
         }
     }
-    /// What the next call records from: the chosen input, or the automatic one while the
-    /// chosen one isn't connected.
-    private(set) var source = CallSource.systemDefault
+    /// The microphone for calls, by UID; empty follows the system default.
+    var microphoneUID: String {
+        didSet { UserDefaults.standard.set(microphoneUID, forKey: "callMicrophoneUID") }
+    }
+    /// The Blend mix the next call would read, while one is chosen and connected: a call app
+    /// reading it would record as silence.
+    private(set) var mix: CallSource?
     /// Apps in a call now, by the detector.
     private(set) var detected: [DetectedCall] = []
     private(set) var recording: Call? {
@@ -75,8 +82,27 @@ final class CallsModel {
     private static let quiet: Duration = .seconds(20)
 
     init() {
-        askToRecord = UserDefaults.standard.object(forKey: "askToRecordCalls") as? Bool ?? true
-        chosenSource = UserDefaults.standard.string(forKey: "callSource")
+        let defaults = UserDefaults.standard
+        askToRecord = defaults.object(forKey: "askToRecordCalls") as? Bool ?? true
+        if let stored = defaults.string(forKey: "callAudio") {
+            audioChoice = CallAudioChoice(stored: stored)
+            microphoneUID = defaults.string(forKey: "callMicrophoneUID") ?? ""
+        } else {
+            // From the one "Record from" input of earlier versions. Whether it was a Blend
+            // mix is only known once the mixes are listed, in `refreshSources`.
+            audioChoice = .automatic
+            microphoneUID = ""
+        }
+    }
+
+    private func migrateLegacyInput() {
+        let defaults = UserDefaults.standard
+        guard defaults.string(forKey: "callAudio") == nil else { return }
+        let migrated = CallAudioChoice.migrate(legacyInput: defaults.string(forKey: "callSource"),
+                                               mixUIDs: Set(mixes.compactMap(\.deviceUID)))
+        audioChoice = migrated.choice
+        microphoneUID = migrated.microphoneUID
+        defaults.removeObject(forKey: "callSource")
     }
 
     /// Marks calls a crash or quit cut off, rebuilds their transcripts from their audio, and
@@ -139,13 +165,52 @@ final class CallsModel {
         await recorder?.abandon()
     }
 
-    /// Blend's devices.json and the connected inputs, read off the main thread: listing
-    /// inputs asks coreaudiod, which can hang.
+    /// Blend's devices.json, the connected inputs and the permission, read off the main
+    /// thread: asking coreaudiod can hang.
     func refreshSources() async {
-        sources = await Task.detached(priority: .utility) {
-            CallSources.all(BlendDevices.load(), devices: InputDevices.list())
+        let found = await Task.detached(priority: .utility) {
+            (CallSources.all(BlendDevices.load(), devices: InputDevices.list()), InputDevices.list(),
+             AudioCapture.permission())
         }.value
-        source = CallSources.choose(sources, chosen: chosenSource)
+        mixes = found.0.filter(\.fromBlend)
+        devices = found.1
+        capturePermission = found.2
+        migrateLegacyInput()
+        updateMix()
+    }
+
+    func refreshCapturePermission() {
+        capturePermission = AudioCapture.permission()
+    }
+
+    /// Shows macOS's question the first time; after a refusal only System Settings can
+    /// change the answer, so it opens there.
+    func askForCaptureAccess() {
+        guard capturePermission != .denied else {
+            NSWorkspace.shared.open(AudioCapture.settingsURL)
+            return
+        }
+        Task {
+            let answer = await AudioCapture.request()
+            refreshCapturePermission()
+            // macOS wouldn't say, so the answer is for the person to give there.
+            if answer == .unknown, capturePermission != .authorized {
+                NSWorkspace.shared.open(AudioCapture.settingsURL)
+            }
+        }
+    }
+
+    /// Running apps with what each does with sound, for the picker.
+    func refreshRunning() async {
+        running = await Task.detached(priority: .utility) { CallApps.running() }.value
+    }
+
+    private func updateMix() {
+        if case .blendMix(let uid) = audioChoice {
+            mix = mixes.first { $0.deviceUID == uid }
+        } else {
+            mix = nil
+        }
     }
 
     /// The call shortcut: stops the recording, or starts one now. A call app in a call names
@@ -166,12 +231,18 @@ final class CallsModel {
         starting = true
         defer { starting = false }
         await refreshSources()
-        let source = source
+        await refreshRunning()
+        let plan = CallPlanner.plan(CallPlanner.Inputs(
+            choice: audioChoice, microphoneUID: microphoneUID, detected: detected, running: running.map(\.target),
+            mixes: mixes, devices: devices, permission: capturePermission,
+            ownBundleID: Bundle.main.bundleIdentifier), appStarted: app)
         let call: Call
         do {
-            call = try await recorder.start(source, transcriber: model.currentPipeline().transcriber,
-                                            whisper: model.preferences.whisper, appBundleID: app?.bundleID,
-                                            appName: app?.name, title: title)
+            let started = try await recorder.start(plan, transcriber: model.currentPipeline().transcriber,
+                                                   whisper: model.preferences.whisper, appBundleID: app?.bundleID,
+                                                   appName: app?.name, title: title)
+            call = started.call
+            if !started.notices.isEmpty { model.notice(started.notices.joined(separator: " ")) }
         } catch {
             // On screen too: a recording an agent asked for has no menu open to show it, and
             // a call failed at the start (a split mix missing a side) is in the history now.
@@ -185,9 +256,6 @@ final class CallsModel {
         error = nil
         follow(call)
         updatePrompt()
-        if let chosenSource, chosenSource != source.id {
-            model.notice("The input chosen for calls isn't connected, so \(source.name) is recording.")
-        }
         return call
     }
 
@@ -367,7 +435,7 @@ final class CallsModel {
     /// shows; the menu keeps the warning for as long as it holds.
     private func checkMixReaders() async {
         let apps = recording != nil || promptApp != nil ? detected : []
-        guard source.fromBlend, let uid = source.deviceUID, !apps.isEmpty else {
+        guard let uid = mix?.deviceUID, !apps.isEmpty else {
             warning = nil
             return
         }
@@ -585,39 +653,5 @@ struct RecentCalls: View {
         let minutes = call.endedAt.map { " · \(max(1, Int($0.timeIntervalSince(call.startedAt) / 60))) min" } ?? ""
         let state = call.status == .failed ? " · failed" : call.status.isLive ? " · recording" : ""
         return "\(name), \(time)\(minutes)\(state)"
-    }
-}
-
-/// Settings: the shortcut, what a call records from, and whether to ask. Anything more shows
-/// only when it matters: the rule for a split mix, and a call app reading the mix.
-struct CallsSettingsSection: View {
-    @Environment(CallsModel.self) private var calls
-
-    var body: some View {
-        @Bindable var calls = calls
-        let selected = calls.chosenSource ?? calls.source.id
-        Section("Calls") {
-            KeyboardShortcuts.Recorder("Shortcut:", name: .recordCall)
-            Picker("Record from", selection: Binding(get: { selected }, set: { calls.chosenSource = $0 })) {
-                ForEach(calls.sources) { source in
-                    Text(source.label).tag(source.id)
-                }
-                if !calls.sources.contains(where: { $0.id == selected }) {
-                    Text("Not connected").tag(selected)
-                }
-            }
-            if calls.sources.first(where: { $0.id == selected })?.split == true {
-                Text(CallSource.mixRule)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            if let warning = calls.warning {
-                Text(warning)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
-            Toggle("Ask to record calls", isOn: $calls.askToRecord)
-        }
-        .task { await calls.refreshSources() }
     }
 }

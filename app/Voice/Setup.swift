@@ -22,6 +22,21 @@ struct AccessibilityStep: View {
     }
 }
 
+/// Lets Dictate record the sound of the app a call is in. Not required for dictation, so
+/// setup isn't unfinished without it.
+struct CallAudioStep: View {
+    @Environment(CallsModel.self) private var calls
+
+    var body: some View {
+        StepRow(title: "Call audio", done: calls.capturePermission == .authorized,
+                detail: "Lets Dictate record the sound of the app you are on a call in, so the other side is transcribed. Skip it to record only your microphone.") {
+            Button(calls.capturePermission == .denied ? "Open System Settings\u{2026}" : "Allow\u{2026}") {
+                calls.askForCaptureAccess()
+            }
+        }
+    }
+}
+
 struct SpeechModelStep: View {
     @Environment(AppModel.self) private var model
     let whisperModel: WhisperModel

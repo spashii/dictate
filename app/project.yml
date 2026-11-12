@@ -38,13 +38,8 @@ targets:
     info:
       path: Voice/Info.plist
       properties:
-        # The app is named Dictate, but the bundle stays Voice.app so the cask, updates and
-        # existing installs keep finding it. macOS (Finder, Login Items, the permission
-        # prompts) shows the name in en.lproj/InfoPlist.strings only while CFBundleDisplayName
-        # here matches the bundle's file name, and the file name otherwise.
         CFBundleName: Dictate
-        CFBundleDisplayName: Voice
-        LSHasLocalizedDisplayName: true
+        CFBundleDisplayName: Dictate
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSMinimumSystemVersion: "15.0"
@@ -52,8 +47,10 @@ targets:
         LSApplicationCategoryType: public.app-category.productivity
         NSHumanReadableCopyright: "© 2026 The Dictate authors. FSL-1.1-MIT."
         NSMicrophoneUsageDescription: Dictate records your microphone while you dictate.
-        # Passes the appcast on GitHub Pages through unchanged, and counts update checks.
-        SUFeedURL: https://apps.idea2prod.in/voice/appcast.xml
+        # Shown when Dictate first records the sound of the app you are on a call in.
+        NSAudioCaptureUsageDescription: Dictate records the sound of the app you are on a call in, so the other side of the call is transcribed. It records nothing else.
+        # The private download site serves the feed and counts update checks.
+        SUFeedURL: https://apps.firstversion.in/voice/appcast.xml
         # Updates must be signed with the matching private key, kept with the Developer ID.
         SUPublicEDKey: YLvPSGEaYiPsXphy/q9LCDGs2s0qp8hM2LVBIWbl78c=
         # Sparkle names the app in its dialogs from this key first, in every process it runs.
@@ -65,6 +62,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.spashii.voice
+        # The file is Dictate.app. The bundle id stays, so settings, permissions and updates carry over.
+        PRODUCT_NAME: Dictate
         # Voice/AppIcon.icon is an Icon Composer icon. actool compiles it into Assets.car
         # for macOS 26 and an AppIcon.icns for macOS 15; XcodeGen types it wrapper.icon,
         # which Xcode still routes to actool.
@@ -93,7 +92,7 @@ targets:
       - sdk: AVFoundation.framework
       - sdk: ServiceManagement.framework
   # Swift tests of the app's own logic. They compile the sources they test rather than load
-  # Voice.app, so a test run never starts a second Dictate beside the one in use.
+  # Dictate.app, so a test run never starts a second Dictate beside the one in use.
   VoiceTests:
     type: bundle.unit-test
     platform: macOS
@@ -104,6 +103,8 @@ targets:
       - path: Voice/PillHover.swift
       - path: Voice/NoticesDocument.swift
       - path: Voice/BlendMic.swift
+      - path: Voice/CallAudioText.swift
+      - path: Voice/BundleRename.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.spashii.voice.tests

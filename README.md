@@ -4,11 +4,11 @@ Live transcripts of your online calls, made on your Mac. Dictate writes down Zoo
 
 ## Why
 
-I wanted really fast transcription on my own Whisper pipeline, one I could hack on. [Handy](https://handy.computer) and [OpenSuperWhisper](https://github.com/Starmel/OpenSuperWhisper) are my favorites and I learned a lot from them, but I wanted something simpler. With [Blend Mic](https://spashii.github.io/blend/), Dictate also hears both sides of an online call, so it writes down you and them separately.
+I wanted really fast transcription on my own Whisper pipeline, one I could hack on. [Handy](https://handy.computer) and [OpenSuperWhisper](https://github.com/Starmel/OpenSuperWhisper) are my favorites and I learned a lot from them, but I wanted something simpler. Dictate also hears both sides of an online call, so it writes down you and them separately.
 
 ## What it does
 
-- **Online calls, both sides apart.** With a Blend Mic split mix, you're Me and everyone else is Call. Dictate asks when an online call starts, or press ``Option+Shift+` ``.
+- **Online calls, both sides apart.** Your microphone is Me and the call app's sound is Call. Dictate asks when an online call starts, or press ``Option+Shift+` ``.
 - **Your agents read along.** Claude Code and other agents follow an online call live and search past ones over MCP.
 - **No key throws a recording away.** The audio is on disk as you speak. After a crash or a quit, the next launch transcribes it.
 - **Dictation.** Press ``Option+` `` in any text field, talk, and press it again. Whisper large v3 turbo runs on your Mac with your key terms in its prompt, and Dictate decodes the segments it's unsure of a second time and shows you what each retry changed.
@@ -21,7 +21,6 @@ Get the signed build by email at [spashii.github.io/dictate](https://spashii.git
 
 Apple silicon and macOS 15 or later. Optional:
 
-- [Blend Mic](https://github.com/spashii/blend), for both sides of an online call. Without it Dictate hears only your microphone.
 - [Ollama](https://ollama.com), for the fix step.
 
 ## Some notes
@@ -35,7 +34,7 @@ Your audio never leaves your Mac, and there are no accounts. Dictate goes online
 ## Documentation
 
 - [Dictation](./docs/user/dictation.md)
-- [Online calls with Blend Mic](./docs/user/online-calls.md)
+- [Online calls](./docs/user/online-calls.md)
 - [Agents](./docs/user/agents.md)
 - [Settings](./docs/user/settings.md)
 - [Where your data lives](./docs/user/data.md)

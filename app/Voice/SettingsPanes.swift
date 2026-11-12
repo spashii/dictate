@@ -12,6 +12,7 @@ struct SetupPane: View {
             Section {
                 MicrophoneStep()
                 AccessibilityStep()
+                CallAudioStep()
                 SpeechModelStep(whisperModel: preferences.whisperModel)
             } footer: {
                 Text("Press \(KeyboardShortcuts.getShortcut(for: .dictate)?.description ?? "the shortcut") in any text field, speak, press it again.")
@@ -58,46 +59,44 @@ struct MicrophonesPane: View {
 
     var body: some View {
         @Bindable var preferences = model.preferences
-        let selected = calls.chosenSource ?? calls.source.id
+        @Bindable var calls = calls
+        // A Blend mix is picked under Call audio, not as a microphone.
+        let microphones = model.devices.filter { device in !calls.mixes.contains { $0.deviceUID == device.uid } }
         Form {
             Section {
                 Picker("Default microphone for dictation", selection: $preferences.microphoneUID) {
                     Text("System default").tag("")
-                    ForEach(model.devices) { device in
+                    ForEach(microphones) { device in
                         Text(device.name).tag(device.uid)
                     }
                     if !preferences.microphoneUID.isEmpty,
-                       !model.devices.contains(where: { $0.uid == preferences.microphoneUID }) {
+                       !microphones.contains(where: { $0.uid == preferences.microphoneUID }) {
                         Text("Not connected").tag(preferences.microphoneUID)
                     }
                 }
-                Picker(selection: Binding(get: { selected }, set: { calls.chosenSource = $0 })) {
-                    ForEach(calls.sources) { source in
-                        Text(source.label).tag(source.id)
+                Picker("Default microphone for calls", selection: $calls.microphoneUID) {
+                    Text("System default").tag("")
+                    ForEach(microphones) { device in
+                        Text(device.name).tag(device.uid)
                     }
-                    if !calls.sources.contains(where: { $0.id == selected }) {
-                        Text("Not connected").tag(selected)
+                    if !calls.microphoneUID.isEmpty, !microphones.contains(where: { $0.uid == calls.microphoneUID }) {
+                        Text("Not connected").tag(calls.microphoneUID)
                     }
-                } label: {
-                    Text("Default microphone for calls")
-                    if calls.sources.first(where: { $0.id == selected })?.split == true {
-                        Text(CallSource.mixRule)
-                    }
-                }
-                if let warning = calls.warning {
-                    Text(warning).font(.caption).foregroundStyle(.red)
                 }
             }
             Section {
-                LabeledContent {
-                    if blendInstalled {
-                        Label("Installed", systemImage: "checkmark").foregroundStyle(.green)
-                    } else {
-                        Button("Get Blend Mic") { NSWorkspace.shared.open(BlendMic.website) }
-                    }
-                } label: {
-                    Text("Blend Mic")
-                    Text("Blend Mic lets Dictate hear both sides of a call.")
+                CallAudioPermissionRow()
+                CallAudioPicker()
+                if let warning = calls.warning {
+                    Label(warning, systemImage: "exclamationmark.triangle")
+                        .font(.callout)
+                }
+            } header: {
+                Text("Call audio")
+            } footer: {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Headphones recommended for calls on speakers, where your microphone also hears the call.")
+                    BlendMicNote(installed: blendInstalled, mixes: !calls.mixes.isEmpty)
                 }
             }
         }
@@ -107,9 +106,44 @@ struct MicrophonesPane: View {
     }
 
     private var blendInstalled: Bool {
-        calls.sources.contains { $0.fromBlend }
+        !calls.mixes.isEmpty
             || BlendMic.isInstalled(inputNames: model.devices.map(\.name),
                                     appURL: NSWorkspace.shared.urlForApplication(withBundleIdentifier: BlendMic.bundleID))
+    }
+}
+
+/// Blend Mic is optional: its mixes are one more place to hear a call from.
+struct BlendMicNote: View {
+    let installed: Bool
+    let mixes: Bool
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(mixes ? "Already using Blend Mic? Pick its mix above."
+                 : installed ? "Already using Blend Mic? Its mixes appear above while Blend is running."
+                 : "Already using Blend Mic? Its mixes appear above.")
+            Link("About Blend Mic", destination: BlendMic.website)
+        }
+    }
+}
+
+/// Shown only while Dictate can't yet record other apps' sound.
+struct CallAudioPermissionRow: View {
+    @Environment(CallsModel.self) private var calls
+
+    var body: some View {
+        if calls.capturePermission != .authorized {
+            LabeledContent {
+                Button(calls.capturePermission == .denied ? "Open System Settings" : "Allow\u{2026}") {
+                    calls.askForCaptureAccess()
+                }
+            } label: {
+                Label("Dictate can\u{2019}t record call audio yet", systemImage: "exclamationmark.circle")
+                Text(calls.capturePermission == .denied
+                     ? "Turn on Dictate under System Audio Recording."
+                     : "macOS asks once.")
+            }
+        }
     }
 }
 
@@ -315,6 +349,8 @@ struct AgentsPane: View {
 
     private func tools(_ agents: AgentAccess) -> some View {
         Section {
+            Text("Tools that record or change anything start off, because what the other side of a call says is read by your agent.")
+                .font(.callout).foregroundStyle(.secondary)
             ForEach(MCPServer.toolCatalog) { tool in
                 Toggle(isOn: Binding(get: { !agents.disabledTools.contains(tool.name) },
                                      set: { agents.setTool(tool.name, on: $0) })) {

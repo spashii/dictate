@@ -254,6 +254,7 @@ final class AppModel {
     func refreshPermissions() {
         microphoneAllowed = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
         accessibilityAllowed = Paster.hasAccess
+        calls?.refreshCapturePermission()
         openAtLogin = SMAppService.mainApp.status == .enabled
     }
 
