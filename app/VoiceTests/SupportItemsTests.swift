@@ -3,7 +3,7 @@ import XCTest
 final class SupportItemsTests: XCTestCase {
     func testMenuOrder() {
         XCTAssertEqual(SupportItem.allCases.map(\.title),
-                       ["Check for Updates…", "Report an Issue…", "View on GitHub"])
+                       ["Check for Updates…", "Report an Issue…"])
     }
 
     func testRepository() {

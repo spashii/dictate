@@ -433,11 +433,8 @@ struct AboutPane: View {
                 Toggle("Check for updates automatically", isOn: $updates.automatic)
             }
             Section {
-                Link(destination: URL(string: "https://github.com/spashii")!) {
-                    Label("github.com/spashii", systemImage: "arrow.up.right.square")
-                }
-                Link(destination: SupportItem.repository) {
-                    Label("github.com/spashii/dictate", systemImage: "arrow.up.right.square")
+                Link(destination: URL(string: "https://spashii.github.io/dictate/")!) {
+                    Label("spashii.github.io/dictate", systemImage: "arrow.up.right.square")
                 }
             } footer: {
                 HStack(spacing: 4) {

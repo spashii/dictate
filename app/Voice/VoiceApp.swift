@@ -128,7 +128,6 @@ struct MenuContent: View {
         switch item {
         case .checkForUpdates: model.updates.check()
         case .reportIssue: NSWorkspace.shared.open(SupportItem.issueURL)
-        case .viewOnGitHub: NSWorkspace.shared.open(SupportItem.repository)
         }
     }
 
