@@ -31,6 +31,14 @@ public struct MCPToolInfo: Sendable, Equatable, Identifiable {
 }
 
 extension MCPServer {
+    /// The tools that start a recording or change stored data. They are off until a person
+    /// turns them on: what the other side of a call says is read by a connected agent, and
+    /// could be written to steer it.
+    public static let offByDefault: Set<String> = [
+        "start_recording", "stop_recording", "correct_dictation", "correct_segment",
+        "add_key_terms", "remove_key_terms", "tag_call", "undo_edit",
+    ]
+
     /// Every tool the server offers, in the order tools/list gives them.
     public static var toolCatalog: [MCPToolInfo] {
         MCPRouter.tools.compactMap { tool in

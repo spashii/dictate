@@ -44,7 +44,8 @@ final class AgentAccess {
         enabled = defaults.object(forKey: "agentAccess") as? Bool ?? true
         host = defaults.string(forKey: "agentHost").flatMap(MCPEndpoint.address(host:)) ?? MCPEndpoint.defaultHost
         port = (defaults.object(forKey: "agentPort") as? Int).flatMap { UInt16(exactly: $0) } ?? MCPServer.defaultPort
-        disabledTools = Set(defaults.stringArray(forKey: "agentDisabledTools") ?? [])
+        // Nobody who has set a tool keeps the defaults; an explicit choice, even all on, is kept.
+        disabledTools = defaults.stringArray(forKey: "agentDisabledTools").map(Set.init) ?? MCPServer.offByDefault
         token = try? MCPToken.load()
     }
 

@@ -21,6 +21,12 @@ import Testing
         return (result["tools"] as? [[String: Any]] ?? []).compactMap { $0["name"] as? String }
     }
 
+    @Test func theToolsOffByDefaultAreRealToolsThatWriteOrRecord() {
+        let names = Set(MCPServer.toolCatalog.map(\.name))
+        #expect(MCPServer.offByDefault.isSubset(of: names))
+        #expect(!MCPServer.offByDefault.contains("list_calls") && !MCPServer.offByDefault.contains("get_transcript"))
+    }
+
     @Test func everyToolIsListedByDefault() async throws {
         let names = try await listed(try router())
         #expect(names == MCPServer.toolCatalog.map(\.name))
