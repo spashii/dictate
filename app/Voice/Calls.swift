@@ -644,24 +644,23 @@ struct CallMenuItems: View {
     }
 }
 
-/// Recent calls, after the dictations, each with a phone; a click copies the transcript, and
-/// a right click offers Copy Transcript.
-struct RecentCalls: View {
+/// A recent call with a phone; a click copies the transcript, and a right click offers Copy
+/// Transcript.
+struct RecentCall: View {
     @Environment(CallsModel.self) private var calls
+    let call: Call
 
     var body: some View {
-        ForEach(calls.recent) { call in
-            Button {
-                if RowMenu.rightClicked {
-                    if calls.hasTranscript(call) { RowMenu.copyTranscript { calls.copyTranscript(call) } }
-                } else {
-                    calls.copyTranscript(call)
-                }
-            } label: {
-                Label(Self.label(call), systemImage: "phone")
+        Button {
+            if RowMenu.rightClicked {
+                if calls.hasTranscript(call) { RowMenu.copyTranscript { calls.copyTranscript(call) } }
+            } else {
+                calls.copyTranscript(call)
             }
-            .help("Click to copy the transcript")
+        } label: {
+            Label(Self.label(call), systemImage: "phone")
         }
+        .help("Click to copy the transcript")
     }
 
     private static func label(_ call: Call) -> String {

@@ -99,53 +99,92 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+/// A dictation or a call in the menu's Recent list, newest first.
+enum RecentItem: Identifiable {
+    case dictation(Dictation)
+    case call(Call)
+
+    var id: String {
+        switch self {
+        case .dictation(let dictation): "d" + dictation.id
+        case .call(let call): "c" + call.id
+        }
+    }
+
+    var date: Date {
+        switch self {
+        case .dictation(let dictation): dictation.createdAt
+        case .call(let call): call.startedAt
+        }
+    }
+
+    static let count = 5
+
+    static func newest(dictations: [Dictation], calls: [Call]) -> [RecentItem] {
+        Array((dictations.map(RecentItem.dictation) + calls.map(RecentItem.call))
+            .sorted { $0.date > $1.date }.prefix(count))
+    }
+}
+
 struct MenuContent: View {
     @Environment(AppModel.self) private var model
     @Environment(CallsModel.self) private var calls
 
     var body: some View {
+        // Groups are Sections, which the menu separates with real separators. A Divider can
+        // be highlighted like an item.
         if !model.activation.isActivated {
-            Button("Activate Dictate\u{2026}") { model.beginActivation() }
-            Divider()
+            Section {
+                Button("Activate Dictate\u{2026}") { model.beginActivation() }
+            }
         }
         if model.lock.showsRecordingMenu {
-            Text(model.statusText)
-            if let holder = model.secureInput {
-                Text(holder.menuText)
+            Section {
+                Text(model.statusText)
+                if let holder = model.secureInput {
+                    Text(holder.menuText)
+                }
+                Button(model.isRecording ? "Stop and paste" : "Dictate  \(KeyboardShortcuts.getShortcut(for: .dictate)?.description ?? "")") {
+                    model.toggle()
+                }
+                .disabled(model.isWorking)
+                CallMenuItems()
             }
-            Button(model.isRecording ? "Stop and paste" : "Dictate  \(KeyboardShortcuts.getShortcut(for: .dictate)?.description ?? "")") {
-                model.toggle()
-            }
-            .disabled(model.isWorking)
-            CallMenuItems()
-            if !model.recent.isEmpty || !calls.recent.isEmpty {
-                Divider()
+            let recent = RecentItem.newest(dictations: model.recent, calls: calls.recent)
+            if !recent.isEmpty {
                 Section("Recent") {
-                    ForEach(model.recent) { dictation in
-                        Button(Self.label(dictation)) {
-                            if RowMenu.rightClicked, !dictation.finalText.isEmpty {
-                                RowMenu.copyTranscript { model.copy(dictation) }
-                            } else {
-                                model.open(dictation)
+                    ForEach(recent) { item in
+                        switch item {
+                        case .dictation(let dictation):
+                            Button(Self.label(dictation)) {
+                                if RowMenu.rightClicked, !dictation.finalText.isEmpty {
+                                    RowMenu.copyTranscript { model.copy(dictation) }
+                                } else {
+                                    model.open(dictation)
+                                }
                             }
-                        }
                             .help(dictation.finalText.isEmpty && dictation.error != nil ? "Click to try again" : "Click to copy")
                             .disabled(dictation.finalText.isEmpty && dictation.error == nil)
+                        case .call(let call):
+                            RecentCall(call: call)
+                        }
                     }
-                    RecentCalls()
-                    Button("Open History") { model.openHistory() }
                 }
             }
-            Divider()
-            Button("Settings…") { model.openSettings() }
-                .keyboardShortcut(",")
+            Section {
+                Button("Open History\u{2026}") { model.openHistory() }
+                Button("Settings\u{2026}") { model.openSettings() }
+                    .keyboardShortcut(",")
+            }
         }
-        ForEach(SupportItem.allCases, id: \.self) { item in
-            Button(item.title) { open(item) }
-                .disabled(item == .checkForUpdates && !model.updates.canCheck)
+        Section {
+            ForEach(SupportItem.allCases, id: \.self) { item in
+                Button(item.title) { open(item) }
+                    .disabled(item == .checkForUpdates && !model.updates.canCheck)
+            }
+            Button("Quit Dictate") { NSApplication.shared.terminate(nil) }
+                .keyboardShortcut("q")
         }
-        Button("Quit Dictate") { NSApplication.shared.terminate(nil) }
-            .keyboardShortcut("q")
     }
 
     private func open(_ item: SupportItem) {
