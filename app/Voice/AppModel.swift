@@ -567,7 +567,11 @@ final class AppModel {
     }
 
     func acceptActivation(url: URL) {
-        finishActivation(activation.accept(url: url))
+        let wasActivated = activation.isActivated
+        let result = activation.accept(url: url)
+        // The same link opened again on an activated Mac changes nothing, so it says nothing.
+        if wasActivated, case .success = result { return }
+        finishActivation(result)
     }
 
     private func finishActivation(_ result: Result<Void, Activation.Refusal>) {

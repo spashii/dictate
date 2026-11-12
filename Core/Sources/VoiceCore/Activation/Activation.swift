@@ -122,6 +122,9 @@ public final class Activation {
     func accept(text: String) -> Result<Void, Refusal> {
         let token: ActivationToken
         do { token = try ActivationToken.verify(text, keys: keys) } catch { return .failure(.invalid) }
+        // A second press of Open Dictate on an activated Mac carries a genuine token whose nonce
+        // was used already; there is nothing to store and nothing to warn about.
+        if state == .activated, token.nonce != pendingNonce { return .success(()) }
         guard let nonce = pendingNonce, token.nonce == nonce else { return .failure(.otherRequest) }
         var record = store.load()
         record.token = text.trimmingCharacters(in: .whitespacesAndNewlines)

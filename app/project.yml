@@ -102,7 +102,7 @@ targets:
           PRODUCT_NAME: Dictate Dev
           SU_FEED_URL: ""
           ACTIVATION_URL_SCHEME: in.firstversion.dictate.dev
-          ACTIVATION_BASE_URL: http://localhost:8787/activate
+          ACTIVATION_BASE_URL: http://localhost:8800/activate/
           DICTATE_DATA_ROOT: "~/Library/Application Support/DictateDev"
         # Only tools/release.sh builds Release, always with the Developer ID, and
         # notarization needs the hardened runtime. Xcode otherwise adds the debugger

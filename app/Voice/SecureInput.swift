@@ -20,7 +20,7 @@ enum SecureInput {
     static func holder() -> Holder? {
         guard IsSecureEventInputEnabled() else { return nil }
         guard let pid = pid(in: consoleUsers()) else { return Holder(name: nil) }
-        // Dictate's own field, such as the activation code, is nothing to warn about.
+        // A field in Dictate's own windows is nothing to warn about.
         guard pid != getpid() else { return nil }
         return Holder(name: NSRunningApplication(processIdentifier: pid)?.localizedName)
     }

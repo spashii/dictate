@@ -76,6 +76,21 @@ func refusal(_ result: Result<Void, Activation.Refusal>) -> Activation.Refusal? 
         #expect(!activation.isActivated)
     }
 
+    @Test func theSameLinkOpenedAgainOnAnActivatedMacIsAcceptedQuietly() throws {
+        let activation = make()
+        _ = activation.begin()
+        let token = TokenSupport.token(nonce: "n1")
+        try activation.accept(text: token).get()
+        let saved = store.record.token
+        try activation.accept(text: token).get()
+        #expect(activation.isActivated)
+        #expect(store.record.token == saved)
+        // A forged token is still refused.
+        var forged = token
+        forged.removeLast(3)
+        #expect(refusal(activation.accept(text: forged)) == .invalid)
+    }
+
     @Test func aTokenWithNoRequestPendingIsRefused() {
         let activation = make()
         #expect(refusal(activation.accept(text: TokenSupport.token(nonce: "n1"))) == .otherRequest)

@@ -457,7 +457,7 @@ private func count(_ url: URL, _ sql: String) throws -> Int {
         let written = try calls.appendSegments(call.id, [sampleSegment(.me, 0, "send it to ana and then ana again")])
         // The second "ana": 24 units into the line.
         let request = try #require(try detail(calls, call.id).correction(line: Int(written[0].id), selecting: "ana", at: 24))
-        #expect(request.occurrence == 1)
+        #expect(request.offset == 24)
         try calls.correct(request, to: "Alex", known: [])
         #expect(try calls.segments(call.id).first?.text == "send it to ana and then Alex again")
     }
@@ -479,12 +479,43 @@ private func count(_ url: URL, _ sql: String) throws -> Int {
         let read = try detail(calls, dictation.id)
         let request = try #require(read.correction(line: read.lines[1].id, selecting: "ana", at: 5))
         #expect(request.target == .dictation(dictation.id))
-        #expect(request.occurrence == 1)
+        #expect(request.offset == 21)
         let edit = try #require(try calls.correct(request, to: "Alex", known: []))
         #expect(edit.kind == .correctDictation)
         #expect(edit.client == "You")
         #expect(try calls.dictation(dictation.id)?.finalText == "first ana here. then Alex there")
         #expect(try calls.search("alex").map(\.id) == [dictation.id])
+
+        // The lines stay, each with its time, and the changed word is marked in its own line.
+        let after = try detail(calls, dictation.id)
+        #expect(after.lines.map(\.text) == ["first ana here.", "then Alex there"])
+        #expect(after.lines.map(\.t0) == [0, 1])
+        #expect(after.lines[1].corrections.map(\.after) == ["Alex"])
+        #expect(after.lines[1].corrections.first?.client == "You")
+        #expect(after.lines[0].corrections.isEmpty)
+    }
+
+    @Test func theSelectionsOwnPlaceDecidesWhichRepeatChanges() throws {
+        let calls = try CallStore(url: temporaryCallDatabase())
+        let call = try calls.createCall(NewCall(split: true))
+        let written = try calls.appendSegments(call.id, [sampleSegment(.me, 0, "ha ha ha ha")])
+        let request = try #require(try detail(calls, call.id).correction(line: Int(written[0].id), selecting: "ha ha", at: 3))
+        try calls.correct(request, to: "so", known: [])
+        #expect(try calls.segments(call.id).first?.text == "ha so ha")
+    }
+
+    @Test func aDictationTheCleanUpRewroteIsNotOfferedForCorrection() throws {
+        let url = temporaryCallDatabase()
+        let store = try Store(url: url)
+        let calls = try CallStore(url: url)
+        var dictation = sampleDictation("Send it to the Northwind team.")
+        dictation.segments = [Segment(t0: 0, t1: 1, text: "send it to the northwynd team", avgLogprob: -0.1,
+                                      noSpeechProb: 0, compressionRatio: 1, speechSeconds: 1, wordsPerSecond: 2)]
+        dictation.duration = 3
+        try store.insert(dictation)
+        let read = try detail(calls, dictation.id)
+        #expect(!read.canCorrect)
+        #expect(read.correction(line: read.lines[0].id, selecting: "northwynd", at: 15) == nil)
     }
 
     @Test func leavesNothingToStoreWhenTheWordsAreUnchangedOrGone() throws {
