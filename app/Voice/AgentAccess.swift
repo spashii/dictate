@@ -107,9 +107,11 @@ final class AgentAccess {
         server?.disabledTools = disabledTools
     }
 
+    /// Everything copied here holds the token, so clipboard managers are told to skip it.
     func copy(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+        NSPasteboard.general.setString("", forType: NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType"))
     }
 
     private func apply() {
