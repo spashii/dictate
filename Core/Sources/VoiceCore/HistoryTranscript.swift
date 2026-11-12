@@ -182,7 +182,8 @@ extension TranscriptBlock {
                     return before.isEmpty ? "added \(after)" : after.isEmpty ? "removed \(before)" : "\(before) became \(after)"
                 }
                 .joined(separator: ", ")
-            let source = change.source == .correction ? "agent correction" : change.source.rawValue
+            let source = change.source == .correction
+                ? (change.note == Edit.personClient ? "your correction" : "agent correction") : change.source.rawValue
             return "\(source): \(words)\(change.applied ? "" : ", not applied")"
         }
     }

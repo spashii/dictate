@@ -9,6 +9,10 @@ Press ``Option+` `` in any text field, talk, and press it again. Your words show
 - The menu lists your last five dictations and three online calls. Click one to copy it.
 - Quitting during a dictation keeps the recording. The next launch transcribes it into the history without pasting, and the menu marks it "Recovered a recording".
 
+## Correcting a word
+
+In History, drag across words or right-click one and choose Correct. With a block focused, press E to correct its line; VoiceOver has the same as an action. A changed name is offered as a key term in Settings, Model.
+
 ## Key terms
 
 Names and words Whisper gets wrong, spelled as they should be: people, products and places Whisper hasn't heard of. The list starts empty and goes into Whisper's prompt.

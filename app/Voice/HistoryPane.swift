@@ -117,6 +117,30 @@ final class HistoryModel {
         }
     }
 
+    /// The correction for the words at `range` of a block's text, within the line they start in.
+    func correction(in block: DisplayBlock, range: Range<Int>) -> HandCorrection? {
+        guard let detail, let line = block.lineRange(at: range.lowerBound) else { return nil }
+        let end = min(range.upperBound, line.range.upperBound)
+        let text = block.string as NSString
+        guard range.lowerBound >= line.range.lowerBound, end > range.lowerBound else { return nil }
+        let selected = text.substring(with: NSRange(location: range.lowerBound, length: end - range.lowerBound))
+        return detail.correction(line: line.id, selecting: selected, at: range.lowerBound - line.range.lowerBound)
+    }
+
+    /// Stores the correction the way an agent's is stored, then reads the recording again.
+    /// Returns what went wrong, if anything.
+    func save(_ request: HandCorrection, to text: String, known: [String]) async -> String? {
+        guard let store = await openStore() else { return "Couldn't open the history." }
+        do {
+            try await Task.detached { try store.correct(request, to: text, known: known) }.value
+        } catch {
+            return "\(error)"
+        }
+        select(selection)
+        reload()
+        return nil
+    }
+
     /// Puts an entry's text on the clipboard, read as it is now, and says whether there was any.
     @discardableResult
     func copy(_ entry: HistoryEntry) async -> Bool {
@@ -317,7 +341,9 @@ private struct HistoryDetailView: View {
                                                 playing: block.id == playingBlock ? playingLine : nil,
                                                 times: preferences.historyTimes,
                                                 showCorrections: preferences.showCorrections,
-                                                play: { player.play(from: $0) })
+                                                play: { player.play(from: $0) },
+                                                draft: { history.correction(in: $0, range: $1) },
+                                                save: { await history.save($0, to: $1, known: KeyTerms.parse(preferences.keyTerms)) })
                                 .equatable()
                         }
                         if preferences.showCorrections {
@@ -353,7 +379,16 @@ private struct TranscriptBlockView: View, @MainActor Equatable {
     let times: HistoryTimeMode
     let showCorrections: Bool
     let play: (Double) -> Void
+    /// The correction for words at a range of the block's text, and its storing; nil from
+    /// save when it worked, else what went wrong.
+    let draft: (DisplayBlock, Range<Int>) -> HandCorrection?
+    let save: (HandCorrection, String) async -> String?
     @State private var hovered = false
+    /// The words a drag selected, in the block's text; a right click or a key corrects the
+    /// words under the pointer or the line when nothing is selected.
+    @State private var selection: Range<Int>?
+    @State private var editing: Editing?
+    @State private var pointer = Pointer()
     @State private var textWidth: CGFloat = 0
     @State private var layout: BlockTextLayout?
     @State private var hoveredMark: DisplayBlock.Mark?
@@ -386,19 +421,31 @@ private struct TranscriptBlockView: View, @MainActor Equatable {
                     .frame(width: 40, alignment: .leading)
             }
             VStack(alignment: .leading, spacing: 4) {
-                Text(block.text(heard: playing))
+                Text(shownText)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { textWidth = $0 }
                     .onContinuousHover { phase in
                         switch phase {
-                        case .active(let point): hoverText(at: point)
+                        case .active(let point):
+                            pointer.point = point
+                            hoverText(at: point)
                         case .ended: hoveredMark = nil
                         }
                     }
                     .modifier(CorrectionPopoverHost(enabled: !block.marks.isEmpty, mark: $hoveredMark, frame: markFrame))
                     // A click in the text plays from the line it lands in; one anywhere else
                     // in the row plays from the block.
+                    .simultaneousGesture(DragGesture(minimumDistance: 5).onChanged { drag in
+                        guard let layout = textLayout(),
+                              let from = layout.offset(at: drag.startLocation, nearest: true),
+                              let to = layout.offset(at: drag.location, nearest: true) else { return }
+                        selection = block.phrase(from: from, to: to)
+                    })
+                    .contextMenu {
+                        Button("Correct\u{2026}") { correctUnderPointer() }
+                    }
                     .gesture(SpatialTapGesture().onEnded { tap in
+                        selection = nil
                         let offset = textLayout()?.offset(at: tap.location, nearest: true)
                         play(offset.map(block.start(at:)) ?? block.start)
                     })
@@ -406,6 +453,7 @@ private struct TranscriptBlockView: View, @MainActor Equatable {
                     ForEach(block.changes) { ChangeRow(change: $0) }
                 }
             }
+            .modifier(CorrectionEditorHost(editing: $editing, save: save))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 3)
@@ -413,24 +461,71 @@ private struct TranscriptBlockView: View, @MainActor Equatable {
         .background(hovered ? Color.primary.opacity(0.05) : .clear)
         .contentShape(Rectangle())
         .onHover { hovered = $0 }
-        .onTapGesture { play(block.start) }
+        .onTapGesture {
+            selection = nil
+            play(block.start)
+        }
         .focusable()
         .onKeyPress(.return) {
             play(block.start)
             return .handled
         }
+        .onKeyPress(KeyEquivalent("e")) {
+            correctLine()
+            return .handled
+        }
+        .onChange(of: block.generation) {
+            selection = nil
+            editing = nil
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(block.spokenLabel(times))
         .accessibilityAction(named: "Play from here") { play(block.start) }
+        .accessibilityAction(named: "Correct\u{2026}") { correctLine() }
         .modifier(CorrectionContent(descriptions: block.correctionDescriptions))
     }
 }
 
 extension TranscriptBlockView {
+    /// The block's text with the line being heard and the selected words marked.
+    private var shownText: AttributedString {
+        var text = block.text(heard: playing)
+        if let selection, let range = Range(NSRange(location: selection.lowerBound, length: selection.count), in: text) {
+            text[range].swiftUI.backgroundColor = Color(nsColor: .selectedTextBackgroundColor)
+        }
+        return text
+    }
+
+    /// Right click: the selection when the pointer is in it, else the word under the pointer.
+    private func correctUnderPointer() {
+        guard let layout = textLayout(), let offset = layout.offset(at: pointer.point, nearest: false) else { return }
+        if let selection, selection.contains(offset) {
+            begin(selection, layout: layout)
+        } else if let word = block.word(at: offset) {
+            selection = word
+            begin(word, layout: layout)
+        }
+    }
+
+    /// Keyboard and VoiceOver: the whole line, which the person then edits as text.
+    private func correctLine() {
+        guard let layout = textLayout() else { return }
+        let offset = playing.flatMap { id in block.spans.first { $0.id == id }?.start } ?? 0
+        guard let line = block.lineRange(at: offset) else { return }
+        selection = line.range
+        begin(line.range, layout: layout)
+    }
+
+    private func begin(_ range: Range<Int>, layout: BlockTextLayout) {
+        guard let request = draft(block, range) else { return }
+        hoveredMark = nil
+        editing = Editing(request: request, rect: layout.rect(of: range))
+    }
+
     /// The layout for the row's current width, made when first needed.
     private func textLayout() -> BlockTextLayout? {
         guard textWidth > 0 else { return nil }
-        if let layout, layout.width == textWidth { return layout }
+        if let layout, layout.width == textWidth, layout.string == block.string { return layout }
         let made = BlockTextLayout(string: block.string, width: textWidth)
         layout = made
         return made
@@ -446,6 +541,80 @@ extension TranscriptBlockView {
         guard mark != hoveredMark else { return }
         hoveredMark = mark
         markFrame = mark.map { layout.rect(of: $0.range) } ?? .zero
+    }
+}
+
+/// The pointer's last place in the text, kept off the view's state so moving it redraws nothing.
+private final class Pointer {
+    var point: CGPoint = .zero
+}
+
+private struct Editing: Identifiable {
+    let id = UUID()
+    let request: HandCorrection
+    let rect: CGRect
+}
+
+/// The popover that corrects the selected words.
+private struct CorrectionEditorHost: ViewModifier {
+    @Binding var editing: Editing?
+    let save: (HandCorrection, String) async -> String?
+
+    func body(content: Content) -> some View {
+        content.popover(item: $editing, attachmentAnchor: .rect(.rect(editing?.rect ?? .zero)), arrowEdge: .bottom) { item in
+            CorrectionEditor(original: item.request.selected,
+                             save: { await save(item.request, $0) },
+                             done: { editing = nil })
+        }
+    }
+}
+
+private struct CorrectionEditor: View {
+    let original: String
+    let save: (String) async -> String?
+    let done: () -> Void
+    @State private var text: String
+    @State private var error: String?
+    @State private var saving = false
+    @FocusState private var focused: Bool
+
+    init(original: String, save: @escaping (String) async -> String?, done: @escaping () -> Void) {
+        self.original = original
+        self.save = save
+        self.done = done
+        _text = State(initialValue: original)
+    }
+
+    private var changed: Bool { text.trimmingCharacters(in: .whitespacesAndNewlines) != original }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                TextField("Corrected text", text: $text)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: max(200, min(CGFloat(original.count) * 8 + 40, 420)))
+                    .focused($focused)
+                    .onSubmit(commit)
+                Button("Save", action: commit)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!changed || saving)
+            }
+            if let error {
+                Text(error).font(.caption).foregroundStyle(.red)
+            }
+        }
+        .padding(12)
+        .onAppear { focused = true }
+    }
+
+    private func commit() {
+        guard changed, !saving else { return }
+        saving = true
+        Task {
+            error = await save(text)
+            saving = false
+            if error == nil { done() }
+        }
     }
 }
 
@@ -474,7 +643,7 @@ private struct CorrectionPopover: View {
         Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 5) {
             row("Before") { Text(correction.before.isEmpty ? "(nothing)" : correction.before).strikethrough().foregroundStyle(.red) }
             row("After") { Text(correction.after).fontWeight(.semibold).foregroundStyle(.green) }
-            row("Made by") { Text(correction.source == .correction ? "Agent correction" : correction.source.rawValue.capitalized) }
+            row("Made by") { Text(Self.madeBy(correction)) }
             if let before = correction.confidenceBefore {
                 row("Confidence before") { Text(Self.percent(before)).monospacedDigit() }
             }
@@ -491,6 +660,11 @@ private struct CorrectionPopover: View {
             Text(label).foregroundStyle(.secondary)
             value()
         }
+    }
+
+    private static func madeBy(_ correction: TextCorrection) -> String {
+        guard correction.source == .correction else { return correction.source.rawValue.capitalized }
+        return correction.client == Edit.personClient ? Edit.personClient : "Agent correction"
     }
 
     private static func percent(_ value: Double) -> String { "\(Int((value * 100).rounded()))%" }
