@@ -111,9 +111,16 @@ public struct HistoryChange: Sendable, Equatable, Identifiable {
 
 extension CallStore {
     /// Dictations with text and calls, newest first. Calls that heard nothing are left out. With
-    /// `matching`, only those whose text holds it, in any case.
+    /// `matching`, only those the transcript search finds (the index `search_transcripts`
+    /// reads), plus calls whose title holds it, in any case.
     public func historyEntries(limit: Int = 200, matching query: String? = nil) throws -> [HistoryEntry] {
-        let needle = query?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty.map {
+        let text = query?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        // The found recordings' ids as a JSON array for SQLite to read; nil when not searching.
+        let found: String? = try text.map {
+            String(decoding: try JSONEncoder().encode(try recordingsMatching($0, prefixOnLast: true).sorted()),
+                   as: UTF8.self)
+        }
+        let titleNeedle = text.map {
             "%" + $0.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "%", with: "\\%")
                 .replacingOccurrences(of: "_", with: "\\_") + "%"
         }
@@ -124,9 +131,9 @@ extension CallStore {
                   + (SELECT count(*) FROM fix_edits f WHERE f.dictation_id = d.id)
                   + (SELECT count(*) FROM edits e WHERE e.target = 'dictation:' || d.id)
                 FROM dictations d WHERE d.duration >= ? AND coalesce(d.corrected_text, d.final_text) <> ''
-                  AND (?3 IS NULL OR coalesce(d.corrected_text, d.final_text) LIKE ?3 ESCAPE '\\')
+                  AND (?3 IS NULL OR d.id IN (SELECT value FROM json_each(?3)))
                 ORDER BY d.created_at DESC LIMIT ?2
-                """, [Dictation.tooShort, limit, needle]) { row in
+                """, [Dictation.tooShort, limit, found]) { row in
                 HistoryEntry(kind: .dictation, ref: row.text(0), at: row.date(1), timeZone: row.string(4),
                              duration: row.double(2), title: Self.preview(row.text(3)), firstLine: Self.preview(row.text(3)),
                              changes: row.int(6), audioPath: row.string(5))
@@ -142,11 +149,10 @@ extension CallStore {
                    AND trim(coalesce(s.corrected_text, s.text), ' ' || char(9, 10, 13)) <> ''
                    ORDER BY s.start_ms, s.id LIMIT 1)
                 FROM calls c WHERE \(Self.heardSomething("c"))
-                  AND (?2 IS NULL OR coalesce(c.title, '') LIKE ?2 ESCAPE '\\' OR EXISTS (
-                    SELECT 1 FROM call_segments s WHERE s.call_id = c.id
-                    AND coalesce(s.corrected_text, s.text) LIKE ?2 ESCAPE '\\'))
+                  AND (?2 IS NULL OR c.id IN (SELECT value FROM json_each(?2))
+                       OR coalesce(c.title, '') LIKE ?3 ESCAPE '\\')
                 ORDER BY c.started_at DESC LIMIT ?1
-                """, [limit, needle]) { row in
+                """, [limit, found, titleNeedle]) { row in
                 HistoryEntry(kind: .call, ref: row.text(0), at: row.date(1), timeZone: row.string(4),
                              duration: row.double(2), title: row.text(3), firstLine: row.string(8).map(Self.preview) ?? "",
                              changes: row.int(6), hasText: row.int(7) != 0, audioPath: row.string(5))

@@ -332,15 +332,37 @@ public final class CallStore: @unchecked Sendable {
     /// Best matches first, across call segments and dictations. Every word has to appear;
     /// when nothing has them all, any of them will do.
     public func search(_ query: String, limit: Int = 20) throws -> [SearchHit] {
-        // Each word becomes a quoted phrase, so punctuation and FTS5's own operators in what
-        // an agent types are searched for rather than parsed.
-        let words = query.split(whereSeparator: \.isWhitespace)
-            .filter { $0.contains { $0.isLetter || $0.isNumber } }
-            .map { "\"" + $0.replacingOccurrences(of: "\"", with: "\"\"") + "\"" }
-        guard !words.isEmpty else { return [] }
+        guard let words = Self.matchWords(query) else { return [] }
         let all = try queue.sync { try hits(words.joined(separator: " "), limit) }
         guard all.isEmpty, words.count > 1 else { return all }
         return try queue.sync { try hits(words.joined(separator: " OR "), limit) }
+    }
+
+    /// Each word becomes a quoted phrase, so punctuation and FTS5's own operators in what
+    /// an agent types are searched for rather than parsed. Nil when nothing is searchable.
+    private static func matchWords(_ query: String, prefixOnLast: Bool = false) -> [String]? {
+        var words = query.split(whereSeparator: \.isWhitespace)
+            .filter { $0.contains { $0.isLetter || $0.isNumber } }
+            .map { "\"" + $0.replacingOccurrences(of: "\"", with: "\"\"") + "\"" }
+        guard !words.isEmpty else { return nil }
+        // Someone still typing the last word means its start, as FTS5 spells a prefix.
+        if prefixOnLast { words[words.count - 1] += "*" }
+        return words
+    }
+
+    /// The calls and dictations whose text the query finds, by the same index and rules as
+    /// `search` but one id per recording, not one hit per matching segment.
+    func recordingsMatching(_ query: String, prefixOnLast: Bool) throws -> Set<String> {
+        guard let words = Self.matchWords(query, prefixOnLast: prefixOnLast) else { return [] }
+        func ids(_ match: String) throws -> Set<String> {
+            try queue.sync {
+                Set(try db.query("SELECT DISTINCT ref_id FROM transcript_search WHERE transcript_search MATCH ?",
+                                 [match]) { $0.text(0) })
+            }
+        }
+        let all = try ids(words.joined(separator: " "))
+        guard all.isEmpty, words.count > 1 else { return all }
+        return try ids(words.joined(separator: " OR "))
     }
 
     // MARK: Dictations, for agents

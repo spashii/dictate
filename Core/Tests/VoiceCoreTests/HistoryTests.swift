@@ -106,6 +106,18 @@ final class HistoryTests: StoreTestCase {
         XCTAssertEqual(entries.first { $0.ref == "call" }?.changes, 3)
     }
 
+    func testSearchFindsRecordingsThroughTheTranscriptIndex() throws {
+        let calls = try fixtures()
+        func found(_ query: String) throws -> Set<String> { Set(try calls.historyEntries(matching: query).map(\.id)) }
+
+        XCTAssertEqual(try found("sounds good"), ["call:call"], "a call by what was said in it")
+        XCTAssertTrue(try found("northwi").contains("dictation:fixed"), "the start of a word still being typed")
+        XCTAssertEqual(try found("codex"), ["dictation:second"])
+        XCTAssertEqual(try found("pilot northwind"), ["dictation:fixed"], "every word has to appear")
+        XCTAssertEqual(try found("zzz"), [])
+        XCTAssertEqual(try found("  ").count, 4, "blank shows everything")
+    }
+
     func testKeyTermDecisionsShowAsKeyTermEventsNotTranscriptEdits() throws {
         let calls = try fixtures()
         let all = try calls.historyEntries().compactMap { try calls.historyDetail($0) }.flatMap(\.allChanges)
