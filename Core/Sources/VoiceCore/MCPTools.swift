@@ -64,3 +64,32 @@ public enum MCPEndpoint {
 
     public static let defaultHost = "127.0.0.1"
 }
+
+/// What to give an agent app so it can connect: the URL, a JSON config for apps that take one,
+/// and the Claude Code command.
+public struct MCPSetup: Sendable, Equatable {
+    public var url: String
+    public var json: String
+    public var command: String
+
+    /// `token` is written as it is, so pass "<token>" for text shown on screen and the real one
+    /// for text that is copied. A server bound to 0.0.0.0 is reached on 127.0.0.1 from this Mac.
+    public init(host: String, port: UInt16, token: String) {
+        let reach = host == "0.0.0.0" ? "127.0.0.1" : host
+        url = "http://\(reach):\(port)\(MCPServer.endpointPath)"
+        json = """
+            {
+              "mcpServers": {
+                "dictate": {
+                  "url": "\(url)",
+                  "headers": { "Authorization": "Bearer \(token)" }
+                }
+              }
+            }
+            """
+        command = "claude mcp add --transport http dictate \(url) --header \"Authorization: Bearer \(token)\""
+    }
+
+    /// The JSON, then the command, as one block to paste.
+    public var copied: String { json + "\n\n" + command }
+}

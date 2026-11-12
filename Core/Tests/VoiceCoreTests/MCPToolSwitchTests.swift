@@ -140,3 +140,22 @@ import Testing
         #expect(leftovers.isEmpty)
     }
 }
+
+@Suite struct MCPSetupTests {
+    @Test func fillsInTheRealHostPortAndToken() throws {
+        let setup = MCPSetup(host: "127.0.0.1", port: 8123, token: "abc123")
+        #expect(setup.url == "http://127.0.0.1:8123/mcp")
+        #expect(setup.command == "claude mcp add --transport http dictate http://127.0.0.1:8123/mcp --header \"Authorization: Bearer abc123\"")
+        let object = try #require(JSONSerialization.jsonObject(with: Data(setup.json.utf8)) as? [String: Any])
+        let servers = try #require(object["mcpServers"] as? [String: Any])
+        let dictate = try #require(servers["dictate"] as? [String: Any])
+        #expect(dictate["url"] as? String == "http://127.0.0.1:8123/mcp")
+        #expect((dictate["headers"] as? [String: String])?["Authorization"] == "Bearer abc123")
+        #expect(setup.copied.hasPrefix("{") && setup.copied.hasSuffix("abc123\""))
+    }
+
+    @Test func anAllInterfacesServerIsReachedOnLoopback() {
+        #expect(MCPSetup(host: "0.0.0.0", port: 7766, token: "<token>").url == "http://127.0.0.1:7766/mcp")
+        #expect(MCPSetup(host: "192.168.1.20", port: 7766, token: "<token>").url == "http://192.168.1.20:7766/mcp")
+    }
+}
