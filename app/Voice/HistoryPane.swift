@@ -27,6 +27,8 @@ final class HistoryModel {
     private(set) var blocks: [DisplayBlock] = []
     @ObservationIgnored private var blockOfLine: [Int: Int] = [:]
     @ObservationIgnored private var loads = 0
+    /// Makes each set of blocks differ from the last, so a row redraws only when its text did.
+    @ObservationIgnored private var generations = 0
     private(set) var waveform: [Float] = []
     let player = HistoryPlayer()
     @ObservationIgnored private var store: CallStore?
@@ -60,8 +62,8 @@ final class HistoryModel {
             entries = read
             if detail == nil || !visible.contains(where: { $0.id == selection }) {
                 keepSelection()
-            } else if let before, let now = selected, before != now, !player.isPlaying {
-                select(selection)
+            } else if let before, let now = selected, before != now {
+                refreshDetail()
             }
         }
     }
@@ -95,7 +97,8 @@ final class HistoryModel {
             return
         }
         loads += 1
-        let generation = loads
+        generations += 1
+        let generation = generations
         loading = Task {
             let store = await openStore()
             let read = await Task.detached { () -> (HistoryDetail, [DisplayBlock])? in
@@ -127,8 +130,14 @@ final class HistoryModel {
         let text = block.string as NSString
         guard range.lowerBound >= line.range.lowerBound, end > range.lowerBound else { return nil }
         let selected = text.substring(with: NSRange(location: range.lowerBound, length: end - range.lowerBound))
-        return detail.correction(line: line.id, selecting: selected, at: range.lowerBound - line.range.lowerBound)
+        // The view counts UTF-16 units; the core counts characters.
+        let before = text.substring(with: NSRange(location: line.range.lowerBound,
+                                                  length: range.lowerBound - line.range.lowerBound))
+        return detail.correction(line: line.id, selecting: selected, at: before.count)
     }
+
+    /// False for a dictation whose pasted text differs from the transcript shown.
+    var canCorrect: Bool { detail?.canCorrect ?? false }
 
     /// Stores the correction the way an agent's is stored, then reads the recording again.
     /// Returns what went wrong, if anything.
@@ -139,7 +148,7 @@ final class HistoryModel {
         } catch {
             return "\(error)"
         }
-        select(selection)
+        refreshDetail()
         reload()
         return nil
     }
@@ -184,6 +193,28 @@ final class HistoryModel {
             if selection == entry.id { selection = next }
             reload()
             changed()
+        }
+    }
+
+    /// Reads the open recording again after its words or title changed. Only the transcript
+    /// is swapped: playback, its position and the waveform stay as they are.
+    func refreshDetail() {
+        guard let entry = selected else { return }
+        let opened = loads
+        generations += 1
+        let generation = generations
+        Task {
+            let store = await openStore()
+            let read = await Task.detached { () -> (HistoryDetail, [DisplayBlock])? in
+                guard let detail = try? store?.historyDetail(entry) else { return nil }
+                return (detail, DisplayBlock.make(detail, generation: generation))
+            }.value
+            guard let read, opened == loads, selection == entry.id else { return }
+            player.lineAt = { seconds in read.0.line(at: seconds)?.id }
+            detail = read.0
+            blocks = read.1
+            blockOfLine = Dictionary(read.1.flatMap { block in block.lines.map { ($0.id, block.id) } },
+                                     uniquingKeysWith: { first, _ in first })
         }
     }
 
@@ -492,6 +523,7 @@ private struct HistoryDetailView: View {
                                                 times: preferences.historyTimes,
                                                 showCorrections: preferences.showCorrections,
                                                 play: { player.play(from: $0) },
+                                                correctable: detail.canCorrect,
                                                 draft: { history.correction(in: $0, range: $1) },
                                                 save: { await history.save($0, to: $1, known: KeyTerms.parse(preferences.keyTerms)) })
                                 .equatable()
@@ -531,6 +563,8 @@ private struct TranscriptBlockView: View, @MainActor Equatable {
     let play: (Double) -> Void
     /// The correction for words at a range of the block's text, and its storing; nil from
     /// save when it worked, else what went wrong.
+    /// False when what is drawn isn't the stored text, so a correction would change the wrong words.
+    let correctable: Bool
     let draft: (DisplayBlock, Range<Int>) -> HandCorrection?
     let save: (HandCorrection, String) async -> String?
     @State private var hovered = false
@@ -545,7 +579,7 @@ private struct TranscriptBlockView: View, @MainActor Equatable {
     @State private var markFrame: CGRect = .zero
 
     static func == (a: Self, b: Self) -> Bool {
-        a.block == b.block && a.isCall == b.isCall && a.playing == b.playing && a.times == b.times
+        a.block == b.block && a.correctable == b.correctable && a.isCall == b.isCall && a.playing == b.playing && a.times == b.times
             && a.showCorrections == b.showCorrections
     }
 
@@ -667,8 +701,12 @@ extension TranscriptBlockView {
     }
 
     private func begin(_ range: Range<Int>, layout: BlockTextLayout) {
-        guard let request = draft(block, range) else { return }
         hoveredMark = nil
+        guard correctable else {
+            editing = Editing(request: nil, rect: layout.rect(of: range))
+            return
+        }
+        guard let request = draft(block, range) else { return }
         editing = Editing(request: request, rect: layout.rect(of: range))
     }
 
@@ -701,7 +739,8 @@ private final class Pointer {
 
 private struct Editing: Identifiable {
     let id = UUID()
-    let request: HandCorrection
+    /// Nil when the recording can't be corrected, and the popover says so.
+    let request: HandCorrection?
     let rect: CGRect
 }
 
@@ -712,9 +751,15 @@ private struct CorrectionEditorHost: ViewModifier {
 
     func body(content: Content) -> some View {
         content.popover(item: $editing, attachmentAnchor: .rect(.rect(editing?.rect ?? .zero)), arrowEdge: .bottom) { item in
-            CorrectionEditor(original: item.request.selected,
-                             save: { await save(item.request, $0) },
-                             done: { editing = nil })
+            if let request = item.request {
+                CorrectionEditor(original: request.selected,
+                                 save: { await save(request, $0) },
+                                 done: { editing = nil })
+            } else {
+                Text("Clean-up rewrote this dictation, so its words can't be corrected here.")
+                    .padding(12)
+                    .frame(width: 260, alignment: .leading)
+            }
         }
     }
 }
