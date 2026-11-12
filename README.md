@@ -53,4 +53,4 @@ Building from source? Start at [docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md). How
 
 ## License
 
-MIT, see [LICENSE](LICENSE). Dictate includes [whisper.cpp](https://github.com/ggml-org/whisper.cpp), [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) and [Sparkle](https://sparkle-project.org). Their licenses are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+The code is source available under the [Functional Source License](LICENSE) (FSL-1.1-MIT): you can read it, change it and run it yourself, but not sell a competing copy. Each version becomes MIT two years after its release. Versions up to 0.11.0 were released under MIT and stay MIT. Dictate includes [whisper.cpp](https://github.com/ggml-org/whisper.cpp), [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) and [Sparkle](https://sparkle-project.org). Their licenses are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

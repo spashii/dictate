@@ -50,7 +50,7 @@ targets:
         LSMinimumSystemVersion: "15.0"
         LSUIElement: true
         LSApplicationCategoryType: public.app-category.productivity
-        NSHumanReadableCopyright: Free software under the MIT License.
+        NSHumanReadableCopyright: "© 2026 The Dictate authors. FSL-1.1-MIT."
         NSMicrophoneUsageDescription: Dictate records your microphone while you dictate.
         # Passes the appcast on GitHub Pages through unchanged, and counts update checks.
         SUFeedURL: https://apps.idea2prod.in/voice/appcast.xml

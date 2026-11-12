@@ -387,7 +387,7 @@ struct AboutPane: View {
             }
             Spacer()
             HStack(spacing: 4) {
-                Text("Dictate is open source under the MIT license, \u{00A9} 2026 The Dictate authors.")
+                Text("Source available under the Functional Source License (FSL-1.1-MIT), \u{00A9} 2026 The Dictate authors. Each version becomes MIT two years after its release.")
                     .foregroundStyle(.secondary)
                 Button("Third-party notices") { showingNotices = true }
                     .buttonStyle(.link)
