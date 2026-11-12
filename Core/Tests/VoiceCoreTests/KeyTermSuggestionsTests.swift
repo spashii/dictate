@@ -129,9 +129,9 @@ private func proposal(_ term: String, _ heard: String...) -> TermProposals.Propo
         let (_, back) = try calls.correctDictation(dictation.id, text: "ask cloud", client: nil)
         #expect(try calls.suggestKeyTerms(from: back, known: []).isEmpty)
         let call = try calls.createCall(NewCall(split: true))
-        let segment = try calls.appendSegments(call.id, [sampleSegment(.call, 0, "the akme pilot")])[0]
-        let (_, edit) = try calls.correctSegment(call.id, segment.id, text: "the Acme pilot", client: nil)
-        #expect(try calls.suggestKeyTerms(from: edit, known: []).map(\.heard) == [["akme"]])
+        let segment = try calls.appendSegments(call.id, [sampleSegment(.call, 0, "the zentrah pilot")])[0]
+        let (_, edit) = try calls.correctSegment(call.id, segment.id, text: "the Zentra pilot", client: nil)
+        #expect(try calls.suggestKeyTerms(from: edit, known: []).map(\.heard) == [["zentrah"]])
     }
 
     @Test func dismissIsAnEditAndUndoBringsItBack() async throws {
@@ -207,7 +207,7 @@ private func proposal(_ term: String, _ heard: String...) -> TermProposals.Propo
         // The prompt for "Northwind" alone fits; with another term it doesn't.
         let tokenizer = CharacterTokenizer(max: KeyTerms.prompt(["Northwind"]).count + 3)
         let suggestions = KeyTermSuggestions(store: calls, settings: settings, tokenizer: tokenizer)
-        let id = try #require(try corrected(calls, store, "ask fieldwork some", "ask Fieldwork Lab").first?.id)
+        let id = try #require(try corrected(calls, store, "ask fieldwork some", "ask Fieldwork Labz").first?.id)
 
         var message = ""
         do {
@@ -233,23 +233,23 @@ private func proposal(_ term: String, _ heard: String...) -> TermProposals.Propo
         let router = MCPRouter(store: calls, recording: nil, recordingUnavailable: "", version: "0",
                                keyTerms: KeyTermsEditor(settings: settings, tokenizer: CharacterTokenizer(max: 200),
                                                         store: calls))
-        let dictation = sampleDictation("send it to codecs and ask cloud about akme")
+        let dictation = sampleDictation("send it to codecs and ask cloud about zentrah")
         try store.insert(dictation)
         let fixed = try await call(router, "correct_dictation",
-                                   ["id": dictation.id, "text": "Send it to Codex and ask Claude about Acme."])
+                                   ["id": dictation.id, "text": "Send it to Codex and ask Claude about Zentra."])
         #expect(!fixed.failed)
 
         let listed = try await call(router, "list_key_term_suggestions", [:])
         let rows = try #require(listed.value as? [[String: Any]])
-        #expect(rows.compactMap { $0["term"] as? String } == ["Acme", "Claude"])
-        #expect(rows.compactMap { $0["heard"] as? [String] } == [["akme"], ["cloud"]])
+        #expect(rows.compactMap { $0["term"] as? String } == ["Zentra", "Claude"])
+        #expect(rows.compactMap { $0["heard"] as? [String] } == [["zentrah"], ["cloud"]])
         #expect(Set(rows.compactMap { $0["status"] as? String }) == ["pending"])
         let editID = try #require(try calls.edits().first?.id)
         #expect(Set(rows.compactMap { $0["edit_id"] as? Int64 }) == [editID])
         #expect(settings.value == "Codex")
 
         // Typed in by hand since: no longer pending in the list.
-        await settings.setKeyTerms("Codex, Acme")
+        await settings.setKeyTerms("Codex, Zentra")
         let after = try #require(try await call(router, "list_key_term_suggestions", [:]).value as? [[String: Any]])
         #expect(after.compactMap { $0["term"] as? String } == ["Claude"])
         #expect((try await call(router, "list_key_term_suggestions", ["status": "nope"])).failed)

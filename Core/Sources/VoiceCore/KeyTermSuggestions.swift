@@ -214,13 +214,16 @@ extension CallStore {
     /// Records the key terms a correction proposes, skipping those in `known` (the list as
     /// it is now). A term already suggested and still pending gains the new spelling
     /// whisper wrote; one accepted or dismissed is left alone. Returns the suggestions this
-    /// correction made or added to.
+    /// correction made or added to. Terms made only of everyday English words are not
+    /// suggested.
     @discardableResult
-    public func suggestKeyTerms(from edit: Edit, known: [String]) throws -> [TermSuggestion] {
+    public func suggestKeyTerms(from edit: Edit, known: [String],
+                                dictionary: CommonWords.Dictionary = CommonWords.system) throws -> [TermSuggestion] {
         guard edit.kind == .correctDictation || edit.kind == .correctSegment,
               edit.after?.corrected == true,
               let original = edit.before?.text, let corrected = edit.after?.text else { return [] }
         let proposals = TermProposals.from(original: original, corrected: corrected, known: known)
+            .filter { !CommonWords.covers($0.term, in: dictionary) }
         guard !proposals.isEmpty else { return [] }
         let ids = try queue.sync {
             try db.transaction { () -> [Int64] in
@@ -357,17 +360,23 @@ public actor KeyTermSuggestions {
 
     private let store: CallStore
     private let editor: KeyTermsEditor
+    private let dictionary: CommonWords.Dictionary
 
-    public init(store: CallStore, settings: any KeyTermsSettings, tokenizer: any PromptTokenizer = WhisperTokenizer()) {
+    public init(store: CallStore, settings: any KeyTermsSettings, tokenizer: any PromptTokenizer = WhisperTokenizer(),
+                dictionary: @escaping CommonWords.Dictionary = CommonWords.system) {
+        self.dictionary = dictionary
         self.store = store
         editor = KeyTermsEditor(settings: settings, tokenizer: tokenizer, store: store)
     }
 
-    /// The pending suggestions whose term isn't in the list yet, at most `limit`.
+    /// The pending suggestions whose term isn't in the list yet, at most `limit`. Ones made
+    /// of everyday words stay hidden, including any stored before that was checked.
     public func pending(limit: Int = 5) async throws -> [TermSuggestion] {
         let known = Set(KeyTerms.parse(await editor.settings.keyTerms()).map(TermProposals.key))
+        let dictionary = dictionary
         return Array(try store.termSuggestions(status: .pending, limit: 200)
-            .filter { !known.contains(TermProposals.key($0.term)) }.prefix(limit))
+            .filter { !known.contains(TermProposals.key($0.term)) && !CommonWords.covers($0.term, in: dictionary) }
+            .prefix(limit))
     }
 
     /// Adds the term to the key terms. Throws, with add_key_terms' words, when whisper's
