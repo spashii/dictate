@@ -7,7 +7,7 @@ Press ``Option+` `` in any text field, talk, and press it again. Your words show
 - Dictate cuts the speech at pauses and transcribes each piece while you are still talking, so stopping costs only the last piece.
 - Pasting is Cmd+V into the app in front, and then the clipboard is restored to what it held. Without Accessibility access the text stays on the clipboard.
 - The menu lists your last five dictations and three online calls. Click one to copy it.
-- When another app has secure keyboard input on, which a focused password field does and a stuck app can leave on, macOS stops every global shortcut. The menu then names the app. Leave the field, or quit the app.
+- When another app has secure keyboard input on, which a focused password field does and a stuck app can leave on, macOS stops every global shortcut. The menu then says that app's name and that shortcuts are paused. Leave the field, or quit the app.
 - Quitting during a dictation keeps the recording. The next launch transcribes it into the history without pasting, and the menu marks it "Recovered a recording".
 
 ## Correcting a word
@@ -16,7 +16,7 @@ In History, drag across words or right-click one and choose Correct. With a bloc
 
 ## Renaming and deleting
 
-Select a recording in History and press Return to give it a title, or Cmd+Delete to delete it. Both are also in the row's right-click menu and the More menu. Delete removes the audio, transcript and corrections from this Mac, and a call still recording can't be deleted.
+Select a recording in History and press Return to give it a title, or Cmd+Delete to delete it. Both are also in the row's right-click menu and the More menu. A name replaces the date as the row's title, and clearing it brings the date back. Delete asks first, then removes the audio, transcript and corrections from this Mac. A call still recording can't be deleted.
 
 ## Key terms
 
