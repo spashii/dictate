@@ -99,7 +99,7 @@ public final class CallRecorder: @unchecked Sendable {
                 var notices = plan.notices
                 do {
                     if let mix = plan.mix {
-                        let call = try self.startDevice(mix, transcriber, whisper, appBundleID, appName, title)
+                        let call = try self.startOnDevice(mix, transcriber, whisper, appBundleID, appName, title)
                         done.resume(returning: Started(call: call, notices: notices))
                         return
                     }
@@ -114,7 +114,7 @@ public final class CallRecorder: @unchecked Sendable {
                             notices.append(CallPlanner.tapFailedNotice(app.name))
                         }
                     }
-                    let call = try self.startDevice(plan.microphone, transcriber, whisper, appBundleID, appName, title)
+                    let call = try self.startOnDevice(plan.microphone, transcriber, whisper, appBundleID, appName, title)
                     done.resume(returning: Started(call: call, notices: notices))
                 } catch {
                     self.stopEngine()
@@ -304,6 +304,16 @@ public final class CallRecorder: @unchecked Sendable {
     }
 
     // MARK: Internals
+
+    /// Replaces opening a device for the planned paths, so a test of the fallback never opens
+    /// the Mac's microphone.
+    var deviceStart: (@Sendable (CallSource) throws -> Call)?
+
+    private func startOnDevice(_ source: CallSource, _ transcriber: Transcriber, _ whisper: WhisperOptions,
+                               _ appBundleID: String?, _ appName: String?, _ title: String?) throws -> Call {
+        if let deviceStart { return try deviceStart(source) }
+        return try startDevice(source, transcriber, whisper, appBundleID, appName, title)
+    }
 
     private func startDevice(_ source: CallSource, _ transcriber: Transcriber, _ whisper: WhisperOptions,
                              _ appBundleID: String?, _ appName: String?, _ title: String?) throws -> Call {
