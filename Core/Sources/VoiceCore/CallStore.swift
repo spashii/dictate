@@ -294,7 +294,7 @@ public final class CallStore: @unchecked Sendable {
         }
     }
 
-    /// The transcript as text: both sides merged by time and labelled "Me:" and "Call:" (or
+    /// The transcript as text: both sides merged by time and labeled "Me:" and "Call:" (or
     /// by the call's speakers), or one channel on its own.
     public func transcript(_ callID: String, channel: CallSegment.Channel? = nil) throws -> String {
         CallTranscript.text(try segments(callID, channel: channel), labels: channel == nil,

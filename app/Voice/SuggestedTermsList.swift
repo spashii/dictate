@@ -31,7 +31,7 @@ struct SuggestedTermsList: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .help("How whisper heard it")
+                    .help("How Whisper heard it")
                 Spacer()
                 Button("Add") { decide(suggestion.id, true) }
                 Button("Dismiss") { decide(suggestion.id, false) }

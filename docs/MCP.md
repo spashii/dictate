@@ -64,7 +64,7 @@ Serve terminates TLS and connects from 127.0.0.1, so the token is what keeps oth
 | `search_transcripts` | full text over call segments and dictations; `query`, `limit` |
 | `tag_call` | `id`, `add`, `remove` |
 | `list_dictations` | dictations newest first; `since`, `limit` |
-| `get_dictation` | one dictation with raw and final text, timings and segments, and `fix_edits` when the fix step ran: each edit's segment, span, replacement, key_term, offset, and rejected with the reason when it wasn't applied |
+| `get_dictation` | one dictation with raw and final text, timings and segments, and `fix_edits` when Fix the text before pasting ran: each edit's segment, span, replacement, key_term, offset, and rejected with the reason when it wasn't applied |
 | `start_recording`, `stop_recording` | record a call with the microphone and call audio chosen in Settings, Microphones, and stop it once the last words are transcribed; only the app can, so `dictate-cli mcp` answers with an error |
 | `correct_dictation` | `id`, `text`: stores the correction beside the dictation's text, which reads and search then return with `corrected: true` and `original_text`, and pastes nothing |
 | `correct_segment` | `call_id`, `segment_id` (the `id` from `get_transcript` in format segments), `text`: the same for one segment of a call |

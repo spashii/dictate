@@ -24,11 +24,11 @@ Select a recording in History and press Return to give it a title, or Cmd+Delete
 
 Names and words Whisper gets wrong, spelled as they should be: people, products and places Whisper hasn't heard of. The list starts empty and goes into Whisper's prompt.
 
-## The fix step
+## Fix the text before pasting
 
 Optional. A model in [Ollama](https://ollama.com) suggests edits to the text, using your key terms, before it is pasted. The default model is `qwen3.5:9b`. If Ollama isn't running or the step fails, Whisper's text is pasted as it is.
 
-On a 16 GB Mac, Whisper and a large Ollama model don't fit on the GPU together. Dictate frees Whisper before the fix step, and skips the fix step while an online call is using Whisper.
+On a 16 GB Mac, Whisper and a large Ollama model don't fit on the GPU together. Dictate frees Whisper before Fix the text before pasting, and skips it while an online call is using Whisper.
 
 ## How it works
 
