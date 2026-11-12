@@ -17,6 +17,10 @@ final class LockPolicyTests: XCTestCase {
         return "dct1.\(payload).\(base64url(signature))"
     }
 
+    private func link(nonce: String) throws -> URL {
+        URL(string: "in.firstversion.dictate://activate?t=\(try token(nonce: nonce))")!
+    }
+
     private func makeActivation(_ store: MemoryActivationStore = MemoryActivationStore(), now: Date = Date()) -> Activation {
         let name = "lock-tests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!
@@ -52,7 +56,7 @@ final class LockPolicyTests: XCTestCase {
         let activation = makeActivation()
         hotkeys.apply(LockPolicy(activation))
         activation.begin()
-        try activation.accept(text: token(nonce: "n1")).get()
+        try activation.accept(url: link(nonce: "n1")).get()
         let policy = LockPolicy(activation)
         hotkeys.apply(policy)
         XCTAssertTrue(hotkeys.isRegistered)
@@ -66,7 +70,7 @@ final class LockPolicyTests: XCTestCase {
         let hotkeys = Hotkeys(enable: { XCTFail("registered") }, disable: {})
         let activation = makeActivation()
         activation.begin()
-        _ = activation.accept(text: try token(nonce: "other"))
+        _ = activation.accept(url: try link(nonce: "other"))
         hotkeys.apply(LockPolicy(activation))
         XCTAssertFalse(hotkeys.isRegistered)
     }
@@ -92,5 +96,41 @@ final class LockPolicyTests: XCTestCase {
         hotkeys.apply(LockPolicy(unlocked: true))
         hotkeys.apply(LockPolicy(unlocked: true))
         XCTAssertEqual(enabled, 1)
+    }
+
+    func testAGraceThatEndsMidRecordingKeepsTheWayToStop() {
+        let unlocked = LockPolicy(unlocked: true), locked = LockPolicy(unlocked: false)
+        XCTAssertEqual(LockPolicy.next(current: locked, applied: unlocked, recording: true), unlocked)
+        XCTAssertEqual(LockPolicy.next(current: locked, applied: unlocked, recording: false), locked)
+        XCTAssertEqual(LockPolicy.next(current: unlocked, applied: locked, recording: true), locked)
+        XCTAssertEqual(LockPolicy.next(current: locked, applied: nil, recording: true), locked)
+    }
+
+    func testTheHotkeysStayOnUntilTheRecordingEnds() {
+        let start = Date()
+        var now = start
+        let store = MemoryActivationStore(ActivationRecord(graceStart: start))
+        let activation = Activation(store: store, defaults: UserDefaults(suiteName: "lock-\(UUID().uuidString)")!,
+                                    now: { now }, keys: [:])
+        var log: [String] = []
+        let hotkeys = Hotkeys(enable: { log.append("on") }, disable: { log.append("off") })
+        var applied = LockPolicy(activation)
+        hotkeys.apply(applied)
+        now = start.addingTimeInterval(8 * 24 * 3600)
+        activation.refresh()
+        applied = LockPolicy.next(current: LockPolicy(activation), applied: applied, recording: true)
+        hotkeys.apply(applied)
+        XCTAssertEqual(log, ["on"])
+        applied = LockPolicy.next(current: LockPolicy(activation), applied: applied, recording: false)
+        hotkeys.apply(applied)
+        XCTAssertEqual(log, ["on", "off"])
+    }
+
+    func testForcingRegistersAgainForALateHandler() {
+        var disabled = 0
+        let hotkeys = Hotkeys(enable: {}, disable: { disabled += 1 })
+        hotkeys.apply(LockPolicy(unlocked: false))
+        hotkeys.apply(LockPolicy(unlocked: false), force: true)
+        XCTAssertEqual(disabled, 2)
     }
 }

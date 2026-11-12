@@ -165,6 +165,12 @@ func refusal(_ result: Result<Void, Activation.Refusal>) -> Activation.Refusal? 
         #expect(url.query == nil)
     }
 
+    @Test func pageURLNamesAnOwnScheme() {
+        let url = make().pageURL(base: URL(string: "http://localhost:8787")!, version: "0.13.0",
+                                 scheme: "in.firstversion.dictate.dev")
+        #expect(url.absoluteString == "http://localhost:8787/activate#n=n1&v=0.13.0&s=in.firstversion.dictate.dev")
+    }
+
     @Test func aRandomNonceIsLongAndDifferentEachTime() {
         let a = Activation.randomNonce(), b = Activation.randomNonce()
         #expect(a != b)

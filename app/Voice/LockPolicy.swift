@@ -23,6 +23,12 @@ struct LockPolicy: Equatable {
         unlocked || pane == .welcome || pane == .about
     }
 
+    /// The policy to apply now. While a dictation or a call records, whatever was applied stays,
+    /// so a grace that ends mid-recording cannot take the way to stop it.
+    static func next(current: LockPolicy, applied: LockPolicy?, recording: Bool) -> LockPolicy {
+        recording ? (applied ?? current) : current
+    }
+
     /// The pane to show for a request: the one asked for, or Welcome while it is locked.
     func landing(for pane: MainPane) -> MainPane {
         reaches(pane) ? pane : .welcome
@@ -44,8 +50,9 @@ final class Hotkeys {
 
     var isRegistered: Bool { registered == true }
 
-    func apply(_ policy: LockPolicy) {
-        guard registered != policy.registersHotkeys else { return }
+    /// `force` registers again even when nothing changed, for a handler added after the last call.
+    func apply(_ policy: LockPolicy, force: Bool = false) {
+        guard force || registered != policy.registersHotkeys else { return }
         registered = policy.registersHotkeys
         if policy.registersHotkeys { enable() } else { disable() }
     }

@@ -61,7 +61,7 @@ struct MainView: View {
 
     var body: some View {
         @Bindable var navigation = navigation
-        let policy = LockPolicy(model.activation)
+        let policy = model.lock
         NavigationSplitView {
             List(selection: $navigation.selection) {
                 if !model.activation.isActivated {

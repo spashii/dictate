@@ -75,8 +75,13 @@ enum TokenSupport {
         }
     }
 
-    @Test func trustsNoKeyUntilOneIsCompiledIn() {
-        #expect(throws: ActivationToken.Failure.unknownKey) {
+    @Test func theCompiledInKeysAreNotEmpty() {
+        #expect(ActivationKeys.encoded.count == 1)
+        #expect(ActivationKeys.all.keys.sorted() == ["k1"])
+    }
+
+    @Test func refusesATokenNotSignedByTheCompiledInKey() {
+        #expect(throws: ActivationToken.Failure.badSignature) {
             try ActivationToken.verify(TokenSupport.token())
         }
     }

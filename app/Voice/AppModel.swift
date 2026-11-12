@@ -62,11 +62,13 @@ final class AppModel {
     let updates = Updates()
     let activation = Activation(store: KeychainActivationStore())
     /// Held only while Dictate may record.
+    /// What a locked Dictate keeps off, as last applied. A running recording holds it back.
+    private(set) var lock = LockPolicy(unlocked: false)
+    @ObservationIgnored private var lockApplied = false
+    @ObservationIgnored private var lockDeferred = false
     @ObservationIgnored let hotkeys = Hotkeys(
         enable: { KeyboardShortcuts.enable(.dictate, .recordCall) },
         disable: { KeyboardShortcuts.disable(.dictate, .recordCall) })
-    /// What the Welcome pane says about the last activation attempt.
-    var activationMessage: String?
 
     /// Set at launch; dictation asks it whether a call is using whisper.
     @ObservationIgnored weak var calls: CallsModel?
@@ -164,6 +166,7 @@ final class AppModel {
 
     func launch() {
         KeyboardShortcuts.onKeyUp(for: .dictate) { [weak self] in self?.toggle() }
+        applyLock()
         do {
             store = try Store(url: Paths.database)
             pruneHistory()
@@ -530,7 +533,7 @@ final class AppModel {
     /// Cmd+,, and at launch while setup is unfinished.
     func openMainWindow(_ pane: MainPane) {
         guard let calls else { return }
-        mainWindow.show(LockPolicy(activation).landing(for: pane), calls: calls)
+        mainWindow.show(lock.landing(for: pane), calls: calls)
     }
 
     func openHistory() { openMainWindow(.history) }
@@ -550,9 +553,9 @@ final class AppModel {
 
     /// Opens the activation page in the browser with this Mac's nonce, and Welcome here.
     func beginActivation() {
-        activationMessage = nil
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
-        NSWorkspace.shared.open(activation.pageURL(base: BuildFlavor.activationBase, version: version))
+        NSWorkspace.shared.open(activation.pageURL(base: BuildFlavor.activationBase, version: version,
+                                                   scheme: BuildFlavor.isDev ? BuildFlavor.urlScheme : nil))
         openMainWindow(.welcome)
     }
 
@@ -560,40 +563,48 @@ final class AppModel {
         finishActivation(activation.accept(url: url))
     }
 
-    /// The paste field. Returns whether it was accepted.
-    func acceptActivation(text: String) {
-        finishActivation(activation.accept(text: text))
-    }
-
-    func useGrace() {
-        activation.startGrace()
-        activationChanged()
-    }
-
     private func finishActivation(_ result: Result<Void, Activation.Refusal>) {
         switch result {
         case .success:
-            activationMessage = nil
             activationChanged()
             openMainWindow(.setup)
             notice("Dictate is activated")
         case .failure(.otherRequest):
-            activationMessage = "This activation was for another request. Press Activate again."
-        case .failure(.invalid):
-            activationMessage = "That code is not valid. Copy it again from the page."
-        case .failure(.notSaved):
-            activationMessage = "Dictate could not save the activation in your Keychain."
+            notice("This activation was for another request. Press Activate again.")
+        case .failure(.invalid), .failure(.notSaved):
+            notice("Dictate could not use that activation. Press Activate again.")
         }
     }
 
     /// Brings what a locked Dictate keeps off in line with the state: the shortcuts, the agent
     /// server and the call prompt. Runs at launch, after activation and when the 7 days end.
-    func applyLock() {
+    func applyLock(force: Bool = false) {
         activation.refresh()
-        let policy = LockPolicy(activation)
-        hotkeys.apply(policy)
+        let recording = activity.dictationRecording || activity.callRecording
+        let current = LockPolicy(activation)
+        // The lock never lands mid-recording: the shortcut, the menu and an agent are the ways
+        // to stop it. It lands when the recording ends.
+        let policy = LockPolicy.next(current: current, applied: lockApplied ? lock : nil, recording: recording)
+        lockApplied = true
+        lock = policy
+        if policy != current { deferLock() }
+        hotkeys.apply(policy, force: force)
         agents.setUnlocked(policy.startsAgentServer)
         calls?.activationChanged()
+    }
+
+    private func deferLock() {
+        guard !lockDeferred else { return }
+        lockDeferred = true
+        withObservationTracking {
+            _ = activity.dictationRecording
+            _ = activity.callRecording
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                self?.lockDeferred = false
+                self?.applyLock()
+            }
+        }
     }
 
     private func activationChanged() {

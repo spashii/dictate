@@ -71,7 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model.launch()
         calls.launch(model: model)
         // After both shortcut handlers exist, so a locked Dictate registers neither.
-        model.applyLock()
+        model.applyLock(force: true)
     }
 
     /// Both Application Support/Voice and Dictate exist, so nothing was moved. Said once, with
@@ -108,7 +108,7 @@ struct MenuContent: View {
             Button("Activate Dictate\u{2026}") { model.beginActivation() }
             Divider()
         }
-        if LockPolicy(model.activation).showsRecordingMenu {
+        if model.lock.showsRecordingMenu {
             Text(model.statusText)
             Button(model.isRecording ? "Stop and paste" : "Dictate  \(KeyboardShortcuts.getShortcut(for: .dictate)?.description ?? "")") {
                 model.toggle()

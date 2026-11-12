@@ -126,9 +126,11 @@ public final class Activation {
 
     /// The address to open: the page, with the nonce and version in the fragment so they
     /// never go to a server in a request.
-    public func pageURL(base: URL, version: String) -> URL {
+    /// A build with its own URL scheme (the Debug one) names it as `s`, so the page returns to it.
+    public func pageURL(base: URL, version: String, scheme: String? = nil) -> URL {
         let nonce = begin()
-        return URL(string: base.appending(path: "activate").absoluteString + "#n=\(nonce)&v=\(version)")!
+        let own = scheme.map { "&s=\($0)" } ?? ""
+        return URL(string: base.appending(path: "activate").absoluteString + "#n=\(nonce)&v=\(version)\(own)")!
     }
 
     public func startGrace() {
@@ -149,10 +151,9 @@ public final class Activation {
         return accept(text: token)
     }
 
-    /// The token as text, from the link or the paste field. Nothing is stored unless it is
-    /// genuine and carries this Mac's pending nonce.
+    /// Nothing is stored unless the token is genuine and carries this Mac's pending nonce.
     @discardableResult
-    public func accept(text: String) -> Result<Void, Refusal> {
+    func accept(text: String) -> Result<Void, Refusal> {
         let token: ActivationToken
         do { token = try ActivationToken.verify(text, keys: keys) } catch { return .failure(.invalid) }
         guard let nonce = pendingNonce, token.nonce == nonce else { return .failure(.otherRequest) }

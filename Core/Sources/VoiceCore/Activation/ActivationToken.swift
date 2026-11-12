@@ -48,9 +48,9 @@ public struct ActivationToken: Equatable, Sendable {
 /// The public halves of the signing keys, by `kid`. A new key ships in an app update; a key
 /// the site stops using is removed here to stop accepting new activations with it.
 public enum ActivationKeys {
-    /// Raw 32-byte keys, base64url. Filled in when the site's signing key is generated: until
-    /// then no token verifies, which fails closed.
-    static let encoded: [String: String] = [:]
+    /// Raw 32-byte keys, base64url, under the `kid` the site signs with. An empty map would
+    /// refuse every token, so a test keeps it filled.
+    static let encoded: [String: String] = ["k1": "UWi_eAbrx0F-vKadRIOGWdsBrHhl0DJ6v9Li8A0aMok"]
 
     public static let all: [String: Curve25519.Signing.PublicKey] = encoded.compactMapValues {
         Base64URL.decode($0).flatMap { try? Curve25519.Signing.PublicKey(rawRepresentation: $0) }
