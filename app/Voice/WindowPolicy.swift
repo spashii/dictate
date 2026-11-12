@@ -10,13 +10,22 @@ enum WindowPolicy {
         var isTitled: Bool
         var isVisible: Bool
         var isMiniaturized: Bool
+        /// The window's class name, to tell Sparkle's windows apart.
+        var className: String = ""
     }
 
     /// A window the person works in. Panels are excluded: the live pills and the call prompt
     /// float over other apps and must not take focus, and open and save panels belong to a
     /// window that already counts. A minimized window still counts, since the Dock holds it.
+    ///
+    /// Sparkle's update windows are the updater's own and come and go as it works, and alerts
+    /// are answered and gone; neither should turn Dictate into a Dock app or pull it forward.
     static func counts(_ window: Info) -> Bool {
-        !window.isPanel && window.isTitled && (window.isVisible || window.isMiniaturized)
+        !window.isPanel && window.isTitled && (window.isVisible || window.isMiniaturized) && !isTransient(window.className)
+    }
+
+    static func isTransient(_ className: String) -> Bool {
+        className.hasPrefix("SU") || className.hasPrefix("SPU") || className.contains("Alert")
     }
 
     static func policy(openWindows: Int) -> NSApplication.ActivationPolicy {
@@ -66,6 +75,7 @@ final class WindowActivation {
 
     private static func counts(_ window: NSWindow) -> Bool {
         WindowPolicy.counts(.init(isPanel: window is NSPanel, isTitled: window.styleMask.contains(.titled),
-                                  isVisible: window.isVisible, isMiniaturized: window.isMiniaturized))
+                                  isVisible: window.isVisible, isMiniaturized: window.isMiniaturized,
+                                  className: NSStringFromClass(type(of: window))))
     }
 }

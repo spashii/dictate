@@ -35,4 +35,15 @@ final class WindowPolicyTests: XCTestCase {
         XCTAssertFalse(WindowPolicy.counts(window(visible: false)))
         XCTAssertTrue(WindowPolicy.counts(window(visible: false, minimized: true)))
     }
+
+    func testSparkleAndAlertWindowsDoNotCount() {
+        for name in ["SUUpdateAlert", "SPUStandardUpdaterWindow", "NSAlertPanel", "_NSAlertWindow"] {
+            var info = window()
+            info.className = name
+            XCTAssertFalse(WindowPolicy.counts(info), name)
+        }
+        var ours = window()
+        ours.className = "SwiftUI.AppKitWindow"
+        XCTAssertTrue(WindowPolicy.counts(ours))
+    }
 }
