@@ -14,6 +14,10 @@ Press ``Option+` `` in any text field, talk, and press it again. Your words show
 
 In History, drag across words or right-click one and choose Correct. With a block focused, press E to correct its line; VoiceOver has the same as an action. A changed name is offered as a key term in Settings, Model.
 
+## Renaming and deleting
+
+Select a recording in History and press Return to give it a title, or Cmd+Delete to delete it. Both are also in the row's right-click menu and the More menu. Delete removes the audio, transcript and corrections from this Mac, and a call still recording can't be deleted.
+
 ## Key terms
 
 Names and words Whisper gets wrong, spelled as they should be: people, products and places Whisper hasn't heard of. The list starts empty and goes into Whisper's prompt.

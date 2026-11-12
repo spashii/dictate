@@ -466,7 +466,7 @@ final class CallsModel {
         if promptApp != nil { prompt.show() } else { prompt.hide() }
     }
 
-    private func refreshRecent() {
+    func refreshRecent() {
         recent = (try? store?.recentCalls(limit: 3)) ?? []
     }
 }

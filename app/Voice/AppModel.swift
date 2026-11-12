@@ -471,6 +471,12 @@ final class AppModel {
         }
     }
 
+    /// After History renames or deletes a recording.
+    func refreshRecents() {
+        recent = store?.recent(5) ?? recent
+        calls?.refreshRecent()
+    }
+
     private func finish(_ dictation: Dictation, inputLost: Bool = false, writeError: String? = nil) async {
         pruneHistory()
         recent = store?.recent(5) ?? recent

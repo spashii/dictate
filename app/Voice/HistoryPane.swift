@@ -17,10 +17,14 @@ final class HistoryModel {
     var filter: Filter = .all
     var search = ""
     var selection: HistoryEntry.ID?
+    /// The row whose title is being edited, and the recording a Delete is waiting on.
+    var renaming: HistoryEntry.ID?
+    var pendingDelete: HistoryEntry?
+    /// Told after a rename or delete, so the menu bar's recent items follow.
+    @ObservationIgnored var changed: () -> Void = {}
     private(set) var detail: HistoryDetail?
     /// The detail's blocks, made once when it loads instead of on every redraw.
     private(set) var blocks: [DisplayBlock] = []
-    private(set) var detailTitle = ""
     @ObservationIgnored private var blockOfLine: [Int: Int] = [:]
     @ObservationIgnored private var loads = 0
     private(set) var waveform: [Float] = []
@@ -107,7 +111,6 @@ final class HistoryModel {
             blocks = read?.1 ?? []
             blockOfLine = Dictionary(blocks.flatMap { block in block.lines.map { ($0.id, block.id) } },
                                      uniquingKeysWith: { first, _ in first })
-            detailTitle = HistoryTime.title(start: entry.at, zone: entry.timeZone)
             waveform = []
             guard let audio else { return }
             // A long recording's bars take a moment; the transcript doesn't wait for them.
@@ -139,6 +142,49 @@ final class HistoryModel {
         select(selection)
         reload()
         return nil
+    }
+
+    /// Starts editing a row's title in place.
+    func beginRename(_ entry: HistoryEntry) {
+        selection = entry.id
+        renaming = entry.id
+    }
+
+    /// Gives the recording the title, or takes it away when it is blank.
+    func rename(_ entry: HistoryEntry, to text: String) {
+        renaming = nil
+        guard text.trimmingCharacters(in: .whitespacesAndNewlines) != (entry.customTitle ?? "") else { return }
+        Task {
+            guard let store = await openStore() else { return }
+            _ = try? await Task.detached { try store.rename(entry.kind, entry.ref, to: text) }.value
+            reload()
+            changed()
+        }
+    }
+
+    /// Deletes the recording, then moves the selection to the row after it, or the one
+    /// before when it was last, as Mail does.
+    func delete(_ entry: HistoryEntry) {
+        pendingDelete = nil
+        let list = visible
+        let index = list.firstIndex(of: entry)
+        let next = index.flatMap { list.indices.contains($0 + 1) ? list[$0 + 1].id : ($0 > 0 ? list[$0 - 1].id : nil) }
+        Task {
+            guard let store = await openStore() else { return }
+            do {
+                try await Task.detached { try store.deleteRecording(entry.kind, entry.ref) }.value
+            } catch {
+                let alert = NSAlert()
+                alert.messageText = "Couldn't delete the recording"
+                alert.informativeText = "\(error)"
+                alert.runModal()
+                return
+            }
+            entries.removeAll { $0.id == entry.id }
+            if selection == entry.id { selection = next }
+            reload()
+            changed()
+        }
     }
 
     /// Puts an entry's text on the clipboard, read as it is now, and says whether there was any.
@@ -196,7 +242,24 @@ struct HistoryPane: View {
             }
             .frame(minWidth: 380, maxWidth: .infinity)
         }
-        .onAppear { history.reload() }
+        .onAppear {
+            history.changed = { model.refreshRecents() }
+            history.reload()
+        }
+        .onKeyPress(keys: [.delete], phases: .down) { press in
+            guard press.modifiers == .command, history.renaming == nil, let entry = history.selected else { return .ignored }
+            history.pendingDelete = entry
+            return .handled
+        }
+        .confirmationDialog(
+            history.pendingDelete.map { "Delete \u{201C}\($0.deletionName)\u{201D}?" } ?? "",
+            isPresented: Binding(get: { history.pendingDelete != nil }, set: { if !$0 { history.pendingDelete = nil } }),
+            titleVisibility: .visible, presenting: history.pendingDelete) { entry in
+            Button("Delete", role: .destructive) { history.delete(entry) }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("This removes its audio and transcript from this Mac.")
+        }
         .task {
             // Recordings finish and agents correct text while the window is open.
             while !Task.isCancelled {
@@ -239,15 +302,32 @@ private struct HistoryList: View {
                     ContentUnavailableView.search(text: history.search)
                 }
             } else {
-                List(history.visible, selection: $history.selection) { entry in
-                    HistoryRow(entry: entry)
-                        .equatable()
-                        .onAppear { history.loadMoreIfNeeded(at: entry) }
-                        .contextMenu {
-                            Button("Copy") { Task { await history.copy(entry) } }
-                        }
+                ScrollViewReader { proxy in
+                    List(history.visible, selection: $history.selection) { entry in
+                        HistoryRow(entry: entry, renaming: history.renaming == entry.id,
+                                   commit: { history.rename(entry, to: $0) }, cancel: { history.renaming = nil })
+                            .equatable()
+                            .onAppear { history.loadMoreIfNeeded(at: entry) }
+                            .contextMenu {
+                                Button("Copy") { Task { await history.copy(entry) } }
+                                Button("Rename") { history.beginRename(entry) }
+                                Divider()
+                                Button("Delete\u{2026}", role: .destructive) { history.pendingDelete = entry }
+                            }
+                            .accessibilityAction(named: "Rename") { history.beginRename(entry) }
+                            .accessibilityAction(named: "Delete") { history.pendingDelete = entry }
+                    }
+                    .listStyle(.plain)
+                    // Return renames the selected row, as in Finder.
+                    .onKeyPress(.return) {
+                        guard history.renaming == nil, let entry = history.selected else { return .ignored }
+                        history.beginRename(entry)
+                        return .handled
+                    }
+                    .onChange(of: history.renaming) { _, id in
+                        if let id { proxy.scrollTo(id) }
+                    }
                 }
-                .listStyle(.plain)
             }
         }
     }
@@ -255,10 +335,14 @@ private struct HistoryList: View {
 
 private struct HistoryRow: View, @MainActor Equatable {
     let entry: HistoryEntry
+    let renaming: Bool
+    let commit: (String) -> Void
+    let cancel: () -> Void
 
-    static func == (a: Self, b: Self) -> Bool { a.entry == b.entry }
+    static func == (a: Self, b: Self) -> Bool { a.entry == b.entry && a.renaming == b.renaming }
 
     var body: some View {
+        let date = HistoryTime.title(start: entry.at, zone: entry.timeZone)
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: entry.kind == .call ? "phone" : "mic")
                 .foregroundStyle(.secondary)
@@ -266,19 +350,78 @@ private struct HistoryRow: View, @MainActor Equatable {
                 .padding(.top, 1)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(HistoryTime.title(start: entry.at, zone: entry.timeZone)).fontWeight(.semibold)
-                    if let zone = entry.originalZoneLabel {
-                        Text(zone).font(.caption).foregroundStyle(.secondary)
+                    if renaming {
+                        RenameField(initial: entry.customTitle ?? "", prompt: date, commit: commit, cancel: cancel)
+                    } else {
+                        Text(entry.customTitle ?? date).fontWeight(.semibold).lineLimit(1)
+                        if entry.customTitle == nil, let zone = entry.originalZoneLabel {
+                            Text(zone).font(.caption).foregroundStyle(.secondary)
+                        }
                     }
                     Spacer(minLength: 4)
                     Text(HistoryTime.elapsed(entry.duration)).monospacedDigit().foregroundStyle(.secondary)
                 }
-                Text(entry.firstLine.isEmpty ? entry.title : entry.firstLine)
+                Text(secondLine(date: date))
                     .lineLimit(1)
                     .foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 3)
+    }
+
+    /// A renamed recording keeps its date and time here; one without a name shows what it
+    /// was, and the first words.
+    private func secondLine(date: String) -> String {
+        let preview = entry.firstLine.isEmpty ? entry.title : entry.firstLine
+        if entry.customTitle != nil {
+            return [date + (entry.originalZoneLabel.map { " \($0)" } ?? ""),
+                    entry.kind == .call ? entry.kindLabel : nil].compactMap { $0 }.joined(separator: " \u{00B7} ")
+        }
+        guard entry.kind == .call else { return preview }
+        return [entry.kindLabel, entry.firstLine.isEmpty ? nil : preview].compactMap { $0 }.joined(separator: " \u{00B7} ")
+    }
+}
+
+/// The title field in a row: Return or clicking away keeps it, Escape leaves the title as it was.
+private struct RenameField: View {
+    @State private var text: String
+    let prompt: String
+    let commit: (String) -> Void
+    let cancel: () -> Void
+    @State private var finished = false
+    @FocusState private var focused: Bool
+
+    init(initial: String, prompt: String, commit: @escaping (String) -> Void, cancel: @escaping () -> Void) {
+        _text = State(initialValue: initial)
+        self.prompt = prompt
+        self.commit = commit
+        self.cancel = cancel
+    }
+
+    var body: some View {
+        TextField("Title", text: $text, prompt: Text(prompt))
+            .textFieldStyle(.roundedBorder)
+            .fontWeight(.semibold)
+            .focused($focused)
+            .onSubmit { finish(keep: true) }
+            .onExitCommand { finish(keep: false) }
+            .onChange(of: focused) { _, now in
+                if !now { finish(keep: true) }
+            }
+            .onAppear { focused = true }
+    }
+
+    private func finish(keep: Bool) {
+        guard !finished else { return }
+        finished = true
+        if keep { commit(text) } else { cancel() }
+    }
+}
+
+extension HistoryEntry {
+    /// What a confirmation calls it: the title it was given, or what it is and when.
+    var deletionName: String {
+        customTitle ?? "\(kindLabel) from \(HistoryTime.title(start: at, zone: timeZone))"
     }
 }
 
@@ -297,12 +440,16 @@ private struct HistoryDetailView: View {
         let playingLine = player.playingLine
         let playingBlock = history.blockID(ofLine: playingLine)
         let isCall = detail.entry.kind == .call
+        // The list's copy of the entry is the one a rename changes.
+        let entry = history.selected ?? detail.entry
+        let date = HistoryTime.title(start: entry.at, zone: entry.timeZone)
         VStack(spacing: 0) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(history.detailTitle)
+                    Text(entry.customTitle ?? date)
                         .font(.title3.weight(.semibold))
-                    Text("\(isCall ? "Call" : "Dictation") \u{00B7} \(HistoryTime.elapsed(detail.entry.duration))")
+                    Text([entry.customTitle == nil ? nil : date, entry.kindLabel, HistoryTime.elapsed(entry.duration)]
+                        .compactMap { $0 }.joined(separator: " \u{00B7} "))
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -318,6 +465,9 @@ private struct HistoryDetailView: View {
                         .disabled(detail.entry.audioFile == nil)
                     Button("Copy") { Task { await history.copy(detail.entry) } }
                         .disabled(!detail.entry.hasText)
+                    Divider()
+                    Button("Rename") { history.beginRename(entry) }
+                    Button("Delete\u{2026}", role: .destructive) { history.pendingDelete = entry }
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }

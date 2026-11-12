@@ -246,7 +246,7 @@ private func count(_ url: URL, _ sql: String) throws -> Int {
         #expect(try count(url, "SELECT count(*) FROM retry_references") == 1)
         let store = try Store(url: url)
         #expect(try CallStore(url: url).appliedMigrations()
-            == ["calls-1", "search-1", "speakers-1", "retries-1", "retries-2", "edits-1", "suggestions-1", "fixes-1", "zones-1"])
+            == ["calls-1", "search-1", "speakers-1", "retries-1", "retries-2", "edits-1", "suggestions-1", "fixes-1", "zones-1", "titles-1"])
         #expect(store.recent(5).map(\.finalText) == ["from before"])
         #expect(try count(url, "SELECT count(*) FROM sqlite_master WHERE name LIKE 'retry_references%'") == 0)
         #expect(try count(url, "SELECT count(*) FROM segment_retries WHERE skipped IS NULL") == 1)
