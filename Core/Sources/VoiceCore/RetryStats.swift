@@ -3,7 +3,7 @@ import Foundation
 /// What the retry pass has done on real use, read from segment_retries: how many segments
 /// whisper was unsure of, how many of those were decoded again, how many came back with
 /// different words and which, and what that cost the paste. Settings shows it beside the
-/// switch, and `voice-cli retry-report` prints the same numbers.
+/// switch, and `dictate-cli retry-report` prints the same numbers.
 public enum RetryStats {
     /// The numbers for one stretch of time.
     public struct Window: Sendable, Equatable, Encodable {

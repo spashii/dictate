@@ -17,7 +17,7 @@ public enum MCPToken {
             throw VoiceError.store("Couldn't make a random token.")
         }
         let token = bytes.map { String(format: "%02x", $0) }.joined()
-        // O_EXCL: when the app and voice-cli start together, one writes the token and the
+        // O_EXCL: when the app and dictate-cli start together, one writes the token and the
         // other reads it, instead of each keeping a different one.
         let fd = open(url.path, O_WRONLY | O_CREAT | O_EXCL, 0o600)
         guard fd >= 0 else {

@@ -2,7 +2,7 @@ import Foundation
 import Network
 
 /// Lets an agent start and stop recording a call. The app provides it once it records calls;
-/// voice-cli can't record, so its server has none.
+/// dictate-cli can't record, so its server has none.
 public protocol RecordingControl: Sendable {
     func startRecording(title: String?) async throws -> Call
     func stopRecording() async throws -> Call
@@ -14,7 +14,7 @@ public enum MCPServerError: Error, CustomStringConvertible {
 
     public var description: String {
         switch self {
-        case .portInUse(let port): "Port \(port) is in use: Voice or voice-cli mcp is already serving it."
+        case .portInUse(let port): "Port \(port) is in use: Dictate or dictate-cli mcp is already serving it."
         case .failed(let message): "The MCP server couldn't start: \(message)"
         }
     }
@@ -46,7 +46,7 @@ public final class MCPServer: @unchecked Sendable {
     /// none they answer with an error. Their token counts use whisper.cpp's tokenizer on the
     /// speech model on disk unless `tokenizer` stands in for it.
     public init(store: CallStore, token: String, port: UInt16 = defaultPort, recording: (any RecordingControl)? = nil,
-                recordingUnavailable: String = "Recording is only available in the Voice app; this server runs from voice-cli.",
+                recordingUnavailable: String = "Recording is only available in the Dictate app; this server runs from dictate-cli.",
                 keyTerms: (any KeyTermsSettings)? = nil, tokenizer: (any PromptTokenizer)? = nil,
                 version: String = "0") {
         router = MCPRouter(store: store, recording: recording, recordingUnavailable: recordingUnavailable,
@@ -119,8 +119,8 @@ public final class MCPServer: @unchecked Sendable {
 
     func respond(_ request: HTTPRequest) async -> HTTPResponse {
         guard authorized(request) else {
-            return .error(401, "Send the token from ~/Library/Application Support/Voice/mcp-token as \"Authorization: Bearer <token>\".",
-                          headers: [("WWW-Authenticate", "Bearer realm=\"voice\"")])
+            return .error(401, "Send the token from ~/Library/Application Support/Dictate/mcp-token as \"Authorization: Bearer <token>\".",
+                          headers: [("WWW-Authenticate", "Bearer realm=\"dictate\"")])
         }
         guard request.path == Self.endpointPath || request.path == Self.endpointPath + "/" else {
             return .error(404, "The MCP endpoint is \(Self.endpointPath).")

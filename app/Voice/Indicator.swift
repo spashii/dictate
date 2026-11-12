@@ -3,7 +3,7 @@ import KeyboardShortcuts
 import SwiftUI
 import VoiceCore
 
-/// A small pill at the top of the screen while Voice listens or works, and a second one for
+/// A small pill at the top of the screen while Dictate listens or works, and a second one for
 /// as long as a call records. It never takes focus, so the paste lands in the app that was
 /// in front.
 @MainActor

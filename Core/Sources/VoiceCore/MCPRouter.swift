@@ -8,7 +8,7 @@ struct MCPRouter: Sendable {
     static let protocolVersions = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"]
 
     static let instructions = """
-        Voice keeps this Mac's dictations and recorded calls. In call transcripts "Me:" is the \
+        Dictate keeps this Mac's dictations and recorded calls. In call transcripts "Me:" is the \
         Mac's owner and "Call:" is everyone else. To follow a live call, call wait_for_transcript \
         again and again, each time passing the cursor it returned, until ended is true. Corrections, \
         key-term changes and tag changes are recorded as edits: list_edits shows them, undo_edit \
@@ -83,7 +83,7 @@ struct MCPRouter: Sendable {
                     "tools": ["listChanged": false],
                     "resources": ["subscribe": false, "listChanged": false],
                 ],
-                "serverInfo": ["name": "voice", "title": "Voice", "version": version],
+                "serverInfo": ["name": "dictate", "title": "Dictate", "version": version],
                 "instructions": Self.instructions,
             ] as [String: Any]
         case "ping":
@@ -356,16 +356,16 @@ struct MCPRouter: Sendable {
                   "text": ["type": "string", "description": "The segment's whole corrected text. The original text clears the correction."]],
                  required: ["call_id", "segment_id", "text"], readOnly: false),
             tool("list_key_terms",
-                 "List the key terms from Voice's Settings, the names and words whisper is told to spell as given, with the tokens they take of whisper's prompt and its limit."),
+                 "List the key terms from Dictate's Settings, the names and words whisper is told to spell as given, with the tokens they take of whisper's prompt and its limit."),
             tool("add_key_terms",
-                 "Add key terms to Voice's Settings, skipping any already there in any case. If whisper's prompt would pass its token limit nothing is added, and the answer says how many tokens are left and which terms fit.",
+                 "Add key terms to Dictate's Settings, skipping any already there in any case. If whisper's prompt would pass its token limit nothing is added, and the answer says how many tokens are left and which terms fit.",
                  ["terms": ["type": "array", "items": ["type": "string"], "description": "The terms, spelled as whisper should write them."]],
                  required: ["terms"], readOnly: false),
-            tool("remove_key_terms", "Remove key terms from Voice's Settings, matching without case.",
+            tool("remove_key_terms", "Remove key terms from Dictate's Settings, matching without case.",
                  ["terms": ["type": "array", "items": ["type": "string"]]],
                  required: ["terms"], readOnly: false),
             tool("list_key_term_suggestions",
-                 "List the key terms Voice proposed from corrections, each with how whisper heard it, the correction it came from and its status. Only the user adds one, with a tap in Settings.",
+                 "List the key terms Dictate proposed from corrections, each with how whisper heard it, the correction it came from and its status. Only the user adds one, with a tap in Settings.",
                  ["status": ["type": "string", "enum": ["pending", "accepted", "dismissed", "all"], "default": "pending"],
                   "limit": limit(20, 200)]),
             tool("list_edits",
@@ -376,9 +376,9 @@ struct MCPRouter: Sendable {
                  "Undo one edit by its id: a correction goes back to the text before it, a key-term add or remove and a tag change are reverted, and a dismissed key-term suggestion is pending again. The undo is recorded as an edit too.",
                  ["id": ["type": "integer", "minimum": 1, "description": "The edit's id from list_edits."]],
                  required: ["id"], readOnly: false),
-            tool("start_recording", "Start recording a call in the Voice app and get the new call's id.",
+            tool("start_recording", "Start recording a call in the Dictate app and get the new call's id.",
                  ["title": ["type": "string", "description": "A title for the call."]], readOnly: false),
-            tool("stop_recording", "Stop the call recording in progress in the Voice app.", readOnly: false),
+            tool("stop_recording", "Stop the call recording in progress in the Dictate app.", readOnly: false),
         ]
     }
 

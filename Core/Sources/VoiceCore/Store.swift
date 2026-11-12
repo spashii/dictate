@@ -72,7 +72,7 @@ public final class Store: @unchecked Sendable {
         guard sqlite3_open(url.path, &db) == SQLITE_OK else {
             throw VoiceError.store("Can't open \(url.path).")
         }
-        // CallStore and voice-cli mcp write to this file from other connections; an insert
+        // CallStore and dictate-cli mcp write to this file from other connections; an insert
         // waits out their transaction instead of failing with "database is locked".
         sqlite3_busy_timeout(db, 5000)
         try exec("""
@@ -109,7 +109,7 @@ public final class Store: @unchecked Sendable {
         }
         // The rest of the schema, retry records included, comes from the migrations. They run
         // here as well as in CallStore so a process that opens only Store (the app's history,
-        // voice-cli transcribe) never writes a dictation the file has no columns for.
+        // dictate-cli transcribe) never writes a dictation the file has no columns for.
         try CallStore.migrate(SQLiteConnection(url: url))
     }
 

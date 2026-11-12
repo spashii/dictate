@@ -79,7 +79,16 @@ private struct Fixture {
         ])
         let result = try #require(reply["result"] as? [String: Any])
         #expect(result["protocolVersion"] as? String == "2025-06-18")
-        #expect((result["serverInfo"] as? [String: Any])?["name"] as? String == "voice")
+        #expect((result["serverInfo"] as? [String: Any])?["name"] as? String == "dictate")
+        #expect((result["serverInfo"] as? [String: Any])?["title"] as? String == "Dictate")
+
+        // A client registered as "voice" before the rename keys on its own config name, not
+        // on serverInfo, and reaches the same endpoint with the same token.
+        let legacy = try await fixture.rpc("initialize", [
+            "protocolVersion": "2025-06-18", "capabilities": [:],
+            "clientInfo": ["name": "voice", "version": "1"],
+        ])
+        #expect((legacy["result"] as? [String: Any])?["protocolVersion"] as? String == "2025-06-18")
 
         let newer = try await fixture.rpc("initialize", ["protocolVersion": "2099-01-01"])
         #expect((newer["result"] as? [String: Any])?["protocolVersion"] as? String == MCPRouter.protocolVersions[0])
@@ -158,7 +167,7 @@ private struct Fixture {
 
         let (recording, recordingError) = try await fixture.tool("start_recording")
         #expect(recordingError)
-        #expect(recording.contains("only available in the Voice app"))
+        #expect(recording.contains("only available in the Dictate app"))
 
         let read = try await fixture.rpc("resources/read", ["uri": "call://\(call.id)/transcript"])
         let contents = (read["result"] as? [String: Any])?["contents"] as? [[String: Any]]

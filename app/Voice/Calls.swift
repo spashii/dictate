@@ -159,7 +159,7 @@ final class CallsModel {
     }
 
     func record(_ app: DetectedCall? = nil, title: String? = nil) async throws -> Call {
-        guard let recorder, let model else { throw VoiceError.store("Voice is still starting.") }
+        guard let recorder, let model else { throw VoiceError.store("Dictate is still starting.") }
         if let recording { return recording }
         guard !starting else { throw VoiceError.store("A call recording is already starting.") }
         dismissStoppedCall()

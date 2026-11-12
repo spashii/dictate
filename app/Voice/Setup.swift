@@ -46,7 +46,7 @@ final class SetupWindow {
 
     private func makeWindow() -> NSWindow {
         let window = NSWindow(contentRect: .zero, styleMask: [.titled, .closable], backing: .buffered, defer: true)
-        window.title = "Set Up Voice"
+        window.title = "Set Up Dictate"
         window.isReleasedWhenClosed = false
         window.contentView = NSHostingView(rootView: SetupView().environment(model))
         return window
@@ -86,7 +86,7 @@ struct AccessibilityStep: View {
 
     var body: some View {
         StepRow(title: "Accessibility", done: model.accessibilityAllowed,
-                detail: "Lets Voice paste into other apps.") {
+                detail: "Lets Dictate paste into other apps.") {
             Button("Allow…") { Paster.askForAccess() }
         }
     }

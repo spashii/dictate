@@ -99,7 +99,7 @@ public final class CallRecorder: @unchecked Sendable {
     }
 
     /// Feeds a WAV through the same path as a live call, in real time unless told not to:
-    /// what `voice-cli call --file` tests. Left is me and right is the call when it has
+    /// what `dictate-cli call --file` tests. Left is me and right is the call when it has
     /// two channels.
     public func play(_ file: URL, transcriber: Transcriber, whisper: WhisperOptions = WhisperOptions(),
                      realTime: Bool = true, appBundleID: String? = nil, appName: String? = nil,

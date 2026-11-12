@@ -80,7 +80,7 @@ public struct WhisperOptions: Sendable, Codable {
 /// little padding and decoded again with beam search and the segment before it as context,
 /// and the version whisper is surer of is kept. Worst first, until the budget is spent.
 public struct SegmentRetry: Sendable, Codable {
-    /// On in the app, behind the "Retry unsure segments" switch. Off here so voice-cli's
+    /// On in the app, behind the "Retry unsure segments" switch. Off here so dictate-cli's
     /// batch measures the first pass unless told otherwise.
     public var enabled = false
     /// Segments whose mean token log probability is below this are candidates. Of the

@@ -84,13 +84,13 @@ public enum KeyTerms {
 }
 
 /// Where the key terms live. The app reads and writes them through its Preferences, so
-/// Settings changes as an agent edits; voice-cli writes the app's defaults directly.
+/// Settings changes as an agent edits; dictate-cli writes the app's defaults directly.
 public protocol KeyTermsSettings: Sendable {
     func keyTerms() async -> String
     func setKeyTerms(_ text: String) async
 }
 
-/// The app's own defaults, for voice-cli. The app observes the key, so a running Voice takes
+/// The app's own defaults, for dictate-cli. The app observes the key, so a running Voice takes
 /// the change at once.
 public struct AppDefaultsKeyTerms: KeyTermsSettings {
     public static let domain = "io.github.spashii.voice"
@@ -124,7 +124,7 @@ public protocol PromptTokenizer: Sendable {
 /// whisper.cpp's own tokenizer, without the model's weights: the file's header and
 /// vocabulary are handed to whisper.cpp as a model with no tensors, which it accepts (it
 /// warns and loads an empty model, as for its own tests). That reads well under a megabyte
-/// and touches no GPU, so voice-cli can count tokens without loading a 1.6 GB model.
+/// and touches no GPU, so dictate-cli can count tokens without loading a 1.6 GB model.
 public final class WhisperTokenizer: PromptTokenizer, @unchecked Sendable {
     private let lock = NSLock()
     private let modelURL: URL?

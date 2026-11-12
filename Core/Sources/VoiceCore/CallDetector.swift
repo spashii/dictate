@@ -35,7 +35,7 @@ public final class CallDetector: @unchecked Sendable {
     private let onTick: (@Sendable ([Usage]) -> Void)?
 
     /// `onChange` gets every app in a call each time that set changes, on the detector's
-    /// queue. `onTick` sees each poll's raw usage, for voice-cli watch-calls.
+    /// queue. `onTick` sees each poll's raw usage, for dictate-cli watch-calls.
     public init(onChange: @escaping @Sendable ([DetectedCall]) -> Void,
                 onTick: (@Sendable ([Usage]) -> Void)? = nil) {
         self.onChange = onChange
@@ -130,7 +130,7 @@ public enum CallApps {
         "app.zen-browser.zen", "com.duckduckgo.macos.browser", "org.torproject.torbrowser",
     ]
 
-    /// Listening is their job, not a call: Voice and voice-cli, Blend reading its sources,
+    /// Listening is their job, not a call: Voice and dictate-cli, Blend reading its sources,
     /// another dictation app, Siri and macOS dictation.
     public static let excluded: Set<String> = [
         "io.github.spashii.voice", "app.blend.Blend", "ru.starmel.OpenSuperWhisper",

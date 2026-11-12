@@ -8,7 +8,7 @@ let package = Package(
     platforms: [.macOS(.v15)],
     products: [
         .library(name: "VoiceCore", targets: ["VoiceCore"]),
-        .executable(name: "voice-cli", targets: ["voice-cli"]),
+        .executable(name: "dictate-cli", targets: ["dictate-cli"]),
     ],
     targets: [
         // whisper.cpp's prebuilt framework, with Metal and its shaders built in. Release b5454
@@ -23,7 +23,7 @@ let package = Package(
             dependencies: ["whisper"],
             linkerSettings: [.linkedLibrary("sqlite3")]
         ),
-        .executableTarget(name: "voice-cli", dependencies: ["VoiceCore", "whisper"]),
+        .executableTarget(name: "dictate-cli", dependencies: ["VoiceCore", "whisper"]),
         // whisper too, so a test can check the tokenizer against a fully loaded model.
         .testTarget(name: "VoiceCoreTests", dependencies: ["VoiceCore", "whisper"]),
     ]

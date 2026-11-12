@@ -3,8 +3,8 @@ import Observation
 import SwiftUI
 import VoiceCore
 
-/// The MCP server agents read dictations and call transcripts through, hosted while Voice
-/// runs. voice-cli mcp serves the same thing when Voice isn't running; only one of them can
+/// The MCP server agents read dictations and call transcripts through, hosted while Dictate
+/// runs. dictate-cli mcp serves the same thing when Dictate isn't running; only one of them can
 /// hold the port.
 @MainActor @Observable
 final class AgentAccess {

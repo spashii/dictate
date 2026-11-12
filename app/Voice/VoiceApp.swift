@@ -13,7 +13,7 @@ struct VoiceApp: App {
                 .environment(delegate.calls)
         } label: {
             Image(delegate.model.menuBarImage)
-                .accessibilityLabel("Voice")
+                .accessibilityLabel("Dictate")
         }
 
         Settings {
@@ -26,8 +26,16 @@ struct VoiceApp: App {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    let model = AppModel()
-    let calls = CallsModel()
+    let model: AppModel
+    let calls: CallsModel
+
+    /// The data folder moves before anything can open the database.
+    override init() {
+        DataMigration.run()
+        model = AppModel()
+        calls = CallsModel()
+        super.init()
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         model.agents.recording = calls
@@ -90,7 +98,7 @@ struct MenuContent: View {
             Button(item.title) { open(item) }
                 .disabled(item == .checkForUpdates && !model.updates.canCheck)
         }
-        Button("Quit Voice") { NSApplication.shared.terminate(nil) }
+        Button("Quit Dictate") { NSApplication.shared.terminate(nil) }
             .keyboardShortcut("q")
     }
 

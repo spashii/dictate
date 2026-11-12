@@ -7,10 +7,10 @@ public enum FixScope: String, Sendable, Codable {
     case every
     /// Only the segments the retry signals flagged, each with its neighbours, and the model
     /// answers with edits. A dictation with none flagged never reaches Ollama. Kept for the
-    /// evaluation (voice-cli fix-batch --scope flagged).
+    /// evaluation (dictate-cli fix-batch --scope flagged).
     case flagged
     /// All of the text, rewritten by the prompt: the fix step before 0.7.0, kept for the
-    /// evaluation (voice-cli fix-batch --whole).
+    /// evaluation (dictate-cli fix-batch --whole).
     case whole
 }
 

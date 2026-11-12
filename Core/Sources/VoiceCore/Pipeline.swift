@@ -1,7 +1,7 @@
 import Foundation
 
 /// A recording in, a stored dictation out: whisper, then the fix step when asked for.
-/// The app and voice-cli both go through here, so what the evaluation measures is what
+/// The app and dictate-cli both go through here, so what the evaluation measures is what
 /// gets pasted.
 public final class Pipeline: Sendable {
     public enum Stage: Sendable {
@@ -73,7 +73,7 @@ public final class Pipeline: Sendable {
         return dictation
     }
 
-    /// The fix step on its own, as the app runs it, so voice-cli can measure exactly this.
+    /// The fix step on its own, as the app runs it, so dictate-cli can measure exactly this.
     /// A scope that sends no segment returns at once without touching Ollama or whisper. A
     /// failure keeps whisper's text and says why, so the words aren't lost.
     public static func fix(_ transcript: Transcript, settings: CleanupSettings, scope: FixScope,

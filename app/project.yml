@@ -12,7 +12,7 @@ settings:
     MARKETING_VERSION: "0.0.0"
     CURRENT_PROJECT_VERSION: "1"
 packages:
-  # Records, transcribes, cleans up and stores; shared with voice-cli.
+  # Records, transcribes, cleans up and stores; shared with dictate-cli.
   VoiceCore:
     path: ../Core
   # The global shortcuts, and the fields that record them in Settings.
@@ -38,18 +38,26 @@ targets:
     info:
       path: Voice/Info.plist
       properties:
+        # The app is named Dictate, but the bundle stays Voice.app so the cask, updates and
+        # existing installs keep finding it. macOS (Finder, Login Items, the permission
+        # prompts) shows the name in en.lproj/InfoPlist.strings only while CFBundleDisplayName
+        # here matches the bundle's file name, and the file name otherwise.
+        CFBundleName: Dictate
         CFBundleDisplayName: Voice
+        LSHasLocalizedDisplayName: true
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSMinimumSystemVersion: "15.0"
         LSUIElement: true
         LSApplicationCategoryType: public.app-category.productivity
         NSHumanReadableCopyright: Free software under the MIT License.
-        NSMicrophoneUsageDescription: Voice records your microphone while you dictate.
+        NSMicrophoneUsageDescription: Dictate records your microphone while you dictate.
         # Passes the appcast on GitHub Pages through unchanged, and counts update checks.
         SUFeedURL: https://apps.idea2prod.in/voice/appcast.xml
         # Updates must be signed with the matching private key, kept with the Developer ID.
         SUPublicEDKey: YLvPSGEaYiPsXphy/q9LCDGs2s0qp8hM2LVBIWbl78c=
+        # Sparkle names the app in its dialogs from this key first, in every process it runs.
+        SUBundleName: Dictate
     entitlements:
       path: Voice/Voice.entitlements
       properties:
@@ -85,7 +93,7 @@ targets:
       - sdk: AVFoundation.framework
       - sdk: ServiceManagement.framework
   # Swift tests of the app's own logic. They compile the sources they test rather than load
-  # Voice.app, so a test run never starts a second Voice beside the one in use.
+  # Voice.app, so a test run never starts a second Dictate beside the one in use.
   VoiceTests:
     type: bundle.unit-test
     platform: macOS

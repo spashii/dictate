@@ -3,7 +3,7 @@ import Foundation
 import SQLite3
 
 /// Brings OpenSuperWhisper's history into Voice's, so the dictations made there can be the
-/// test set for transcription quality, next to Voice's own and readable by agents.
+/// test set for transcription quality, next to Dictate's own and readable by agents.
 ///
 /// A folder is OpenSuperWhisper's support folder: `recordings.sqlite` and the WAVs it names
 /// in `recordings/`. Nothing in it is changed. The database is opened read only and the
@@ -19,7 +19,7 @@ public enum OpenSuperWhisperImport {
     }
 
     /// What the dictation's whisper model column says, so the imports can be told apart from
-    /// Voice's own transcriptions when scoring.
+    /// Dictate's own transcriptions when scoring.
     public static let model = "opensuperwhisper"
 
     public static var defaultFolder: URL {

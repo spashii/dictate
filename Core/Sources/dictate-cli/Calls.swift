@@ -3,17 +3,17 @@ import VoiceCore
 
 // Call recording without the app:
 //
-//   voice-cli call --file STEREO.wav [--fast] [--db PATH]
+//   dictate-cli call --file STEREO.wav [--fast] [--db PATH]
 //       plays the WAV through CallRecorder as if it were a live call, in real time unless
 //       --fast: left is me, right is the call (a mono file is one mixed side). Prints each
 //       segment as it is stored, with how long after its words ended
-//   voice-cli call --record SECONDS [--db PATH]
+//   dictate-cli call --record SECONDS [--db PATH]
 //       records the source the app would choose (a Blend mix, else the default microphone)
-//   voice-cli call --rebuild ID [--db PATH]
+//   dictate-cli call --rebuild ID [--db PATH]
 //       transcribes a call again from its audio, WAV or m4a
-//   voice-cli call --remove [--db PATH]
+//   dictate-cli call --remove [--db PATH]
 //       deletes every call `call --file` wrote, with its audio
-//   voice-cli watch-calls [--raw]
+//   dictate-cli watch-calls [--raw]
 //       prints call detection as it happens; --raw adds every process using audio each second
 
 /// Marks the calls `call --file` writes, so --remove deletes those and nothing else.
@@ -47,7 +47,7 @@ func callCommand(_ arguments: [String], transcriber: Transcriber, whisper: Whisp
             let source = CallSources.automatic(CallSources.all(BlendDevices.load(), devices: InputDevices.list()))
             print("source \(source.name) \(source.channels.map(\.rawValue)) \(source.deviceUID ?? "default")")
             let call = try await recorder.start(source, transcriber: transcriber, whisper: whisper,
-                                                appBundleID: testCallBundleID, appName: "voice-cli call")
+                                                appBundleID: testCallBundleID, appName: "dictate-cli call")
             print("call \(call.id) split \(call.split) audio \(call.audioPath ?? "")")
             fflush(stdout)
             try await Task.sleep(for: .seconds(seconds))
@@ -59,7 +59,7 @@ func callCommand(_ arguments: [String], transcriber: Transcriber, whisper: Whisp
             let printer = Task.detached { try await follow(store) }
             let call = try await recorder.play(URL(fileURLWithPath: file), transcriber: transcriber,
                                                whisper: whisper, realTime: realTime, appBundleID: testCallBundleID,
-                                               appName: "voice-cli call", title: "voice-cli call") { call in
+                                               appName: "dictate-cli call", title: "dictate-cli call") { call in
                 print("call \(call.id) split \(call.split) audio \(call.audioPath ?? "")")
                 fflush(stdout)
             }
@@ -70,10 +70,10 @@ func callCommand(_ arguments: [String], transcriber: Transcriber, whisper: Whisp
             print("\(call.status.rawValue) \(call.error ?? "")")
             print(try store.transcript(call.id))
         } else {
-            fail("usage: voice-cli call --file STEREO.wav [--fast] | --record SECONDS | --rebuild ID | --remove")
+            fail("usage: dictate-cli call --file STEREO.wav [--fast] | --record SECONDS | --rebuild ID | --remove")
         }
     } catch {
-        fail("voice-cli call: \(error)")
+        fail("dictate-cli call: \(error)")
     }
 }
 

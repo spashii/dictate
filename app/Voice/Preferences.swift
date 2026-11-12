@@ -39,7 +39,7 @@ final class Preferences {
     var retrySegments: Bool { didSet { UserDefaults.standard.set(retrySegments, forKey: "retrySegments") } }
     /// Not in Settings: Ollama is on this Mac on its own port, and nothing else is expected.
     let ollamaURL: String
-    /// voice-cli mcp writes the key terms from another process; this brings them in.
+    /// dictate-cli mcp writes the key terms from another process; this brings them in.
     @ObservationIgnored private var keyTermsObserver: DefaultsObserver?
 
     init() {
@@ -87,7 +87,7 @@ final class Preferences {
     }
 }
 
-/// Agents' key-term changes when Voice hosts the MCP server: through Preferences, so the
+/// Agents' key-term changes when Dictate hosts the MCP server: through Preferences, so the
 /// Settings field and the next decode both have them at once.
 struct PreferencesKeyTerms: KeyTermsSettings {
     let preferences: Preferences

@@ -1,7 +1,7 @@
 import Foundation
 import VoiceCore
 
-/// `voice-cli retry-report` without --json: the rows Settings shows, one column per window.
+/// `dictate-cli retry-report` without --json: the rows Settings shows, one column per window.
 func printRetryStats(_ summary: RetryStats.Summary) {
     let windows = [summary.lastWeek, summary.allTime]
     func count(_ n: Int, _ percent: Double?) -> String {

@@ -82,7 +82,7 @@ final class AppModel {
         if case .recording = phase { true } else { false }
     }
 
-    /// What Voice is doing now, from the dictation's phase and the calls.
+    /// What Dictate is doing now, from the dictation's phase and the calls.
     var activity: Activity {
         var activity = Activity()
         switch phase {
@@ -99,7 +99,7 @@ final class AppModel {
         return activity
     }
 
-    /// Installs a staged update the first time Voice is quiet. Until then it watches the
+    /// Installs a staged update the first time Dictate is quiet. Until then it watches the
     /// phase and the calls, and checks again when either changes.
     func installUpdateWhenQuiet() {
         guard updates.hasStagedUpdate else { return }
@@ -178,7 +178,7 @@ final class AppModel {
             setupWindow.show()
         }
         #if DEBUG
-        // Lets a test start a recording without the shortcut, then kill Voice mid-way.
+        // Lets a test start a recording without the shortcut, then kill Dictate mid-way.
         if UserDefaults.standard.bool(forKey: "VoiceDebugStartRecording") {
             toggle()
         }
@@ -329,7 +329,7 @@ final class AppModel {
         live = session
         startTask = Task {
             guard await AVCaptureDevice.requestAccess(for: .audio) else {
-                show("Voice needs the microphone: System Settings, Privacy & Security, Microphone.")
+                show("Dictate needs the microphone: System Settings, Privacy & Security, Microphone.")
                 return false
             }
             do {
@@ -399,7 +399,7 @@ final class AppModel {
     }
 
     /// Transcribes recordings the history doesn't know about, one at a time and only while
-    /// Voice is otherwise idle: whisper reloading while the prompt's model runs would run the
+    /// Dictate is otherwise idle: whisper reloading while the prompt's model runs would run the
     /// GPU out of memory. Nothing recovered is pasted.
     private func recoverRecordings() {
         guard let store else { return }
@@ -437,7 +437,7 @@ final class AppModel {
     private func finish(_ dictation: Dictation, inputLost: Bool = false, writeError: String? = nil) async {
         pruneHistory()
         recent = store?.recent(5) ?? recent
-        let lost = "The microphone went away, so Voice stopped"
+        let lost = "The microphone went away, so Dictate stopped"
         guard !dictation.finalText.isEmpty else {
             show(writeError.map { "Couldn't write the recording: \($0)" }
                 ?? (inputLost ? "\(lost) and heard nothing before it did." : "Heard nothing."))
@@ -452,7 +452,7 @@ final class AppModel {
             // Ahead of the rest: the recording is missing its end, and this says why.
             show("Couldn't keep writing the recording, so only what came before was transcribed: \(writeError)")
         } else if !pasted {
-            show("Copied. Allow Voice in Accessibility to paste for you.", action: .allowAccessibility)
+            show("Copied. Allow Dictate in Accessibility to paste for you.", action: .allowAccessibility)
         } else if let error = dictation.error {
             show("Pasted whisper's text; the fix failed: \(error)")
             await refreshOllama()

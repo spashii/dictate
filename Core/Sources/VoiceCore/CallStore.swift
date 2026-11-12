@@ -100,7 +100,7 @@ public final class CallStore: @unchecked Sendable {
     /// `except` keeps the calls about to be rebuilt live, so a crash during the rebuild
     /// leaves them for the next launch to rebuild.
     @discardableResult
-    public func failInterruptedCalls(_ reason: String = "Voice stopped while recording this call.",
+    public func failInterruptedCalls(_ reason: String = "Dictate stopped while recording this call.",
                                      except keep: Set<String> = []) throws -> Int {
         if !keep.isEmpty {
             let ids = try liveCalls().map(\.id).filter { !keep.contains($0) }
@@ -595,7 +595,7 @@ public final class CallStore: @unchecked Sendable {
         try db.exec("CREATE TABLE IF NOT EXISTS voice_migrations (name TEXT PRIMARY KEY, applied_at REAL NOT NULL)")
         let applied = Set(try db.query("SELECT name FROM voice_migrations") { $0.text(0) })
         for migration in Self.migrations where !applied.contains(migration.name) {
-            // The app and voice-cli can open the file at the same moment; the second to take
+            // The app and dictate-cli can open the file at the same moment; the second to take
             // the write lock finds the migration done and skips it.
             try db.transaction {
                 guard try db.query("SELECT 1 FROM voice_migrations WHERE name = ?", [migration.name], { _ in 1 })

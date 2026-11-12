@@ -3,15 +3,15 @@ import VoiceCore
 
 // The commands for agents, which need no whisper model:
 //
-//   voice-cli mcp [--port N] [--db PATH]
+//   dictate-cli mcp [--port N] [--db PATH]
 //       serves MCP on 127.0.0.1 (port 7766) against the app's database until stopped, for
-//       when Voice isn't running; the two can't both hold the port. Key-term changes go to
-//       the app's defaults, which a running Voice watches
-//   voice-cli fake-call [--every SECONDS] [--count N] [--db PATH]
+//       when Dictate isn't running; the two can't both hold the port. Key-term changes go to
+//       the app's defaults, which a running Dictate watches
+//   dictate-cli fake-call [--every SECONDS] [--count N] [--db PATH]
 //       records nothing: writes a live call that gains a scripted segment every few
 //       seconds, to test wait_for_transcript; prints the call's id, finishes it at the end
 //       or on Ctrl-C
-//   voice-cli fake-call --remove [--db PATH]
+//   dictate-cli fake-call --remove [--db PATH]
 //       deletes every call fake-call wrote
 
 /// Marks the calls fake-call writes, so --remove deletes those and nothing else.
@@ -21,7 +21,7 @@ func agentCommand(_ command: String, _ arguments: [String], dbPath: String?) asy
     do {
         try await runAgentCommand(command, arguments, dbPath: dbPath)
     } catch {
-        log("voice-cli \(command): \(error)")
+        log("dictate-cli \(command): \(error)")
         exit(1)
     }
 }
@@ -57,7 +57,7 @@ private func log(_ message: String) {
 private func serve(_ database: URL, port: UInt16) async throws {
     let store = try CallStore(url: database)
     let token = try MCPToken.load()
-    let server = MCPServer(store: store, token: token, port: port, keyTerms: AppDefaultsKeyTerms(), version: "voice-cli")
+    let server = MCPServer(store: store, token: token, port: port, keyTerms: AppDefaultsKeyTerms(), version: "dictate-cli")
     let bound = try await server.start()
     log("MCP at http://127.0.0.1:\(bound)\(MCPServer.endpointPath) on \(database.path); token in \(MCPToken.file.path)")
     while true {
@@ -80,8 +80,8 @@ private let script: [(CallSegment.Channel, String)] = [
 
 private func fakeCall(_ database: URL, every: Double, count: Int) async throws {
     let store = try CallStore(url: database)
-    let call = try store.createCall(NewCall(appBundleID: fakeCallBundleID, appName: "voice-cli fake-call",
-                                            split: true, title: "Fake call from voice-cli"))
+    let call = try store.createCall(NewCall(appBundleID: fakeCallBundleID, appName: "dictate-cli fake-call",
+                                            split: true, title: "Fake call from dictate-cli"))
     try store.tagCall(call.id, add: ["fake"])
     print(call.id)
     fflush(stdout)

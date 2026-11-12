@@ -4,26 +4,26 @@ import whisper
 
 // Runs recordings through the same pipeline as the app, with no microphone, sound or window.
 //
-//   voice-cli transcribe FILE [--cleanup] [options]   one recording, printed as JSON
-//   voice-cli eval DIR [--cleanup N] [options]        every DIR/NAME.wav against DIR/NAME.txt
-//   voice-cli batch MANIFEST OUT [--beam N] [--context FIRST] [--scored-only]
+//   dictate-cli transcribe FILE [--cleanup] [options]   one recording, printed as JSON
+//   dictate-cli eval DIR [--cleanup N] [options]        every DIR/NAME.wav against DIR/NAME.txt
+//   dictate-cli batch MANIFEST OUT [--beam N] [--context FIRST] [--scored-only]
 //       transcribes a JSON lines manifest of utterances into OUT, a JSON line each; with
 //       --context, each prompt is FIRST's text for the utterance spoken just before it
-//   voice-cli cleanup-batch IN OUT [--uids FILE] [--temperature T]
+//   dictate-cli cleanup-batch IN OUT [--uids FILE] [--temperature T]
 //       runs the prompt over IN's texts (batch output), a JSON line per utterance
-//   voice-cli fix-batch IN OUT [--scope every|flagged|whole] [--uids FILE] [--temperature T]
+//   dictate-cli fix-batch IN OUT [--scope every|flagged|whole] [--uids FILE] [--temperature T]
 //       runs the app's fix step over IN's segments (batch output): every segment as edits,
 //       as the app does, only the flagged ones, or the whole text by the prompt (--whole
 //       too). A JSON line per utterance with the text, the edits, whether Ollama was asked
 //       and the seconds the step took
-//   voice-cli live FILE [--speed X]                    feeds FILE through the live chunker at X
+//   dictate-cli live FILE [--speed X]                    feeds FILE through the live chunker at X
 //       times real time (1; 0 is as fast as it decodes), printing each chunk, then compares
 //       the joined chunks with a whole-file decode
-//   voice-cli defaults                                   whisper.cpp's decoding defaults
-//   voice-cli call ..., voice-cli watch-calls            call recording; see Calls.swift
-//   voice-cli import-osw [PATH]                          OpenSuperWhisper's history into Voice's;
+//   dictate-cli defaults                                   whisper.cpp's decoding defaults
+//   dictate-cli call ..., dictate-cli watch-calls            call recording; see Calls.swift
+//   dictate-cli import-osw [PATH]                          OpenSuperWhisper's history into Dictate's;
 //       see ImportOSW.swift
-//   voice-cli retry-report [--json]                      the app's segment retries over the last
+//   dictate-cli retry-report [--json]                      the app's segment retries over the last
 //       7 days and all time, as Settings shows them: unsure, retried, changed, the words the
 //       retries changed, the confidence change and the paste time added. Numbers only, no text
 //
@@ -133,7 +133,7 @@ if args == ["defaults"] {
     exit(0)
 }
 guard args.count == 2 || (args.count == 3 && ["batch", "cleanup-batch", "fix-batch"].contains(args[0])) else {
-    fail("usage: voice-cli transcribe FILE [--cleanup] | voice-cli eval DIR [--cleanup N] | voice-cli batch MANIFEST OUT | voice-cli cleanup-batch IN OUT | voice-cli fix-batch IN OUT")
+    fail("usage: dictate-cli transcribe FILE [--cleanup] | dictate-cli eval DIR [--cleanup N] | dictate-cli batch MANIFEST OUT | dictate-cli cleanup-batch IN OUT | dictate-cli fix-batch IN OUT")
 }
 let command = args[0]
 let target = URL(fileURLWithPath: args[1])

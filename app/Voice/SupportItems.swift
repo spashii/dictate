@@ -30,7 +30,7 @@ enum SupportItem: CaseIterable {
         return components.url!
     }
 
-    /// The issue link for this copy of Voice on this Mac.
+    /// The issue link for this copy of Dictate on this Mac.
     static var issueURL: URL {
         issueURL(appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
                      ?? "unknown",

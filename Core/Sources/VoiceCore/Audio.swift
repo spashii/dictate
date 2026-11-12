@@ -14,12 +14,12 @@ public enum VoiceError: Error, CustomStringConvertible {
     }
 }
 
-/// Where Voice keeps its models, recordings and database.
+/// Where Dictate keeps its models, recordings and database.
 public enum Paths {
-    public static var support: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appending(path: "Library/Application Support/Voice", directoryHint: .isDirectory)
-    }
+    /// Application Support/Dictate. Until the app has moved the old Voice folder there
+    /// (DataMigration), a folder still named Voice is used in place, so dictate-cli and
+    /// dictate-cli work on a Mac whose app hasn't started since the rename.
+    public static var support: URL { DataMigration.resolve(in: DataMigration.applicationSupport) }
     public static var models: URL { support.appending(path: "models", directoryHint: .isDirectory) }
     public static var recordings: URL { support.appending(path: "recordings", directoryHint: .isDirectory) }
     public static var database: URL { support.appending(path: "voice.sqlite") }

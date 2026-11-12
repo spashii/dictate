@@ -353,7 +353,7 @@ extension Edit {
 /// add_key_terms edit by `client`; Dismiss is a dismiss_key_term edit. undo_edit reverts
 /// either, and the suggestion shows again.
 public actor KeyTermSuggestions {
-    public static let settingsClient = "Voice Settings"
+    public static let settingsClient = "Dictate Settings"
 
     private let store: CallStore
     private let editor: KeyTermsEditor

@@ -14,7 +14,7 @@ final class SQLiteConnection: @unchecked Sendable {
             sqlite3_close(db)
             throw VoiceError.store("Can't open \(url.path): \(message)")
         }
-        // The app and voice-cli both write to this file. A writer that finds the other's
+        // The app and dictate-cli both write to this file. A writer that finds the other's
         // transaction open waits for it instead of failing at once.
         sqlite3_busy_timeout(db, 5000)
     }

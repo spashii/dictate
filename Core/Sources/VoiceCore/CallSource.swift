@@ -42,7 +42,7 @@ public struct CallSource: Sendable, Equatable, Identifiable {
 
     /// Shown in Settings under a split mix: Blend leaves every app reading a mix out of that
     /// mix's System audio, so a call app reading it would record as silence.
-    public static let mixRule = "Keep your call app on its usual microphone. Only Voice reads this mix."
+    public static let mixRule = "Keep your call app on its usual microphone. Only Dictate reads this mix."
 
     /// The notice when a call app reads the mix being recorded, for the same reason.
     public static func readsMixNotice(_ app: String) -> String {

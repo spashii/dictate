@@ -162,10 +162,12 @@ final class TranscriberHelperTests: XCTestCase {
 }
 
 final class ModelAndPathTests: XCTestCase {
-    func testVoiceKeepsItsFilesUnderApplicationSupport() {
+    func testDictateKeepsItsFilesUnderApplicationSupport() {
         let support = Paths.support.path
 
-        XCTAssertTrue(support.hasSuffix("/Library/Application Support/Voice"), support)
+        // Voice instead of Dictate only on a Mac whose app hasn't yet moved the folder.
+        XCTAssertTrue(support.hasSuffix("/Library/Application Support/Dictate")
+                      || support.hasSuffix("/Library/Application Support/Voice"), support)
         XCTAssertEqual(Paths.models.path, support + "/models")
         XCTAssertEqual(Paths.recordings.path, support + "/recordings")
         XCTAssertEqual(Paths.database.path, support + "/voice.sqlite")
