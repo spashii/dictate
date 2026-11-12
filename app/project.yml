@@ -92,6 +92,9 @@ targets:
     sources:
       - path: VoiceTests
       - path: Voice/SupportItems.swift
+      # The History views, to measure how tall their lines draw.
+      - path: Voice/HistoryWindow.swift
+      - path: Voice/EditsText.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.spashii.voice.tests
@@ -99,5 +102,8 @@ targets:
         CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: "-"
         DEVELOPMENT_TEAM: ""
+    dependencies:
+      - package: VoiceCore
+        product: VoiceCore
     scheme:
       testTargets: [VoiceTests]

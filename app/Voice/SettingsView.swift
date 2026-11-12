@@ -62,6 +62,9 @@ struct SettingsView: View {
                     Text(Preferences.History.forever.title).tag(Preferences.History.forever)
                 }
                 Help("Each dictation's and call's audio and text. Click one in the menu to copy it.")
+                Picker("History times", selection: $preferences.historyTimes) {
+                    ForEach(HistoryTimeMode.allCases) { Text($0.title).tag($0) }
+                }
                 Button("Open History") { model.openHistory() }
                 AccessibilityStep()
                 AgentAccessRow()

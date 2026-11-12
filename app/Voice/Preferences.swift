@@ -34,6 +34,8 @@ final class Preferences {
     var whisperModel: WhisperModel { didSet { save(whisperModel.rawValue, "whisperModel") } }
     /// Forever by default: past dictations are the test set for whisper and the prompt.
     var history: History { didSet { save(history.rawValue, "history") } }
+    /// How History times its lines: the clock they were spoken at, or the time into the recording.
+    var historyTimes: HistoryTimeMode { didSet { save(historyTimes.rawValue, HistoryTimeMode.defaultsKey) } }
     /// Decodes the segments whisper was least sure of a second time, within half the first
     /// decode's time. On by default.
     var retrySegments: Bool { didSet { UserDefaults.standard.set(retrySegments, forKey: "retrySegments") } }
@@ -51,6 +53,8 @@ final class Preferences {
         keyTerms = defaults.string(forKey: "keyTerms") ?? Self.defaultKeyTerms
         whisperModel = defaults.string(forKey: "whisperModel").flatMap(WhisperModel.init) ?? .largeV3Turbo
         history = defaults.string(forKey: "history").flatMap(History.init) ?? .forever
+        historyTimes = defaults.string(forKey: HistoryTimeMode.defaultsKey).flatMap(HistoryTimeMode.init)
+            ?? .standard
         retrySegments = defaults.object(forKey: "retrySegments") as? Bool ?? true
         ollamaURL = defaults.string(forKey: "ollamaURL") ?? "http://127.0.0.1:11434"
         keyTermsObserver = DefaultsObserver("keyTerms") { [weak self] in
