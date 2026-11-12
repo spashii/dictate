@@ -1,3 +1,4 @@
+import BlendKit
 import Foundation
 
 /// An app whose sound is recorded as the call's other side.
@@ -119,6 +120,31 @@ public enum CallPlanner {
     public static func tapFailedNotice(_ app: String) -> String {
         "Couldn't record \(app)'s sound, so only your microphone is recorded."
     }
+
+    /// What a capture's event says to the person while a call records, or nil when there is
+    /// nothing for them to do or know. Events never end a call: the microphone keeps
+    /// recording whatever happens to the rest.
+    public static func notice(for event: CallCapture.Event, app: String,
+                              permission: AudioCapturePermission) -> String? {
+        switch event {
+        case .callTapLost:
+            "Lost \(app)'s sound. Your microphone keeps recording, and Dictate keeps trying to get it back."
+        case .callTapRestored:
+            "Recording \(app)'s sound again."
+        case .callSilent:
+            permission == .denied ? silentPermissionNotice : "Can't hear \(app). Is it muted or playing somewhere else?"
+        case .microphoneLost:
+            "Lost your microphone. The call keeps recording and Dictate keeps looking for it."
+        case .echoCancellationFailed:
+            "Echo cancellation stopped, so your microphone may pick up the call."
+        case .microphoneRestarted, .callHeard, .overflow, .audioServiceRestarted:
+            nil
+        }
+    }
+
+    public static let silentPermissionNotice =
+        "Dictate can't hear the call because System Audio Recording is off. Allow it in System Settings; "
+        + "only your microphone is recorded until then."
 
     public static func plan(_ input: Inputs, appStarted: DetectedCall? = nil) -> CallPlan {
         var notices: [String] = []

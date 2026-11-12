@@ -123,9 +123,11 @@ final class CallsModel {
                 // Before the rebuilds and conversions below, which would spend their time on
                 // calls about to be deleted. The store didn't exist when the app first pruned.
                 model.pruneHistory()
-                let recorder = CallRecorder(store: store) { call in
+                let recorder = CallRecorder(store: store, onInputLost: { call in
                     Task { @MainActor in self.inputWentAway(call) }
-                }
+                }, onNotice: { text in
+                    Task { @MainActor in self.model?.notice(text) }
+                })
                 self.recorder = recorder
                 refreshRecent()
                 transcribing = true
