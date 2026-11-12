@@ -238,8 +238,9 @@ extension CallStore {
     }
 
     private func dictationHistory(_ entry: HistoryEntry) throws -> HistoryDetail? {
-        guard let audio = try db.query("SELECT audio_path FROM dictations WHERE id = ?", [entry.ref],
-                                       { $0.string(0) }).first else { return nil }
+        guard let found = try db.query("SELECT audio_path, corrected_text FROM dictations WHERE id = ?", [entry.ref],
+                                       { (audio: $0.string(0), corrected: $0.string(1)) }).first else { return nil }
+        let audio = found.audio
         let segments = try db.query("""
             SELECT idx, t0, t1, text, avg_logprob FROM segments WHERE dictation_id = ? ORDER BY idx
             """, [entry.ref]) { (idx: $0.int64(0), t0: $0.double(1), t1: $0.double(2), text: $0.text(3), logprob: $0.double(4)) }
@@ -283,6 +284,15 @@ extension CallStore {
             }
         }
         textChanges += try correctionChanges("dictation:\(entry.ref)")[-1] ?? []
+        // An agent's correction replaces the whole text, so the list, Copy and the detail all
+        // show it. It no longer lines up with the segments, so the detail is one block over
+        // the whole recording, which still plays from the start; the segments' own retry and
+        // fix changes stay on it.
+        if let corrected = found.corrected, let first = lines.first, let last = lines.last {
+            lines = [HistoryLine(id: first.id, speaker: nil, t0: first.t0, t1: last.t1,
+                                 whisper: lines.map(\.whisper).joined(separator: " "), text: corrected,
+                                 flagged: false, changes: lines.flatMap(\.changes))]
+        }
         return HistoryDetail(entry: entry, audioPath: audio, lines: lines, textChanges: textChanges)
     }
 

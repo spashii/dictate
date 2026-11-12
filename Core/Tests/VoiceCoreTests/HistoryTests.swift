@@ -120,26 +120,38 @@ final class HistoryTests: StoreTestCase {
         XCTAssertTrue(all.filter { $0.source != .keyTerm }.allSatisfy { !decisions.contains($0.record) })
     }
 
-    func testADictationReadsLineByLineFromWhispersText() throws {
+    /// A correction replaces the whole text, so the detail shows it like the list and Copy do,
+    /// as one block that keeps the retry and fix changes of the segments it replaced.
+    func testACorrectedDictationShowsTheCorrectedText() throws {
         let calls = try fixtures()
         let entry = try XCTUnwrap(try calls.historyEntries().first { $0.ref == "fixed" })
         let detail = try XCTUnwrap(try calls.historyDetail(entry))
 
-        XCTAssertEqual(detail.lines.map(\.whisper), ["the northwynd pilot", "ask Claud about it", "then we ship"])
-        XCTAssertEqual(detail.lines.map(\.flagged), [true, true, true])
-        XCTAssertEqual(detail.lines[0].changes.map(\.source), [.retry, .fix])
+        XCTAssertEqual(entry.title, "The Northwind pilot: ask Claude about it.")
+        XCTAssertEqual(detail.lines.map(\.text), ["The Northwind pilot: ask Claude about it."])
+        XCTAssertEqual(detail.lines[0].whisper, "the northwynd pilot ask Claud about it then we ship")
+        XCTAssertEqual(detail.lines[0].t0, 0)
+        XCTAssertEqual(detail.lines[0].t1, 5)
+        XCTAssertEqual(detail.lines[0].changes.map(\.source), [.retry, .fix, .fix, .fix])
         XCTAssertEqual(detail.lines[0].changes[0].diff.changes, [.init(before: ["northwynd"], after: ["northwind"])])
         XCTAssertEqual(detail.lines[0].changes[1].applied, false)
         XCTAssertEqual(detail.lines[0].changes[1].note, "not-flagged")
-        let fix = detail.lines[1].changes[0]
-        XCTAssertEqual(fix.after, "ask Claude about it")
-        XCTAssertEqual(fix.diff.changes, [.init(before: ["Claud"], after: ["Claude"])])
-        XCTAssertEqual(fix.note, "Claude")
-        XCTAssertEqual(detail.lines[2].changes.map(\.applied), [false])
+        XCTAssertEqual(detail.lines[0].changes[2].after, "ask Claude about it")
+        XCTAssertEqual(detail.lines[0].changes[2].note, "Claude")
         XCTAssertEqual(detail.textChanges.map(\.source), [.correction])
         XCTAssertEqual(detail.textChanges[0].after, "The Northwind pilot: ask Claude about it.")
         XCTAssertEqual(detail.textChanges[0].note, "agent 1")
         XCTAssertEqual(detail.audioPath, dir.appending(path: "fixed.wav").path)
+    }
+
+    func testAnUncorrectedDictationReadsLineByLineFromWhispersText() throws {
+        let calls = try fixtures()
+        try store.insert(try dictation("lines", mode: .fix, segments: [seg("first thing", t0: 0, t1: 1), seg("second thing", t0: 1, t1: 3)]))
+        let entry = try XCTUnwrap(try calls.historyEntries().first { $0.ref == "lines" })
+        let detail = try XCTUnwrap(try calls.historyDetail(entry))
+
+        XCTAssertEqual(detail.lines.map(\.text), ["first thing", "second thing"])
+        XCTAssertEqual(detail.lines.map(\.t0), [0, 1])
     }
 
     func testACaseOnlyFixStillShowsAsAChange() throws {
