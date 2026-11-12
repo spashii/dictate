@@ -159,3 +159,24 @@ private func entry(_ kind: HistoryEntry.Kind) -> HistoryEntry {
         #expect(try calls.historyEntries(matching: "100%").isEmpty)
     }
 }
+
+@Suite struct BlockAccessibilityTests {
+    private func change(_ source: HistoryChange.Source, _ before: String, _ after: String, applied: Bool = true) -> HistoryChange {
+        HistoryChange(source, before: before, after: after, applied: applied, record: "r:1")
+    }
+
+    @Test func aBlockReadsAsSpeakerTimeAndText() {
+        let block = TranscriptBlock(speaker: "Me", lines: [line(1, "Me", 0, "Thanks, Alex."), line(2, "Me", 2, "Let's start.")])
+        #expect(block.spokenLabel(time: "9:41") == "Me, 9:41. Thanks, Alex. Let's start.")
+        let dictation = TranscriptBlock(speaker: nil, lines: [line(1, nil, 0, "Hello.")])
+        #expect(dictation.spokenLabel(time: "0:00") == "0:00. Hello.")
+    }
+
+    @Test func correctionsAreSpelledOutWithoutHovering() {
+        let block = TranscriptBlock(speaker: nil, lines: [
+            line(1, nil, 0, "the northwind pilot", changes: [change(.retry, "northwynd", "northwind"),
+                                                              change(.fix, "x", "y", applied: false)]),
+        ])
+        #expect(block.correctionDescriptions == ["retry: northwynd became northwind", "fix: x became y, not applied"])
+    }
+}

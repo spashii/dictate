@@ -151,3 +151,28 @@ extension HistoryDetail {
         lines.last { $0.t0 - grace <= seconds && seconds < $0.t1 + grace && !$0.text.isEmpty }
     }
 }
+
+extension TranscriptBlock {
+    public var text: String { lines.map(\.text).joined(separator: " ") }
+
+    /// What VoiceOver reads for the block as one element: who spoke (on a call), when, then
+    /// the words.
+    public func spokenLabel(time: String) -> String {
+        [speaker, time].compactMap { $0 }.joined(separator: ", ") + ". " + text
+    }
+
+    /// One sentence per change that made the words, for people who can't hover them: what
+    /// changed, what it became, and where it came from. A change that wasn't applied says so.
+    public var correctionDescriptions: [String] {
+        lines.flatMap(\.changes).filter { $0.source != .keyTerm }.map { change in
+            let words = (change.diff.changes.isEmpty ? [WordDiff.Change(before: [change.before], after: [change.after])] : change.diff.changes)
+                .map { item -> String in
+                    let before = item.before.joined(separator: " "), after = item.after.joined(separator: " ")
+                    return before.isEmpty ? "added \(after)" : after.isEmpty ? "removed \(before)" : "\(before) became \(after)"
+                }
+                .joined(separator: ", ")
+            let source = change.source == .correction ? "agent correction" : change.source.rawValue
+            return "\(source): \(words)\(change.applied ? "" : ", not applied")"
+        }
+    }
+}
