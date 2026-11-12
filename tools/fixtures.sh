@@ -1,6 +1,6 @@
 #!/bin/zsh
 # Copies OpenSuperWhisper's recordings and its transcripts into fixtures/, as NAME.wav and
-# NAME.txt, for voice-cli eval. Reads its database read-only and changes nothing of it.
+# NAME.txt, for dictate-cli eval. Reads its database read-only and changes nothing of it.
 # fixtures/ is gitignored: these are recordings of your voice.
 set -euo pipefail
 root=${0:A:h:h}

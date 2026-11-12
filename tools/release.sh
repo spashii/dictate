@@ -1,16 +1,17 @@
 #!/bin/zsh
 # Builds the release disk image on a Mac: tools/release.sh [--publish]
 #
-# Output: build/release/Voice-VERSION.dmg and its .sha256, with the same Voice.app in
-# build/release/stage. Built in the Release configuration and signed with a Developer ID
-# under the hardened runtime with a secure timestamp; both the app and the image are
-# notarized and stapled, so Voice opens on any Mac without a Gatekeeper warning, offline too.
+# Output: build/release/Dictate-VERSION.dmg and its .sha256, with the same Voice.app in
+# build/release/stage, and Dictate.dmg, a byte-identical copy that is uploaded beside it. The
+# app is named Dictate but its bundle stays Voice.app so existing installs keep updating.
+# Built in the Release configuration and signed with a Developer ID under the hardened runtime with a secure timestamp; both the app and the image are
+# notarized and stapled, so Dictate opens on any Mac without a Gatekeeper warning, offline too.
 # The identity comes from the release keychain Blend's tools/release-identity.sh sets up (one
 # Developer ID signs both apps), or from VOICE_SIGN_ID and VOICE_NOTARY_PROFILE in your login
 # keychain.
 #
 # With the update key in place, the image then becomes the newest entry in the update feed
-# (site/appcast.xml) and the Homebrew cask (Casks/voice.rb). --publish uploads it as GitHub
+# (site/appcast.xml) and the Homebrew cask (Casks/dictate.rb). --publish uploads it as GitHub
 # release vVERSION and pushes the feed and the cask; it needs a clean, pushed git checkout
 # and gh logged in. Over SSH gh can't read the Mac's keychain, so publish from the machine
 # with the checkout instead, as docs/DEVELOPMENT.md describes.
@@ -66,7 +67,7 @@ notarize() {
   echo "notarized: ${1:t} ($id)"
 }
 
-# The Debug build in build/app is left alone, so a Voice running from it keeps running.
+# The Debug build in build/app is left alone, so a Dictate running from it keeps running.
 out=$root/build/release
 rm -rf $out
 mkdir -p $out
@@ -76,15 +77,17 @@ xcodebuild -project app/Voice.xcodeproj -scheme Voice -configuration Release \
   MARKETING_VERSION=$version CURRENT_PROJECT_VERSION=$version CODE_SIGN_STYLE=Manual \
   CODE_SIGN_IDENTITY="$identity" OTHER_CODE_SIGN_FLAGS="$signFlags" build
 app=$out/xcode/Build/Products/Release/Voice.app
-# voice-cli ships inside the app, so `voice-cli retry-report` and the rest run against the
-# installed version: Contents/Helpers/voice-cli, loading the app's own whisper framework.
-(cd Core && swift build -c release --product voice-cli)
+# dictate-cli ships inside the app, so `dictate-cli retry-report` and the rest run against the
+# installed version: Contents/Helpers/dictate-cli, loading the app's own whisper framework.
+# voice-cli is a link to it, for scripts written before the rename.
+(cd Core && swift build -c release --product dictate-cli)
 mkdir -p $app/Contents/Helpers
-cp Core/.build/release/voice-cli $app/Contents/Helpers/voice-cli
+cp Core/.build/release/dictate-cli $app/Contents/Helpers/dictate-cli
+ln -sf dictate-cli $app/Contents/Helpers/voice-cli
 install_name_tool -add_rpath @executable_path/../Frameworks -delete_rpath @loader_path \
-  $app/Contents/Helpers/voice-cli
-for rpath in $(otool -l $app/Contents/Helpers/voice-cli | awk '/LC_RPATH/ {getline; getline; print $2}'); do
-  [[ $rpath == /Applications/Xcode* ]] && install_name_tool -delete_rpath $rpath $app/Contents/Helpers/voice-cli
+  $app/Contents/Helpers/dictate-cli
+for rpath in $(otool -l $app/Contents/Helpers/dictate-cli | awk '/LC_RPATH/ {getline; getline; print $2}'); do
+  [[ $rpath == /Applications/Xcode* ]] && install_name_tool -delete_rpath $rpath $app/Contents/Helpers/dictate-cli
 done
 # Notarization needs every piece of code signed with the Developer ID, the hardened runtime
 # and a timestamp, and Xcode signs the frameworks it embeds but not the helpers inside
@@ -105,7 +108,7 @@ for framework in $app/Contents/Frameworks/*(N); do
   fi
   sign $framework
 done
-sign $app/Contents/Helpers/voice-cli
+sign $app/Contents/Helpers/dictate-cli
 sign $app
 codesign --verify --deep --strict $app
 
@@ -119,14 +122,17 @@ notarize $out/Voice.zip
 xcrun stapler staple $stage/Voice.app
 rm $out/Voice.zip
 ln -s /Applications $stage/Applications
-dmg=$out/Voice-$version.dmg
-hdiutil create -quiet -volname "Voice $version" -srcfolder $stage -fs HFS+ -format UDZO -ov $dmg
+dmg=$out/Dictate-$version.dmg
+hdiutil create -quiet -volname "Dictate $version" -srcfolder $stage -fs HFS+ -format UDZO -ov $dmg
 codesign --sign "$identity" $signFlags $dmg
 notarize $dmg
 xcrun stapler staple $dmg
 spctl --assess --type execute -v $stage/Voice.app
 spctl --assess --type open --context context:primary-signature -v $dmg
 (cd $out && shasum -a 256 ${dmg:t} | tee ${dmg:t}.sha256)
+# The unversioned copy makes releases/latest/download/Dictate.dmg a stable link. It is the
+# same bytes, so the signature and checksum above cover it too.
+cp -f $dmg $out/Dictate.dmg
 
 # The notarized image becomes the newest entry in the update feed and the Homebrew cask.
 # Both are files in the repo, published by committing them after the GitHub release.
@@ -136,7 +142,7 @@ releases=${VOICE_RELEASES_URL:-https://github.com/spashii/voice/releases/downloa
 if [[ -f $sparkleKey ]]; then
   signature=$($sparkle/bin/sign_update --ed-key-file $sparkleKey $dmg)
   item="    <item>
-      <title>Voice $version</title>
+      <title>Dictate $version</title>
       <pubDate>$(LC_ALL=C date -u '+%a, %d %b %Y %H:%M:%S +0000')</pubDate>
       <sparkle:version>$version</sparkle:version>
       <sparkle:shortVersionString>$version</sparkle:shortVersionString>
@@ -148,20 +154,20 @@ if [[ -f $sparkleKey ]]; then
     s{(<!-- tools/release.sh adds each release below this line. -->)}{$1\n$ENV{ITEM}}' site/appcast.xml
   sha=$(cut -d' ' -f1 $dmg.sha256)
   sed -i '' -e "s/^  version \".*\"/  version \"$version\"/" -e "s/^  sha256 \".*\"/  sha256 \"$sha\"/" \
-    Casks/voice.rb
+    Casks/dictate.rb
 else
-  print -u2 "No update key at $sparkleKey: site/appcast.xml and Casks/voice.rb are unchanged."
+  print -u2 "No update key at $sparkleKey: site/appcast.xml and Casks/dictate.rb are unchanged."
 fi
 if $publish; then
   [[ -f $sparkleKey ]] || { print -u2 "Not published: a release needs the update key."; exit 1 }
   # The image goes up before the feed that offers it.
-  gh release create v$version $dmg $dmg.sha256 --target $(git rev-parse HEAD) \
-    --title "Voice $version" --generate-notes
-  git commit -q -m "Voice $version appcast and cask" site/appcast.xml Casks/voice.rb
+  gh release create v$version $dmg $out/Dictate.dmg $dmg.sha256 --target $(git rev-parse HEAD) \
+    --title "Dictate $version" --generate-notes
+  git commit -q -m "Dictate $version appcast and cask" site/appcast.xml Casks/dictate.rb
   git push -q
   echo "Published v$version."
 elif [[ -f $sparkleKey ]]; then
-  echo "Updated site/appcast.xml and Casks/voice.rb; publish them after the GitHub release."
+  echo "Updated site/appcast.xml and Casks/dictate.rb; publish them after the GitHub release."
 fi
 echo "app: $stage/Voice.app"
 echo "dmg: $dmg"

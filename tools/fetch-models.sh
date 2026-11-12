@@ -1,9 +1,11 @@
 #!/bin/zsh
-# Puts whisper's model and the voice activity model where Voice looks for them.
+# Puts whisper's model and the voice activity model where Dictate looks for them.
 # OpenSuperWhisper's copy of the whisper model is cloned when it's there: an APFS clone
 # takes no space and leaves its file as it was.
 set -euo pipefail
-models=$HOME/Library/Application\ Support/Voice/models
+support=$HOME/Library/Application\ Support
+# A Mac whose app hasn't moved its data to Dictate yet still keeps it in Voice.
+[[ -d $support/Dictate || ! -d $support/Voice ]] && models=$support/Dictate/models || models=$support/Voice/models
 mkdir -p $models
 whisper=$models/ggml-large-v3-turbo.bin
 osw=$HOME/Library/Application\ Support/ru.starmel.OpenSuperWhisper/whisper-models/ggml-large-v3-turbo.bin
