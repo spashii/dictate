@@ -40,6 +40,18 @@ public enum HistoryTime {
         }
     }
 
+    /// "Wed 12 Nov, 14:32": the start on the clock it was made on, in the person's language
+    /// for the day and month and on a 24 hour clock.
+    public static func title(start: Date, zone identifier: String?, current: TimeZone = .current,
+                             locale: Locale = .current) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.timeZone = zone(identifier, current: current)
+        formatter.dateFormat = "EEE d MMM"
+        let day = formatter.string(from: start)
+        return day + ", " + String(wallClock(start, in: formatter.timeZone).dropLast(3))
+    }
+
     /// 21:20:04, on a 24 hour clock whatever the Mac's locale.
     public static func wallClock(_ instant: Date, in zone: TimeZone) -> String {
         let seconds = Int(instant.timeIntervalSince1970.rounded(.down)) + zone.secondsFromGMT(for: instant)
