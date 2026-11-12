@@ -7,7 +7,7 @@ claude mcp add --transport http --scope user dictate http://127.0.0.1:7766/mcp \
   --header "Authorization: Bearer $(cat ~/Library/Application\ Support/Dictate/mcp-token)"
 ```
 
-Settings, Agents has Copy MCP setup, which copies the same command and a JSON config with your address and token filled in.
+Settings, Agents has Show, which opens the same command and a JSON config with your address and token filled in, each with a Copy button.
 
 An agent can list and search online calls and dictations, read a transcript, follow a live call with `wait_for_transcript`, tag calls, and start and stop a call recording. `dictate-cli mcp` serves the same thing when the app isn't running. [MCP.md](../MCP.md) has every tool.
 

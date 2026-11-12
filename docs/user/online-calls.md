@@ -14,4 +14,4 @@ Dictate detects online calls in Zoom, Teams, Slack, Discord, FaceTime, WhatsApp,
 
 ## Which audio records
 
-Settings, Microphones has two choices for calls. Default microphone for calls is Me. Call audio is the other side: Automatic, which is the call app Dictate finds; a specific app from the list, for a call app Dictate doesn't know; or a [Blend Mic](https://spashii.github.io/blend/) mix, for someone who already uses one. If the chosen app isn't running or the microphone is unplugged, Dictate falls back to Automatic or the default microphone and says so. Requires macOS 15 or later.
+Settings, Microphones has two choices for calls. Microphone for calls is Me. Call audio is the other side: Automatic, which is the call app Dictate finds; a specific app from the list, for a call app Dictate doesn't know; or a [Blend Mic](https://spashii.github.io/blend/) mix, for someone who already uses one. If the chosen app isn't running or the microphone is unplugged, Dictate falls back to Automatic or the default microphone and says so. Requires macOS 15 or later.
