@@ -138,7 +138,9 @@ public enum CallPlanner {
         case .callTapRestored:
             "Recording \(app)'s sound again."
         case .callSilent:
-            permission == .denied ? silentPermissionNotice : "Can't hear \(app). Is it muted or playing somewhere else?"
+            // Zeros are also what a quiet call sounds like, so only the permission being off,
+            // which makes them certain, is worth telling anyone. The event is logged either way.
+            permission == .denied ? silentPermissionNotice : nil
         case .microphoneLost:
             "Lost your microphone. The call keeps recording and Dictate keeps looking for it."
         case .echoCancellationFailed:

@@ -195,6 +195,7 @@ private func channels(of call: Call) throws -> (left: [Float], right: [Float]) {
         capture.emit(.callTapLost(reason: "the app restarted"))
         play(capture, me: 0.0001, call: 0, seconds: 1)
         capture.emit(.callTapRestored)
+        // The app is quiet, not blocked: logged, not shown.
         capture.emit(.callSilent)
         capture.emit(.microphoneLost)
         capture.emit(.echoCancellationFailed)
@@ -205,7 +206,6 @@ private func channels(of call: Call) throws -> (left: [Float], right: [Float]) {
         #expect(notices.all == [
             "Lost Zoom's sound. Your microphone keeps recording, and Dictate keeps trying to get it back.",
             "Recording Zoom's sound again.",
-            "Can't hear Zoom. Is it muted or playing somewhere else?",
             "Lost your microphone. The call keeps recording and Dictate keeps looking for it.",
             "Echo cancellation stopped, so your microphone may pick up the call.",
         ])
