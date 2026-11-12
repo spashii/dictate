@@ -15,11 +15,11 @@ struct VoiceApp: App {
             Image(delegate.model.menuBarImage)
                 .accessibilityLabel("Voice")
         }
-
-        Settings {
-            SettingsView()
-                .environment(delegate.model)
-                .environment(delegate.calls)
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings…") { delegate.model.showWindow(.general) }
+                    .keyboardShortcut(",")
+            }
         }
     }
 }
@@ -28,8 +28,17 @@ struct VoiceApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let model = AppModel()
     let calls = CallsModel()
+    private let activation = WindowActivation()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        activation.start()
+        #if DEBUG
+        if DemoMode.active {
+            model.calls = calls
+            DemoRender.start(model: model, calls: calls)
+            return
+        }
+        #endif
         model.agents.recording = calls
         model.agents.keyTerms = PreferencesKeyTerms(preferences: model.preferences)
         model.calls = calls
@@ -52,7 +61,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct MenuContent: View {
     @Environment(AppModel.self) private var model
     @Environment(CallsModel.self) private var calls
-    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         Text(model.statusText)
@@ -80,11 +88,7 @@ struct MenuContent: View {
             }
         }
         Divider()
-        // A menu bar app isn't active, so Settings would open behind the frontmost window.
-        Button("Settings…") {
-            openSettings()
-            NSApp.activate()
-        }
+        Button("Settings…") { model.showWindow(.general) }
         .keyboardShortcut(",")
         ForEach(SupportItem.allCases, id: \.self) { item in
             Button(item.title) { open(item) }

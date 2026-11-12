@@ -46,6 +46,8 @@ final class AppModel {
     var devices: [InputDevice] = []
     var microphoneAllowed = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
     var accessibilityAllowed = Paster.hasAccess
+    /// The pane the main window shows.
+    var pane: MainPane = .general
     var openAtLogin = SMAppService.mainApp.status == .enabled
     let preferences = Preferences()
     let downloads = ModelDownloads()
@@ -64,8 +66,7 @@ final class AppModel {
     @ObservationIgnored private var noticeTask: Task<Void, Never>?
     @ObservationIgnored private var tickTask: Task<Void, Never>?
     @ObservationIgnored private lazy var indicator = Indicator(model: self)
-    @ObservationIgnored private lazy var setupWindow = SetupWindow(model: self)
-    @ObservationIgnored private lazy var historyWindow = HistoryWindow()
+    @ObservationIgnored private let mainWindow = MainWindow()
 
     init() {
         recorder = Recorder(onLevel: { [weak self] level in
@@ -175,7 +176,10 @@ final class AppModel {
             Task { try? await pipeline.transcriber.load() }
             recoverRecordings()
         } else {
-            setupWindow.show()
+            if downloads.state(preferences.whisperModel) == .missing {
+                downloads.download(preferences.whisperModel)
+            }
+            showWindow(.general)
         }
         #if DEBUG
         // Lets a test start a recording without the shortcut, then kill Voice mid-way.
@@ -239,18 +243,21 @@ final class AppModel {
     }
 
     func refreshOllama() async {
+        if DemoMode.active { return }
         let url = URL(string: preferences.ollamaURL) ?? URL(string: "http://127.0.0.1:11434")!
         ollamaModels = try? await Ollama().installedModels(at: url)
     }
 
     /// Lists inputs off the main thread: with coreaudiod stuck, the call would freeze the app.
     func refreshDevices() {
+        if DemoMode.active { return }
         Task {
             devices = await Task.detached(priority: .userInitiated) { InputDevices.list() }.value
         }
     }
 
     func refreshPermissions() {
+        if DemoMode.active { return }
         microphoneAllowed = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
         accessibilityAllowed = Paster.hasAccess
         openAtLogin = SMAppService.mainApp.status == .enabled
@@ -493,9 +500,14 @@ final class AppModel {
         }
     }
 
-    /// Opened only from the menu and Settings.
+    /// Opens the main window on a pane, and brings it forward.
+    func showWindow(_ pane: MainPane) {
+        guard let calls else { return }
+        mainWindow.show(pane, model: self, calls: calls)
+    }
+
     func openHistory() {
-        historyWindow.show()
+        showWindow(.history)
     }
 
     /// A notice from outside dictation. Mid-dictation the indicator stays on the dictation

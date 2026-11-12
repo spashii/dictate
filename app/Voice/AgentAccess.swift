@@ -51,6 +51,7 @@ final class AgentAccess {
     }
 
     func refreshTailnet() async {
+        if DemoMode.active { return }
         tailnetAddress = await Task.detached(priority: .utility) { Self.servedAddress() }.value
     }
 

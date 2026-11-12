@@ -3,41 +3,6 @@ import AVFoundation
 import SwiftUI
 import VoiceCore
 
-/// Every dictation and call, with whisper's text and what changed it. Opened only from the
-/// menu and Settings: it is never restored or shown at launch.
-@MainActor
-final class HistoryWindow {
-    private var window: NSWindow?
-    private let model = HistoryModel()
-
-    func show() {
-        let window = window ?? makeWindow()
-        if self.window == nil { window.center() }
-        self.window = window
-        model.reload()
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate()
-    }
-
-    private func makeWindow() -> NSWindow {
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 820, height: 560),
-                              styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered,
-                              defer: true)
-        window.title = "History"
-        window.isReleasedWhenClosed = false
-        window.isRestorable = false
-        window.contentMinSize = NSSize(width: 560, height: 320)
-        window.contentViewController = NSHostingController(rootView: HistoryView(model: model))
-        window.setContentSize(NSSize(width: 820, height: 560))
-        // Closing the window stops a segment that is still playing.
-        NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: window,
-                                               queue: .main) { [model] _ in
-            MainActor.assumeIsolated { model.player.stop() }
-        }
-        return window
-    }
-}
-
 /// The list and the selected entry, read from the database off the main thread.
 @MainActor @Observable
 final class HistoryModel {

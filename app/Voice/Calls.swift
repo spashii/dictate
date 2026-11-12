@@ -596,7 +596,7 @@ struct CallsSettingsSection: View {
     var body: some View {
         @Bindable var calls = calls
         let selected = calls.chosenSource ?? calls.source.id
-        Section("Calls") {
+        Section {
             KeyboardShortcuts.Recorder("Shortcut:", name: .recordCall)
             Picker("Record from", selection: Binding(get: { selected }, set: { calls.chosenSource = $0 })) {
                 ForEach(calls.sources) { source in
@@ -618,6 +618,6 @@ struct CallsSettingsSection: View {
             }
             Toggle("Ask to record calls", isOn: $calls.askToRecord)
         }
-        .task { await calls.refreshSources() }
+        .task { if !DemoMode.active { await calls.refreshSources() } }
     }
 }
