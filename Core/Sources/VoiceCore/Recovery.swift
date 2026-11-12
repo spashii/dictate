@@ -82,10 +82,13 @@ public enum Recovery {
 
 extension Dictation {
     /// A history row that keeps only the audio: too short to transcribe, or a transcription
-    /// that failed and can be tried again from the menu.
-    public init(audio: URL, createdAt: Date = Date(), duration: Double, mode: Mode, whisperModel: String,
+    /// that failed and can be tried again from the menu. Made now it takes this Mac's zone; a
+    /// `createdAt` says it was recorded earlier, somewhere unknown, unless `timeZone` names it.
+    public init(audio: URL, createdAt: Date? = nil, timeZone: String? = nil, duration: Double, mode: Mode, whisperModel: String,
                 error: String, origin: Origin? = nil) {
-        self.init(id: UUID().uuidString, createdAt: createdAt, audioPath: audio.path, duration: duration,
+        self.init(id: UUID().uuidString, createdAt: createdAt ?? Date(),
+                  timeZone: createdAt == nil ? TimeZone.current.identifier : timeZone,
+                  audioPath: audio.path, duration: duration,
                   mode: mode, whisperModel: whisperModel, rawText: "", finalText: "", cleanupModel: nil,
                   cleanupSystem: nil, timings: Timings(), segments: [], error: error, origin: origin)
     }

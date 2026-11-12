@@ -25,10 +25,10 @@ public final class CallStore: @unchecked Sendable {
     public func createCall(_ new: NewCall) throws -> Call {
         _ = try queue.sync {
             try db.run("""
-                INSERT INTO calls (id, started_at, app_bundle_id, app_name, device_uid, split, audio_path, status, title,
-                                   speakers)
-                VALUES (?,?,?,?,?,?,?,'recording',?,?)
-                """, [new.id, new.startedAt, new.appBundleID, new.appName, new.deviceUID, new.split, new.audioPath,
+                INSERT INTO calls (id, started_at, time_zone, app_bundle_id, app_name, device_uid, split, audio_path,
+                                   status, title, speakers)
+                VALUES (?,?,?,?,?,?,?,?,'recording',?,?)
+                """, [new.id, new.startedAt, new.timeZone, new.appBundleID, new.appName, new.deviceUID, new.split, new.audioPath,
                       new.title, new.speakers?.joined(separator: "\u{1F}")])
         }
         return try require(new.id)
@@ -583,6 +583,13 @@ public final class CallStore: @unchecked Sendable {
             );
             CREATE INDEX fix_edits_dictation ON fix_edits(dictation_id, idx);
             """),
+        // The IANA zone a recording was made in, beside its start instant, so History can show
+        // the clock it was made on. Rows from before this have NULL: their zone is unknown and
+        // reads as the current one, not as a guess.
+        ("zones-1", """
+            ALTER TABLE calls ADD COLUMN time_zone TEXT;
+            ALTER TABLE dictations ADD COLUMN time_zone TEXT;
+            """),
     ]
 
     /// The names of the migrations this file has had.
@@ -610,11 +617,11 @@ public final class CallStore: @unchecked Sendable {
 
     private static let callColumns = """
         id, started_at, ended_at, app_bundle_id, app_name, device_uid, split, audio_path, status, title, error,
-        (SELECT group_concat(tag, char(31)) FROM call_tags WHERE call_id = calls.id), speakers
+        (SELECT group_concat(tag, char(31)) FROM call_tags WHERE call_id = calls.id), speakers, time_zone
         """
 
     private static func readCall(_ row: SQLiteRow) -> Call {
-        Call(id: row.text(0), startedAt: row.date(1), endedAt: row.optionalDate(2), appBundleID: row.string(3),
+        Call(id: row.text(0), startedAt: row.date(1), timeZone: row.string(13), endedAt: row.optionalDate(2), appBundleID: row.string(3),
              appName: row.string(4), deviceUID: row.string(5), split: row.int(6) != 0, audioPath: row.string(7),
              status: Call.Status(rawValue: row.text(8)) ?? .failed, title: row.string(9), error: row.string(10),
              tags: (row.string(11) ?? "").split(separator: "\u{1F}").map(String.init)
@@ -625,13 +632,13 @@ public final class CallStore: @unchecked Sendable {
     static let dictationColumns = """
         id, created_at, audio_path, duration, mode, whisper_model, raw_text, final_text, cleanup_model,
         cleanup_system, record_ms, load_ms, transcribe_ms, cleanup_ms, paste_ms, error, origin, retry_ms,
-        corrected_text
+        corrected_text, time_zone
         """
 
     /// A corrected dictation reads as its correction, with the text it had kept beside it.
     static func readDictation(_ row: SQLiteRow) -> Dictation {
         let corrected = row.string(18)
-        return Dictation(id: row.text(0), createdAt: row.date(1), audioPath: row.text(2), duration: row.double(3),
+        return Dictation(id: row.text(0), createdAt: row.date(1), timeZone: row.string(19), audioPath: row.text(2), duration: row.double(3),
                          mode: Dictation.Mode(rawValue: row.text(4)) ?? .plain, whisperModel: row.text(5),
                          rawText: row.text(6), finalText: corrected ?? row.text(7), cleanupModel: row.string(8),
                          cleanupSystem: row.string(9),

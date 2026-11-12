@@ -46,7 +46,7 @@ public final class Pipeline: Sendable {
         }
         let mode: Dictation.Mode = cleanup == nil ? .plain : fixScope == .whole ? .cleanup : .fix
         var dictation = Dictation(
-            id: UUID().uuidString, createdAt: Date(), audioPath: audio.path,
+            id: UUID().uuidString, createdAt: Date(), timeZone: TimeZone.current.identifier, audioPath: audio.path,
             duration: duration,
             mode: mode, whisperModel: transcriber.modelName,
             rawText: transcript.text, finalText: transcript.text,
