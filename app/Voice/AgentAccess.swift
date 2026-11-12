@@ -44,8 +44,9 @@ final class AgentAccess {
         enabled = defaults.object(forKey: "agentAccess") as? Bool ?? true
         host = defaults.string(forKey: "agentHost").flatMap(MCPEndpoint.address(host:)) ?? MCPEndpoint.defaultHost
         port = (defaults.object(forKey: "agentPort") as? Int).flatMap { UInt16(exactly: $0) } ?? MCPServer.defaultPort
-        // Nobody who has set a tool keeps the defaults; an explicit choice, even all on, is kept.
-        disabledTools = defaults.stringArray(forKey: "agentDisabledTools").map(Set.init) ?? MCPServer.offByDefault
+        // An explicit choice, even all on, is kept; the new-install defaults apply only to a Mac
+        // that never ran Dictate (AppDelegate settles that before anything else starts).
+        disabledTools = AgentSettings.disabledTools(in: defaults, existingInstall: true)
         token = try? MCPToken.load()
     }
 
