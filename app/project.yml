@@ -105,6 +105,7 @@ targets:
       - path: Voice/BlendMic.swift
       - path: Voice/CallAudioText.swift
       - path: Voice/BundleRename.swift
+      - path: Voice/OtherInstance.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.spashii.voice.tests

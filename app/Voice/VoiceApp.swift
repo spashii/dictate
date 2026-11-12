@@ -31,10 +31,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let calls: CallsModel
     private let windows = WindowActivation()
 
-    /// The data folder moves before anything can open the database.
+    /// What the data folder move found, for a notice once the app is up.
+    private let migration: DataMigration.Outcome
+
+    /// Order matters. A bundle that was renamed starts again from its new path first, before
+    /// anything is initialised. An older copy still running is dealt with before the data
+    /// folder moves under its open database. The agent defaults are settled before anything
+    /// creates the folders that would make a new install look like an old one.
     override init() {
-        DataMigration.run()
-        BundleRename.renameIfNeeded()
+        if let renamed = BundleRename.renameIfNeeded() { BundleRename.relaunchAndExit(renamed) }
+        guard OtherInstance.ensureSole() else { exit(0) }
+        _ = AgentSettings.disabledTools(in: .standard, existingInstall: AgentSettings.isExistingInstall())
+        migration = DataMigration.run()
         model = AppModel()
         calls = CallsModel()
         super.init()
@@ -45,8 +53,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model.agents.keyTerms = PreferencesKeyTerms(preferences: model.preferences)
         model.calls = calls
         windows.start()
+        if migration == .bothExist { explainBothFolders() }
         model.launch()
         calls.launch(model: model)
+    }
+
+    /// Both Application Support/Voice and Dictate exist, so nothing was moved. Said once, with
+    /// the folder that is in use, because the history in the other one is not shown.
+    private func explainBothFolders() {
+        let key = "bothFoldersNoticeShown"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        UserDefaults.standard.set(true, forKey: key)
+        let alert = NSAlert()
+        alert.messageText = "Two data folders found"
+        alert.informativeText = "Dictate is using \(Paths.support.path). A second folder from the older Voice app is still at \(DataMigration.applicationSupport.appending(path: DataMigration.oldName).path). Dictate doesn't merge them or change the old one, so recordings kept only there aren't shown."
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 
     /// Whisper's model has to be freed before the process exits: ggml's Metal device
