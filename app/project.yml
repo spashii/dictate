@@ -103,6 +103,7 @@ targets:
       - path: Voice/WindowPolicy.swift
       - path: Voice/PillHover.swift
       - path: Voice/NoticesDocument.swift
+      - path: Voice/BlendMic.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.spashii.voice.tests

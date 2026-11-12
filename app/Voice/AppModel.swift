@@ -64,8 +64,7 @@ final class AppModel {
     @ObservationIgnored private var noticeTask: Task<Void, Never>?
     @ObservationIgnored private var tickTask: Task<Void, Never>?
     @ObservationIgnored private lazy var indicator = Indicator(model: self)
-    @ObservationIgnored private lazy var setupWindow = SetupWindow(model: self)
-    @ObservationIgnored private lazy var historyWindow = HistoryWindow()
+    @ObservationIgnored private lazy var mainWindow = MainWindow(model: self)
 
     init() {
         recorder = Recorder(onLevel: { [weak self] level in
@@ -175,7 +174,8 @@ final class AppModel {
             Task { try? await pipeline.transcriber.load() }
             recoverRecordings()
         } else {
-            setupWindow.show()
+            if downloads.state(preferences.whisperModel) == .missing { downloads.download(preferences.whisperModel) }
+            openMainWindow(.setup)
         }
         #if DEBUG
         // Lets a test start a recording without the shortcut, then kill Dictate mid-way.
@@ -494,10 +494,17 @@ final class AppModel {
         }
     }
 
-    /// Opened only from the menu and Settings.
-    func openHistory() {
-        historyWindow.show()
+    /// The main window, on a pane. It is only ever opened by the person, from the menu or
+    /// Cmd+,, and at launch while setup is unfinished.
+    func openMainWindow(_ pane: MainPane) {
+        guard let calls else { return }
+        mainWindow.show(pane, calls: calls)
     }
+
+    func openHistory() { openMainWindow(.history) }
+
+    /// Cmd+, and the menu's Settings: the first settings pane.
+    func openSettings() { openMainWindow(.setup) }
 
     /// A notice from outside dictation. Mid-dictation the indicator stays on the dictation
     /// and the menu carries the message instead.

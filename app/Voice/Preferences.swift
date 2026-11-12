@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import VoiceCore
 
-/// What Settings changes, kept in UserDefaults.
+/// What the settings panes change, kept in UserDefaults.
 @MainActor @Observable
 final class Preferences {
     /// Empty: the names worth listing are your own.
@@ -24,8 +24,6 @@ final class Preferences {
 
     /// The input's UID; empty follows the system default.
     var microphoneUID: String { didSet { save(microphoneUID, "microphoneUID") } }
-    /// Whisper's language code, or "auto" to detect it.
-    var language: String { didSet { save(language, "language") } }
     /// Whether the text goes to the fix step before the paste.
     var runPrompt: Bool { didSet { UserDefaults.standard.set(runPrompt, forKey: "runPrompt") } }
     var ollamaModel: String { didSet { save(ollamaModel, "ollamaModel") } }
@@ -37,6 +35,10 @@ final class Preferences {
     /// Decodes the segments whisper was least sure of a second time, within half the first
     /// decode's time. On by default.
     var retrySegments: Bool { didSet { UserDefaults.standard.set(retrySegments, forKey: "retrySegments") } }
+    /// How History labels a line's time: the clock it was said at, or the time into the recording.
+    var historyTimes: HistoryTimeMode { didSet { save(historyTimes.rawValue, HistoryTimeMode.defaultsKey) } }
+    /// Whether History shows each retry and fix under its line, beside the underlined words.
+    var showCorrections: Bool { didSet { UserDefaults.standard.set(showCorrections, forKey: "showCorrections") } }
     /// Not in Settings: Ollama is on this Mac on its own port, and nothing else is expected.
     let ollamaURL: String
     /// dictate-cli mcp writes the key terms from another process; this brings them in.
@@ -45,13 +47,14 @@ final class Preferences {
     init() {
         let defaults = UserDefaults.standard
         microphoneUID = defaults.string(forKey: "microphoneUID") ?? ""
-        language = defaults.string(forKey: "language") ?? "en"
         runPrompt = defaults.object(forKey: "runPrompt") as? Bool ?? false
         ollamaModel = defaults.string(forKey: "ollamaModel") ?? "qwen3.5:9b"
         keyTerms = defaults.string(forKey: "keyTerms") ?? Self.defaultKeyTerms
         whisperModel = defaults.string(forKey: "whisperModel").flatMap(WhisperModel.init) ?? .largeV3Turbo
         history = defaults.string(forKey: "history").flatMap(History.init) ?? .forever
         retrySegments = defaults.object(forKey: "retrySegments") as? Bool ?? true
+        historyTimes = defaults.string(forKey: HistoryTimeMode.defaultsKey).flatMap(HistoryTimeMode.init) ?? .standard
+        showCorrections = defaults.bool(forKey: "showCorrections")
         ollamaURL = defaults.string(forKey: "ollamaURL") ?? "http://127.0.0.1:11434"
         keyTermsObserver = DefaultsObserver("keyTerms") { [weak self] in
             Task { @MainActor in self?.reloadKeyTerms() }
@@ -76,7 +79,8 @@ final class Preferences {
     /// by 28%, and every segment keeps a record so the app can measure them on real use.
     var whisper: WhisperOptions {
         var options = WhisperOptions()
-        options.language = language
+        // The language is always detected: a segment retry handles what detection gets wrong.
+        options.language = "auto"
         options.keyTerms = KeyTerms.parse(keyTerms)
         options.retry.enabled = retrySegments
         return options

@@ -519,7 +519,7 @@ struct StoppedCallView: View {
 
     var body: some View {
         StoppedCallPill(name: call.displayName,
-                        length: HistoryDetailView.clock((call.endedAt ?? Date()).timeIntervalSince(call.startedAt)),
+                        length: HistoryTime.elapsed((call.endedAt ?? Date()).timeIntervalSince(call.startedAt)),
                         copied: calls.stoppedCallCopied) { calls.copyStoppedCall() }
     }
 }

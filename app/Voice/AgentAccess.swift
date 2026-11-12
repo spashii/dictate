@@ -15,8 +15,8 @@ final class AgentAccess {
         case failed(String)
     }
 
-    /// On by default: an agent also needs the token, and nothing reaches the server from
-    /// another device unless Tailscale Serve is set up to forward to it.
+    /// On by default: an agent also needs the token, and the server listens on this Mac only
+    /// unless the address says otherwise.
     var enabled: Bool {
         didSet {
             UserDefaults.standard.set(enabled, forKey: "agentAccess")
@@ -24,9 +24,12 @@ final class AgentAccess {
         }
     }
     private(set) var status: Status = .off
-    /// Where devices on the tailnet reach the server, when Tailscale Serve forwards to it.
-    private(set) var tailnetAddress: String?
-    let localAddress = "http://127.0.0.1:\(MCPServer.defaultPort)\(MCPServer.endpointPath)"
+    private(set) var host: String
+    private(set) var port: UInt16
+    /// The tools an agent can't see or call. Changes reach a running server at once.
+    private(set) var disabledTools: Set<String>
+    /// The current token, read when Settings needs it.
+    private(set) var token: String?
 
     /// What start_recording and stop_recording go through; set before launch.
     @ObservationIgnored var recording: (any RecordingControl)?
@@ -37,21 +40,76 @@ final class AgentAccess {
     @ObservationIgnored private var generation = 0
 
     init() {
-        enabled = UserDefaults.standard.object(forKey: "agentAccess") as? Bool ?? true
+        let defaults = UserDefaults.standard
+        enabled = defaults.object(forKey: "agentAccess") as? Bool ?? true
+        host = defaults.string(forKey: "agentHost").flatMap(MCPEndpoint.address(host:)) ?? MCPEndpoint.defaultHost
+        port = (defaults.object(forKey: "agentPort") as? Int).flatMap { UInt16(exactly: $0) } ?? MCPServer.defaultPort
+        disabledTools = Set(defaults.stringArray(forKey: "agentDisabledTools") ?? [])
+        token = try? MCPToken.load()
     }
 
     func launch() {
         apply()
     }
 
-    func copyToken() {
-        guard let token = try? MCPToken.load() else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(token, forType: .string)
+    var localAddress: String { MCPSetup(host: host, port: port, token: "").url }
+
+    /// The token with all but its last four characters hidden.
+    var maskedToken: String {
+        guard let token else { return "" }
+        return String(repeating: "\u{2022}", count: 12) + token.suffix(4)
     }
 
-    func refreshTailnet() async {
-        tailnetAddress = await Task.detached(priority: .utility) { Self.servedAddress() }.value
+    /// What the Connect box shows: the token is not on screen.
+    var displayedSetup: MCPSetup { MCPSetup(host: host, port: port, token: "<token>") }
+
+    func copyToken() {
+        guard let token = token ?? (try? MCPToken.load()) else { return }
+        copy(token)
+    }
+
+    /// The JSON and the command, with this Mac's address and token filled in.
+    func copySetup() {
+        guard let token = token ?? (try? MCPToken.load()) else { return }
+        copy(MCPSetup(host: host, port: port, token: token).copied)
+    }
+
+    /// A new token. Agents holding the old one are refused until they get this one, and the
+    /// server restarts so it checks against it.
+    func regenerateToken() {
+        token = try? MCPToken.regenerate()
+        apply()
+    }
+
+    /// Moves the server to the address. Nothing changes when either part isn't valid; the
+    /// caller has already said so.
+    func setAddress(host: String, port: UInt16) {
+        guard let host = MCPEndpoint.address(host: host), host != self.host || port != self.port else { return }
+        self.host = host
+        self.port = port
+        UserDefaults.standard.set(host, forKey: "agentHost")
+        UserDefaults.standard.set(Int(port), forKey: "agentPort")
+        apply()
+    }
+
+    func setTool(_ name: String, on: Bool) {
+        if on { disabledTools.remove(name) } else { disabledTools.insert(name) }
+        toolsChanged()
+    }
+
+    func setAllTools(on: Bool) {
+        disabledTools = on ? [] : Set(MCPServer.toolCatalog.map(\.name))
+        toolsChanged()
+    }
+
+    private func toolsChanged() {
+        UserDefaults.standard.set(disabledTools.sorted(), forKey: "agentDisabledTools")
+        server?.disabledTools = disabledTools
+    }
+
+    private func copy(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
     }
 
     private func apply() {
@@ -67,92 +125,25 @@ final class AgentAccess {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
         let recording = recording
         let keyTerms = keyTerms
+        let host = host, port = port, disabled = disabledTools
         Task {
             do {
                 // Opening the store can migrate the database; that stays off the main thread.
                 let server = try await Task.detached {
-                    MCPServer(store: try CallStore(url: Paths.database), token: try MCPToken.load(),
-                              recording: recording, keyTerms: keyTerms, version: version)
+                    MCPServer(store: try CallStore(url: Paths.database), token: try MCPToken.load(), port: port,
+                              recording: recording, keyTerms: keyTerms, version: version, host: host,
+                              disabledTools: disabled)
                 }.value
                 try await server.start()
                 guard current == generation else { return server.stop() }
+                // A switch flipped while the server was starting.
+                server.disabledTools = disabledTools
                 self.server = server
                 status = .on
             } catch {
                 guard current == generation else { return }
                 status = .failed("\(error)")
             }
-        }
-    }
-
-    /// https://<this Mac's tailnet name>:<port>/mcp when Tailscale Serve forwards that port
-    /// to the server, else nil.
-    nonisolated private static func servedAddress() -> String? {
-        let cli = "/Applications/Tailscale.app/Contents/MacOS/Tailscale"
-        guard FileManager.default.isExecutableFile(atPath: cli),
-              let data = run(cli, ["serve", "status", "--json"]),
-              let config = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let web = config["Web"] as? [String: Any] else { return nil }
-        let target = "127.0.0.1:\(MCPServer.defaultPort)"
-        for (hostPort, site) in web {
-            let handlers = (site as? [String: Any])?["Handlers"] as? [String: Any] ?? [:]
-            for (path, handler) in handlers {
-                guard let proxy = (handler as? [String: Any])?["Proxy"] as? String, proxy.contains(target) else { continue }
-                let base = path.hasSuffix("/") ? String(path.dropLast()) : path
-                return "https://\(hostPort)\(base)\(MCPServer.endpointPath)"
-            }
-        }
-        return nil
-    }
-
-    /// A command's output, or nil when it fails or takes longer than five seconds.
-    nonisolated private static func run(_ path: String, _ arguments: [String]) -> Data? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: path)
-        process.arguments = arguments
-        let output = Pipe()
-        process.standardOutput = output
-        process.standardError = FileHandle.nullDevice
-        do { try process.run() } catch { return nil }
-        DispatchQueue.global().asyncAfter(deadline: .now() + 5) {
-            if process.isRunning { process.terminate() }
-        }
-        let data = output.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        return process.terminationStatus == 0 ? data : nil
-    }
-}
-
-/// The General row in Settings: the switch, both addresses and the token.
-struct AgentAccessRow: View {
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        @Bindable var agents = model.agents
-        Toggle("Agents can read transcripts", isOn: $agents.enabled)
-        Text("Claude Code and other agents read your dictations and call transcripts over MCP, with the token.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        if agents.enabled {
-            LabeledContent("This Mac") {
-                Text(agents.localAddress).textSelection(.enabled)
-            }
-            LabeledContent("Tailnet") {
-                Text(agents.tailnetAddress ?? "Not served").textSelection(.enabled)
-            }
-            LabeledContent(statusText) {
-                Button("Copy token") { agents.copyToken() }
-            }
-            .task { await agents.refreshTailnet() }
-        }
-    }
-
-    private var statusText: String {
-        switch model.agents.status {
-        case .off: "Off"
-        case .starting: "Starting"
-        case .on: "Running"
-        case .failed(let message): message
         }
     }
 }
