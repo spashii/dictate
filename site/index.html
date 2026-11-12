@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Voice: live transcripts of your online calls, made on your Mac</title>
-<meta name="description" content="Voice transcribes your online calls live on your Mac, with you and the other side kept apart, lets your agents read along over MCP, and does dictation. Free and open source, for macOS.">
+<meta name="description" content="Voice transcribes your online calls live on your Mac, with you and the other side kept apart, lets your agents read along over MCP, and does dictation. Free, for macOS.">
 <meta property="og:title" content="Voice: live transcripts of your online calls, made on your Mac">
 <meta property="og:description" content="Zoom, Meet, Teams and Discord written down as they happen, you and the other side kept apart, and readable by your agents. Whisper runs on your Mac.">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -69,7 +69,6 @@
   .bottom { text-align: center; padding: 0 0 96px; }
   .bottom p { color: var(--muted); }
   .bottom .actions { justify-content: center; }
-  .brew { margin-top: 20px; font-size: 14px; }
   code { font: 13px ui-monospace, "SF Mono", Menlo, monospace; background: var(--card); padding: 2px 6px; border-radius: 6px; box-shadow: var(--ring); }
   footer.site { border-top: 1px solid var(--line); padding: 24px; text-align: center; font-size: 14px; color: var(--muted); }
 
@@ -89,6 +88,13 @@
     .why { font-size: 17px; padding-bottom: 40px; }
     .rough { padding-bottom: 56px; }
   }
+  .signup { display: grid; gap: 12px; justify-items: center; margin-top: 28px; scroll-margin-top: 40px; }
+  .signup input[type=email] { width: min(100%, 360px); padding: 12px 14px; border-radius: 12px; border: 0; font: inherit; background: var(--card); color: var(--fg); box-shadow: var(--ring); }
+  .signup button { border: 0; cursor: pointer; font: 600 17px var(--sans); }
+  .signup .fine { font-size: 13px; max-width: 46ch; margin: 0; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .err { color: #c0392b; font-size: 14px; margin: 0; }
+  .hp { position: absolute; left: -9999px; }
 </style>
 </head>
 <body>
@@ -98,10 +104,9 @@
       <h1>Live transcripts of your online calls, made on your Mac.</h1>
       <p class="lede">Voice writes down Zoom, Meet, Teams and Discord calls as they happen, with you and the other side kept apart. Your agents can read along. It does fast dictation too.</p>
       <div class="actions">
-        <a class="button primary" href="https://github.com/spashii/voice/releases/latest">Download for Mac</a>
-        <a class="button" href="https://github.com/spashii/voice">View on GitHub</a>
+        <a class="button primary" href="#get">Get early access</a>
       </div>
-      <p class="meta">Free and open source · Apple silicon, macOS 15 or later</p>
+      <p class="meta">Free · Apple silicon, macOS 15 or later</p>
     </div>
 
     <div class="shot" role="img" aria-label="Voice's call pill while it records an online call, showing the last three lines labelled Me and Call">
@@ -139,14 +144,27 @@
     <p><b>Rough edges:</b> Apple silicon only. Both sides of an online call need Blend. The speech model is a 1.6 GB download.</p>
   </section>
 
+  <section class="rough">
+    <h2>Is the code public?</h2>
+    <p>Yes. The code is source available under the Functional Source License, so you can check what Dictate does with your audio. You get the signed build, which updates itself, by email.</p>
+  </section>
+
   <section class="bottom">
     <p>Your audio never leaves your Mac, and there are no accounts. Voice goes online only to download the speech model and to check for updates. The update server counts update checks by app, version and country and never stores your IP address.</p>
-    <div class="actions">
-      <a class="button primary" href="https://github.com/spashii/voice/releases/latest">Download for Mac</a>
-    </div>
-    <p class="brew">Or with Homebrew: <code>brew tap spashii/voice https://github.com/spashii/voice</code>, then <code>brew trust spashii/voice</code>, then <code>brew install --cask voice</code></p>
+    <form class="signup" id="get" method="post" action="https://dictate.firstversion.in/api/signup">
+      <label class="sr" for="email">Email</label>
+      <input id="email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" required maxlength="254">
+      <div class="hp" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div>
+      <input type="hidden" name="source" value=""><input type="hidden" name="utm_source" value=""><input type="hidden" name="utm_medium" value=""><input type="hidden" name="utm_campaign" value="">
+      <button class="button primary" type="submit">Get early access</button>
+      <div class="cf-turnstile" data-sitekey="0x4AAAAAAF-MEHP47FLn7LEY" data-appearance="interaction-only"></div>
+      <p class="err" role="alert" hidden></p>
+      <p class="fine">We will email you the download link, a little beta news, and your free licence later. Reply to the email to be removed. <a href="privacy.html">Privacy</a></p>
+    </form>
   </section>
 </main>
-<footer class="site">Made by <a href="https://github.com/spashii">Sameer</a>. MIT licensed. <a href="https://github.com/spashii/voice">Source on GitHub</a></footer>
+<footer class="site">Made by <a href="https://github.com/spashii">Sameer</a>.</footer>
+<script src="form.js" defer></script>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </body>
 </html>
