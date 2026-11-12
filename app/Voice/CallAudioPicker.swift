@@ -120,7 +120,7 @@ struct CallAudioPicker: View {
     private func row(title: String, detail: String?, icon: NSImage? = nil, symbol: String? = nil, id: String) -> some View {
         let selected = Self.selectedID(calls) == id
         let shows = selected && meterTarget != nil && calls.capturePermission == .authorized
-        return HStack(spacing: 10) {
+        let content = HStack(spacing: 10) {
             Group {
                 if let icon {
                     Image(nsImage: icon).resizable()
@@ -149,13 +149,14 @@ struct CallAudioPicker: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(selected ? Color.accentColor.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 6))
         .contentShape(Rectangle())
-        .onTapGesture { choose(id) }
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
-        .accessibilityAction { choose(id) }
-        .accessibilityLabel(title)
-        .accessibilityValue(CallAudioText.accessibilityValue(status: detail, level: shows ? levels.level : nil,
-                                                             selected: selected))
+        // A button, so the keyboard reaches it and Space or Return chooses it.
+        return Button { choose(id) } label: { content }
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(selected ? .isSelected : [])
+            .accessibilityLabel(title)
+            .accessibilityValue(CallAudioText.accessibilityValue(status: detail, level: shows ? levels.level : nil,
+                                                                 selected: selected))
     }
 
     private func icon(for app: RunningCallApp) -> NSImage? {
