@@ -214,13 +214,13 @@ struct SpeechModelStatus: View {
         let size = SpeechModelStep.size(whisperModel)
         switch model.downloads.state(whisperModel) {
         case .ready:
-            LabeledContent("Status") { Text("Ready") }
+            EmptyView()
         case .downloading(let fraction):
             LabeledContent("Downloading \(size)") {
                 ProgressView(value: fraction).frame(width: 160)
             }
         case .missing:
-            LabeledContent("Status") {
+            LabeledContent("Not downloaded") {
                 Button("Download \(size)") { model.downloads.download(whisperModel) }
             }
         case .failed(let error):
