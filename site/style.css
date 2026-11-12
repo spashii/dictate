@@ -27,8 +27,8 @@ body { background: var(--bg); color: var(--fg); font: 17px/1.5 var(--sans); -web
 h1 { font-size: 44px; line-height: 1.06; letter-spacing: -.035em; font-weight: 700; }
 h2 { font-size: 30px; line-height: 1.2; letter-spacing: -.02em; font-weight: 600; }
 h3 { font-size: 20px; line-height: 1.35; letter-spacing: -.01em; font-weight: 600; }
-a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
-a:hover { text-decoration-thickness: 2px; }
+a { color: inherit; text-decoration: none; text-underline-offset: 3px; }
+a:hover, a:focus-visible { text-decoration: underline; }
 .brand, .button, .skip, a.point { text-decoration: none; }
 s { text-decoration-thickness: 1.5px; }
 :focus-visible { outline: 2px solid var(--fg); outline-offset: 3px; border-radius: 6px; }
@@ -128,7 +128,7 @@ kbd { display: inline-block; min-width: 26px; padding: 0 7px; border-radius: 6px
 .work img { flex: none; border-radius: 12px; }
 .work .point h3 { margin-top: 0; }
 .work .point:hover { box-shadow: inset 0 0 0 1.5px var(--fg); }
-.work .point h3 { text-decoration: underline; text-underline-offset: 3px; }
+.work .point:hover h3, .work .point:focus-visible h3 { text-decoration: underline; text-underline-offset: 3px; }
 
 .faq-list { margin-top: 24px; border-top: 1px solid var(--line); }
 .faq details { border-bottom: 1px solid var(--line); }
