@@ -105,7 +105,7 @@ public final class CallRecorder: @unchecked Sendable {
                     }
                     if let app = plan.app {
                         do {
-                            let call = try self.startTapped(plan.microphone, app, echo: .automatic, transcriber, whisper,
+                            let call = try self.startTapped(plan.microphone, app, echo: plan.echoCancellation, transcriber, whisper,
                                                             appBundleID, appName, title)
                             done.resume(returning: Started(call: call, notices: notices))
                             return

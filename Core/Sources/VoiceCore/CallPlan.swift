@@ -77,6 +77,9 @@ public struct CallPlan: Sendable, Equatable {
     public var app: CallTapTarget?
     /// Why this isn't what was chosen, for the person to read.
     public var notices: [String]
+    /// Whether the call is taken out of the microphone's side. Only a tapped app has a call
+    /// to take out: a Blend mix is already mixed by Blend.
+    public var echoCancellation: EchoCancellation = .off
 
     /// Both sides come apart, whichever way they are read.
     public var split: Bool { mix?.split == true || app != nil }
@@ -96,12 +99,14 @@ public enum CallPlanner {
         /// Every input the Mac has, mixes included.
         public var devices: [InputDevice]
         public var permission: AudioCapturePermission
+        /// The Microphones setting "Cancel echo from the call".
+        public var cancelEcho: Bool
         /// The app asking, left out of the choice: Dictate never records itself.
         public var ownBundleID: String?
 
         public init(choice: CallAudioChoice, microphoneUID: String, detected: [DetectedCall],
                     running: [CallTapTarget], mixes: [CallSource], devices: [InputDevice],
-                    permission: AudioCapturePermission, ownBundleID: String? = nil) {
+                    permission: AudioCapturePermission, cancelEcho: Bool = true, ownBundleID: String? = nil) {
             self.choice = choice
             self.microphoneUID = microphoneUID
             self.detected = detected
@@ -109,6 +114,7 @@ public enum CallPlanner {
             self.mixes = mixes
             self.devices = devices
             self.permission = permission
+            self.cancelEcho = cancelEcho
             self.ownBundleID = ownBundleID
         }
     }
@@ -184,7 +190,8 @@ public enum CallPlanner {
             app = nil
             notices.append(permissionNotice)
         }
-        return CallPlan(mix: mix, microphone: microphone, app: app, notices: notices)
+        return CallPlan(mix: mix, microphone: microphone, app: app, notices: notices,
+                        echoCancellation: app != nil && input.cancelEcho ? .automatic : .off)
     }
 
     private static func microphone(_ input: Inputs, mixUIDs: Set<String>, notices: inout [String]) -> CallSource {

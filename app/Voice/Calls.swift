@@ -31,6 +31,10 @@ final class CallsModel {
             updateMix()
         }
     }
+    /// Takes the call out of the microphone when it plays on speakers. On by default.
+    var cancelEcho: Bool {
+        didSet { UserDefaults.standard.set(cancelEcho, forKey: "cancelCallEcho") }
+    }
     /// The microphone for calls, by UID; empty follows the system default.
     var microphoneUID: String {
         didSet { UserDefaults.standard.set(microphoneUID, forKey: "callMicrophoneUID") }
@@ -84,6 +88,7 @@ final class CallsModel {
     init() {
         let defaults = UserDefaults.standard
         askToRecord = defaults.object(forKey: "askToRecordCalls") as? Bool ?? true
+        cancelEcho = defaults.object(forKey: "cancelCallEcho") as? Bool ?? true
         if let stored = defaults.string(forKey: "callAudio") {
             audioChoice = CallAudioChoice(stored: stored)
             microphoneUID = defaults.string(forKey: "callMicrophoneUID") ?? ""
@@ -238,7 +243,7 @@ final class CallsModel {
         await refreshRunning()
         let plan = CallPlanner.plan(CallPlanner.Inputs(
             choice: audioChoice, microphoneUID: microphoneUID, detected: detected, running: running.map(\.target),
-            mixes: mixes, devices: devices, permission: capturePermission,
+            mixes: mixes, devices: devices, permission: capturePermission, cancelEcho: cancelEcho,
             ownBundleID: Bundle.main.bundleIdentifier), appStarted: app)
         let call: Call
         do {

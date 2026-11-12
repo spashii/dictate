@@ -83,6 +83,9 @@ struct MicrophonesPane: View {
                         Text("Not connected").tag(calls.microphoneUID)
                     }
                 }
+                Toggle("Cancel echo from the call", isOn: $calls.cancelEcho)
+            } footer: {
+                Text("On speakers, Dictate takes the call out of what your microphone hears. Other sound from your Mac stays.")
             }
             Section {
                 CallAudioPermissionRow()
@@ -94,10 +97,7 @@ struct MicrophonesPane: View {
             } header: {
                 Text("Call audio")
             } footer: {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Headphones recommended for calls on speakers, where your microphone also hears the call.")
-                    BlendMicNote(installed: blendInstalled, mixes: !calls.mixes.isEmpty)
-                }
+                BlendMicNote(installed: blendInstalled, mixes: !calls.mixes.isEmpty)
             }
         }
         .formStyle(.grouped)

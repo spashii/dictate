@@ -1,3 +1,4 @@
+import BlendKit
 import CoreAudio
 import Foundation
 import Testing
@@ -11,9 +12,10 @@ private let builtIn = InputDevice(uid: "BuiltIn", name: "MacBook Microphone")
 
 private func inputs(_ choice: CallAudioChoice = .automatic, microphone: String = "", detected: [DetectedCall] = [],
                     running: [CallTapTarget] = [], mixes: [CallSource] = [],
-                    permission: AudioCapturePermission = .authorized) -> CallPlanner.Inputs {
+                    permission: AudioCapturePermission = .authorized,
+                    cancelEcho: Bool = true) -> CallPlanner.Inputs {
     CallPlanner.Inputs(choice: choice, microphoneUID: microphone, detected: detected, running: running, mixes: mixes,
-                       devices: [builtIn], permission: permission, ownBundleID: "dictate.own")
+                       devices: [builtIn], permission: permission, cancelEcho: cancelEcho, ownBundleID: "dictate.own")
 }
 
 @Suite struct CallPlanTests {
@@ -22,6 +24,18 @@ private func inputs(_ choice: CallAudioChoice = .automatic, microphone: String =
         #expect(plan.app == CallTapTarget(bundleID: "us.zoom.xos", name: "Zoom"))
         #expect(plan.mix == nil && plan.split && plan.notices.isEmpty)
         #expect(plan.microphone == .systemDefault)
+    }
+
+    @Test func aTappedAppIsEchoCancelledUnlessTheSettingIsOff() {
+        #expect(CallPlanner.plan(inputs(detected: [zoom])).echoCancellation == .automatic)
+        #expect(CallPlanner.plan(inputs(detected: [zoom], cancelEcho: false)).echoCancellation == .off)
+    }
+
+    @Test func aBlendMixOrAMicrophoneAloneIsNeverEchoCancelled() {
+        #expect(CallPlanner.plan(inputs(.blendMix(deviceUID: "mix.split"), mixes: [mixSplit])).echoCancellation == .off)
+        #expect(CallPlanner.plan(inputs(mixes: [mixOne])).echoCancellation == .off)
+        // The permission is off, so the app isn't tapped and there is no call to cancel.
+        #expect(CallPlanner.plan(inputs(detected: [zoom], permission: .denied)).echoCancellation == .off)
     }
 
     @Test func theAppTheRecordingStartedForOutranksOtherCalls() {
