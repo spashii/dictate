@@ -48,6 +48,8 @@ public final class Activation {
         case invalid
         /// A genuine token, but for a request this Mac did not make.
         case otherRequest
+        /// The token was good but the Keychain would not keep it.
+        case notSaved
     }
 
     public static let graceLength: TimeInterval = 7 * 24 * 3600
@@ -77,6 +79,8 @@ public final class Activation {
         self.makeNonce = makeNonce
         refresh()
     }
+
+    public var isActivated: Bool { state == .activated }
 
     /// Dictation, call recording and an agent's start_recording all ask this.
     public var allowsRecording: Bool {
@@ -158,7 +162,7 @@ public final class Activation {
         defaults.removeObject(forKey: Key.nonce)
         defaults.removeObject(forKey: Key.nonceDate)
         refresh()
-        return .success(())
+        return state == .activated ? .success(()) : .failure(.notSaved)
     }
 
     private var pendingNonce: String? {
