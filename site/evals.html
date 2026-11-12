@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evals: what retries changed | Dictate</title>
+<meta name="description" content="How Dictate's retries were measured: 1,798 utterances from seven open English test sets, the same Whisper pipeline with retries off and on, in version 0.10.0.">
+<link rel="canonical" href="https://spashii.github.io/dictate/evals.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Dictate">
+<meta property="og:url" content="https://spashii.github.io/dictate/evals.html">
+<meta property="og:title" content="Evals: what retries changed | Dictate">
+<meta property="og:description" content="How Dictate's retries were measured: 1,798 utterances from seven open English test sets, the same Whisper pipeline with retries off and on, in version 0.10.0.">
+<meta property="og:image" content="https://spashii.github.io/dictate/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Dictate: local dictation and call transcripts for Mac">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Evals: what retries changed | Dictate">
+<meta name="twitter:description" content="How Dictate's retries were measured: 1,798 utterances from seven open English test sets, the same Whisper pipeline with retries off and on, in version 0.10.0.">
+<meta name="twitter:image" content="https://spashii.github.io/dictate/og.png">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="nav" aria-label="Main">
+  <a class="brand" href="./"><img src="icon.svg" alt="" width="24" height="24">Dictate</a>
+  <div class="links">
+    <a href="evals.html">Evals</a>
+    <a href="./#questions">Questions</a>
+    <a href="https://github.com/spashii/dictate">GitHub</a>
+    <a class="button primary small" href="./#get">Get Dictate</a>
+  </div>
+</nav>
+<main id="main" class="doc">
+<h1>How the retries were measured</h1>
+<p>We compared the same Whisper pipeline with retries off and on in version 0.10.0. Both runs used large v3 turbo, voice activity detection, greedy first-pass decoding, no key terms, and the language set to English, which was the app's default in 0.10.0. Dictate 0.12.0 detects the language instead, and this test does not cover that. Each recording was decoded whole through the app's pipeline, not cut into live chunks the way the app cuts a dictation longer than 4 seconds. The first-pass text matched on all 1,798 utterances. Scores use OpenAI's English normalizer and jiwer. The test ran on an M5 MacBook Air with 16 GB of memory, which was in use during part of the run.</p>
+<p>Whisper large v3 turbo is the model Handy and OpenSuperWhisper both offer. I did not run Handy, OpenSuperWhisper or Parakeet, and I make no claim about their scores.</p>
+<h2>Word error rate</h2>
+<div class="scroll" tabindex="0" role="region" aria-label="Word error rate by test set"><table><thead><tr><th scope="col">Test set</th><th scope="col">Utterances</th><th scope="col">Retries off</th><th scope="col">Retries on</th><th scope="col">Change in errors</th><th scope="col">Better</th><th scope="col">Worse</th></tr></thead><tbody>
+<tr><td>AMI meetings</td><td>454</td><td>16.91%</td><td>16.48%</td><td>-2.5%</td><td>14</td><td>2</td></tr>
+<tr><td>Earnings-22 calls</td><td>231</td><td>11.80%</td><td>11.89%</td><td>+0.8%</td><td>1</td><td>3</td></tr>
+<tr><td>LibriSpeech test-other</td><td>259</td><td>4.67%</td><td>4.65%</td><td>-0.4%</td><td>1</td><td>0</td></tr>
+<tr><td>TED-LIUM talks</td><td>194</td><td>4.16%</td><td>4.19%</td><td>+0.9%</td><td>0</td><td>1</td></tr>
+<tr><td>VoxPopuli parliament</td><td>160</td><td>4.89%</td><td>2.92%</td><td>-40.4%</td><td>3</td><td>1</td></tr>
+<tr><td>FLEURS en_us</td><td>180</td><td>8.91%</td><td>8.91%</td><td>unchanged</td><td>0</td><td>0</td></tr>
+<tr><td>EdAcc Indian accents</td><td>320</td><td>14.21%</td><td>14.17%</td><td>-0.3%</td><td>5</td><td>3</td></tr>
+<tr><td>All seven sets</td><td>1,798</td><td>9.43%</td><td>9.11%</td><td>-3.4%</td><td>24</td><td>10</td></tr>
+</tbody></table></div>
+<p>Version 0.10.0, language set to English. Lower is better. Errors are substitutions, deletions and insertions counted against the reference. Better and worse count recordings. Earnings calls and TED talks got slightly worse, and FLEURS did not change.</p>
+<h2>Lost sentences</h2>
+<ul>
+<li>A lost sentence is a recording with a reference of at least five words where the output kept under 30% of its length. Whisper sometimes writes "Thank you." or "Okay." for a whole sentence.</li>
+<li>Recordings where that happened, with the language set to English: 11 with retries off, 8 with retries on. Three sentences came back ("Thank you." twice, "Okay." once), saving 91 errors.</li>
+</ul>
+<h2>Timing</h2>
+<ul>
+<li>61 of 3,158 segments were flagged, and 60 were retried.</li>
+<li>Retries took 3.4% of first-decode time overall, 1.05 times it in recordings that had a retry, and 0.76 s per retry on average. This is not a measure of stop-to-paste.</li>
+<li>Decode speed for Dictate's own pipeline on the M5 MacBook Air: median 0.117 and 90th percentile 0.377 seconds per second of audio.</li>
+</ul>
+<h2>The checker</h2>
+<p>A segment is flagged when Whisper's mean token log probability for it is below -0.6. Across 3,155 non-empty segments, 60 fell below that line and 52 of them were bad (at least 25% of their reference words wrong). As a ranking of bad segments the score has an AUC of 0.80 (0.78 to 0.83).</p>
+<h2>Key terms</h2>
+<p>A fixed list of 12 of my own key terms made these general sets worse, 9.43% to 10.16% word error rate. Key terms are for names Whisper gets wrong in your own speech, not general speech.</p>
+<h2>Method</h2>
+<ul>
+<li>1,798 utterances, about 30 minutes from each of seven open English test sets, sampled across as many speakers as each set has, between 1 and 30 seconds long.</li>
+<li>Whisper large v3 turbo with voice activity detection and greedy decoding, run with Dictate's own command line tool.</li>
+<li>A flagged segment is decoded again with beam search and the previous segment as context, and kept when Whisper is surer of the new text.</li>
+<li>Scored with OpenAI's English text normalizer and jiwer. 7 utterances whose reference normalizes to nothing, and 16 marked to be ignored, are left out.</li>
+<li>Only open datasets were used. None of my own recordings are in it.</li>
+<li>These results do not test the fix, online call capture, key-term suggestions, language detection, or accuracy against another app.</li>
+</ul>
+<h2>Datasets</h2>
+<ul><li>AMI (IHM test): CC BY 4.0</li><li>Earnings-22: CC BY-SA 4.0</li><li>LibriSpeech test-other: CC BY 4.0</li><li>TED-LIUM 3: CC BY-NC-ND 3.0, used for evaluation only</li><li>VoxPopuli: CC0</li><li>FLEURS en_us: CC BY 4.0</li><li>EdAcc, speakers with an Indian accent or first language: CC BY-SA 4.0</li></ul>
+<p><a href="./">Back to Dictate</a></p>
+</main>
+<footer class="site">Made by <a href="https://github.com/spashii">Sameer</a>. Source available (FSL-1.1-MIT). <a href="https://github.com/spashii/dictate">GitHub</a>. <a href="evals.html">Evals</a>. <a href="privacy.html">Privacy</a>.</footer>
+<script>
+if (location.hostname === "spashii.github.io") {
+  const s = document.createElement("script");
+  s.defer = true; s.src = "https://static.cloudflareinsights.com/beacon.min.js";
+  s.dataset.cfBeacon = '{"token": "14285a6efcfe4ee891ba0c75f932711c"}';
+  document.head.append(s);
+}
+</script>
+</body>
+</html>

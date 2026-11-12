@@ -3,169 +3,299 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Voice: live transcripts of your online calls, made on your Mac</title>
-<meta name="description" content="Voice transcribes your online calls live on your Mac, with you and the other side kept apart, lets your agents read along over MCP, and does dictation. Free, for macOS.">
-<meta property="og:title" content="Voice: live transcripts of your online calls, made on your Mac">
-<meta property="og:description" content="Zoom, Meet, Teams and Discord written down as they happen, you and the other side kept apart, and readable by your agents. Whisper runs on your Mac.">
+<title>Dictate: local dictation for Mac</title>
+<meta name="description" content="Dictation in any Mac app, and recordings of your online calls with your side and theirs kept apart. Free during the beta.">
+<link rel="canonical" href="https://spashii.github.io/dictate/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Dictate">
+<meta property="og:url" content="https://spashii.github.io/dictate/">
+<meta property="og:title" content="Dictate: local dictation for Mac">
+<meta property="og:description" content="Dictation in any Mac app, and recordings of your online calls with your side and theirs kept apart. Free during the beta.">
+<meta property="og:image" content="https://spashii.github.io/dictate/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Dictate: local dictation and call transcripts for Mac">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Dictate: local dictation for Mac">
+<meta name="twitter:description" content="Dictation in any Mac app, and recordings of your online calls with your side and theirs kept apart. Free during the beta.">
+<meta name="twitter:image" content="https://spashii.github.io/dictate/og.png">
+<meta name="theme-color" content="#f7f7f8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111113" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<style>
-  :root {
-    --bg: #f8f7f6; --card: #fff; --fg: #0c0b0b; --muted: #6f6b69; --line: #ebe8e6;
-    --accent: #ff5f33; --red: #ff3b30;
-    --ring: 0 2px 6px rgba(0,0,0,.06), 0 0 0 1px rgba(0,0,0,.05);
-    --ring-lg: 0 30px 60px -28px rgba(40,20,10,.3), 0 0 0 1px rgba(0,0,0,.05);
-    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
-  }
-  * { box-sizing: border-box; margin: 0; }
-  body { background: var(--bg); color: var(--fg); font: 17px/1.5 var(--sans); -webkit-font-smoothing: antialiased; }
-  a { color: inherit; }
-  main { max-width: 960px; margin: 0 auto; padding: 0 24px; }
-
-  .hero { display: grid; grid-template-columns: 1.1fr 1fr; gap: 56px; align-items: center; padding: 96px 0 72px; }
-  .hero > * { min-width: 0; }
-  h1 { font-size: 56px; line-height: 1.05; letter-spacing: -.035em; font-weight: 700; }
-  .lede { margin-top: 20px; font-size: 19px; color: var(--muted); max-width: 32ch; }
-  .actions { display: flex; gap: 12px; margin-top: 32px; flex-wrap: wrap; }
-  .button { display: inline-block; padding: 12px 20px; border-radius: 12px; font-weight: 600; text-decoration: none; box-shadow: var(--ring); background: var(--card); }
-  .button.primary { background: linear-gradient(#ff7a3d, #f04f24); color: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.25); }
-  .meta { margin-top: 16px; font-size: 14px; color: var(--muted); }
-  kbd { font: 600 .9em var(--sans); padding: 1px 6px; border-radius: 6px; background: var(--card); box-shadow: var(--ring); }
-
-  /* The "Record this call?" pill and the transcript it leads to, drawn rather than pictured. */
-  .shot { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
-  .pill { justify-self: center; display: flex; align-items: center; gap: 10px; max-width: 100%; padding: 10px 16px; border-radius: 999px; background: rgba(28,26,25,.92); color: #fff; font-size: 14px; box-shadow: var(--ring-lg); }
-  .pill .rec { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
-  .pill .time { flex: none; color: rgba(255,255,255,.6); font-variant-numeric: tabular-nums; }
-  .pill .text { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .panel { background: rgba(255,255,255,.92); border-radius: 14px; box-shadow: var(--ring-lg); padding: 8px; font-size: 14px; }
-  .row { display: flex; justify-content: space-between; gap: 12px; padding: 5px 10px; border-radius: 6px; }
-  .row small { color: var(--muted); font-size: 13px; white-space: nowrap; }
-  .row.status { color: var(--muted); }
-  .row.on { background: var(--accent); color: #fff; }
-  .row.on small { color: rgba(255,255,255,.8); }
-  .label { padding: 8px 10px 2px; font-size: 12px; font-weight: 600; color: var(--muted); }
-  .sep { height: 1px; margin: 6px 10px; background: var(--line); }
-  .clip { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .pill .ask { flex: none; white-space: nowrap; padding: 3px 10px; border-radius: 999px; background: rgba(255,255,255,.14); font-size: 13px; }
-  @media (max-width: 420px) { .pill .app { display: none; } }
-  .pill .phone { flex: none; width: 14px; height: 14px; fill: #34c759; }
-  .pill .app { flex: none; color: rgba(255,255,255,.55); }
-  .line { display: grid; grid-template-columns: 44px 40px 1fr; gap: 6px; padding: 5px 10px; }
-  .line time { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; padding-top: 1px; }
-  .line b { font-weight: 600; }
-  .line.me b { color: var(--accent); }
-
-  .points { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; padding-bottom: 72px; }
-  .point { background: var(--card); border-radius: 16px; box-shadow: var(--ring); padding: 24px; }
-  .point h2 { font-size: 17px; letter-spacing: -.01em; }
-  .point p { margin-top: 6px; color: var(--muted); font-size: 15px; }
-
-  .why, .rough { max-width: 640px; }
-  .why { padding-bottom: 56px; font-size: 19px; }
-  .rough { padding-bottom: 72px; color: var(--muted); font-size: 15px; }
-  .rough p + p { margin-top: 12px; }
-  .rough h2 { font-size: 17px; letter-spacing: -.01em; color: var(--fg); margin-bottom: 6px; }
-
-  .bottom { text-align: center; padding: 0 0 96px; }
-  .bottom p { color: var(--muted); }
-  .bottom .actions { justify-content: center; }
-  code { font: 13px ui-monospace, "SF Mono", Menlo, monospace; background: var(--card); padding: 2px 6px; border-radius: 6px; box-shadow: var(--ring); }
-  footer.site { border-top: 1px solid var(--line); padding: 24px; text-align: center; font-size: 14px; color: var(--muted); }
-
-  .callpill { justify-self: center; width: min(100%, 460px); display: grid; gap: 6px; padding: 12px 18px; border-radius: 22px; background: rgba(28,26,25,.92); color: #fff; font-size: 14px; box-shadow: var(--ring-lg); }
-  .callpill .head { display: flex; align-items: center; gap: 10px; white-space: nowrap; }
-  .callpill .rec { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
-  .callpill .time, .callpill .hint { color: rgba(255,255,255,.6); font-variant-numeric: tabular-nums; }
-  .callpill .cl { display: grid; grid-template-columns: 36px 1fr; gap: 6px; }
-  .callpill .cl.old { opacity: .45; }
-  .callpill b { font-weight: 600; }
-  .callpill .me { color: #64a8ff; }
-  .callpill .call { color: #c48cff; }
-  @media (max-width: 780px) {
-    .hero { grid-template-columns: minmax(0, 1fr); gap: 40px; padding: 56px 0 48px; }
-    h1 { font-size: 42px; }
-    .points { grid-template-columns: 1fr; }
-    .why { font-size: 17px; padding-bottom: 40px; }
-    .rough { padding-bottom: 56px; }
-  }
-  .signup { display: grid; gap: 12px; justify-items: center; margin-top: 28px; scroll-margin-top: 40px; }
-  .signup input[type=email] { width: min(100%, 360px); padding: 12px 14px; border-radius: 12px; border: 0; font: inherit; background: var(--card); color: var(--fg); box-shadow: var(--ring); }
-  .signup button { border: 0; cursor: pointer; font: 600 17px var(--sans); }
-  .signup .fine { font-size: 13px; max-width: 46ch; margin: 0; }
-  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-  .err { color: #c0392b; font-size: 14px; margin: 0; }
-  .hp { position: absolute; left: -9999px; }
-</style>
+<script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "SoftwareApplication",
+ "name": "Dictate",
+ "description": "Local dictation and call transcripts for Mac. Dictation in any app, and recordings of your online calls with your side and theirs kept apart.",
+ "applicationCategory": "ProductivityApplication",
+ "operatingSystem": "macOS",
+ "softwareVersion": "0.12.1",
+ "url": "https://spashii.github.io/dictate/",
+ "image": "https://spashii.github.io/dictate/og.png",
+ "offers": {
+  "@type": "Offer",
+  "price": "0",
+  "priceCurrency": "USD"
+ },
+ "author": {
+  "@type": "Person",
+  "name": "Sameer",
+  "url": "https://github.com/spashii"
+ }
+}
+</script>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-<main>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="nav" aria-label="Main">
+  <a class="brand" href="./"><img src="icon.svg" alt="" width="24" height="24">Dictate</a>
+  <div class="links">
+    <a href="evals.html">Evals</a>
+    <a href="#questions">Questions</a>
+    <a href="https://github.com/spashii/dictate">GitHub</a>
+    <a class="button primary small" href="#get">Get Dictate</a>
+  </div>
+</nav>
+
+<main id="main">
   <section class="hero">
     <div>
-      <h1>Live transcripts of your online calls, made on your Mac.</h1>
-      <p class="lede">Voice writes down Zoom, Meet, Teams and Discord calls as they happen, with you and the other side kept apart. Your agents can read along. It does fast dictation too.</p>
-      <div class="actions">
-        <a class="button primary" href="#get">Get early access</a>
-      </div>
-      <p class="meta">Free · Apple silicon, macOS 15 or later</p>
+      <h1>Dictation and call recording for Mac.</h1>
+      <p class="lede">Dictate types what you say into any app, and records your online calls with your side and theirs kept apart. It runs on your Mac, and no bot joins the call.</p>
+      <form class="signup" method="post" action="https://dictate.firstversion.in/api/signup">
+        <label class="l" for="email-top">Email address</label>
+        <div class="field">
+          <input id="email-top" name="email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" required maxlength="254">
+          <button class="button primary" type="submit">Email me the link</button>
+        </div>
+        <div class="hp" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div>
+        <input type="hidden" name="source" value=""><input type="hidden" name="utm_source" value=""><input type="hidden" name="utm_medium" value=""><input type="hidden" name="utm_campaign" value="">
+        <div class="cf-turnstile" data-sitekey="0x4AAAAAAF-MEHP47FLn7LEY" data-appearance="interaction-only"></div>
+        <p class="err" role="alert" hidden></p>
+        <p class="fine">There is no public download during the beta. Free during the beta, and beta users keep it. I use your email for the link and beta news. Reply to be removed.</p>
+      </form>
+      <p class="meta">Apple silicon, macOS 15 or later.</p>
     </div>
 
-    <div class="shot" role="img" aria-label="Voice's call pill while it records an online call, showing the last three lines labelled Me and Call">
-      <div class="callpill">
-        <div class="head"><span class="rec"></span><span>Recording call</span><span class="time">12:04</span><span class="hint">&#x2325;&#x21E7;` stops</span></div>
-        <div class="cl old"><b class="me">Me</b><span>Yes, they're in the shared folder.</span></div>
-        <div class="cl"><b class="call">Call</b><span>Then let's move the launch to Thursday.</span></div>
-        <div class="cl"><b class="me">Me</b><span>Okay, I'll send the notes after this.</span></div>
+    <div class="demo-wrap">
+      <div class="demo mac" id="demo" role="img" aria-label="Animation of the whole flow. A call with Alex is under way, and Dictate's pill offers to record it. You press Record and Me and Call lines fill the pill. The call ends and the pill shows the stopped call. A chat window titled Agent opens. You press Option and backtick, the dictation pill shows your words as you speak: Summarise my call with Alex and draft a follow-up email, check earlier calls, and add misheard names to my key terms. The text is pasted and sent. The agent calls get_transcript, list_calls, search_transcripts and add_key_terms with Northwind and Q3 deck, then answers with a short summary and a draft email to Alex.">
+        <div class="dpill" id="pill" aria-hidden="true"><div class="prow" id="prow"></div><div class="lines" id="lines"></div><div class="dtext" id="dtext"></div></div>
+        <div class="win" id="callwin" aria-hidden="true">
+          <div class="wtitle"><span class="lights"><i></i><i></i><i></i></span>Alex</div>
+          <div class="callbody"><div class="avatar">A</div><div class="ctime">04:12</div></div>
+        </div>
+        <div class="keys" id="keys" aria-hidden="true"><kbd>Option</kbd><kbd>`</kbd></div>
+        <div class="win chat" id="chat" aria-hidden="true">
+          <div class="wtitle"><span class="lights"><i></i><i></i><i></i></span>Agent</div>
+          <div class="msgs">
+            <div class="m me" id="m-user"></div>
+            <div class="m tr" id="m-t1"><span class="ok"></span>get_transcript</div>
+            <div class="m tr" id="m-t2"><span class="ok"></span>list_calls</div>
+            <div class="m tr" id="m-t3"><span class="ok"></span>search_transcripts</div>
+            <div class="m tr" id="m-t4"><span class="ok"></span>add_key_terms<span class="arg">Northwind, Q3 deck</span></div>
+            <div class="m ans" id="m-sum">Alex will send the Northwind slides today. Your earlier call set the Q3 deck for Friday. Added two key terms.</div>
+            <div class="m mail" id="m-mail">Hi Alex, thanks for joining today. I will look out for the Northwind slides. As you asked on our earlier call, the Q3 deck will be with you by Friday.</div>
+          </div>
+          <div class="inp"><span class="field2" id="inp"><span class="ph">Message</span></span><span class="send"></span></div>
+        </div>
       </div>
+      <div class="demo-foot"><button type="button" class="replay" id="replay">Replay</button></div>
     </div>
   </section>
 
   <section class="why">
-    <p>I wanted really fast transcription on my own Whisper pipeline, one I could hack on. <a href="https://handy.computer">Handy</a> and <a href="https://github.com/Starmel/OpenSuperWhisper">OpenSuperWhisper</a> are my favorites and I learned a lot from them, but I wanted something simpler. With Blend, Voice also hears both sides of an online call, so it writes down you and them separately.</p>
+    <h2 class="sr">Why I made it</h2>
+    <p>I wanted really fast transcription and my own Whisper pipeline, with segment level retries. <a href="https://handy.computer">Handy</a> and <a href="https://github.com/Starmel/OpenSuperWhisper">OpenSuperWhisper</a> are my all time favorites, and I've learned heavily from them. I wanted something lightweight, hackable and customizable, that could also handle my online calls and let my agents read them.</p>
   </section>
 
-  <section class="points">
-    <div class="point">
-      <h2>Online calls, both sides apart</h2>
-      <p>With a <a href="https://spashii.github.io/blend/">Blend</a> split mix, you're Me and everyone else is Call. Voice asks when an online call starts, or press <kbd>Option+Shift+`</kbd>.</p>
+  <section>
+    <h2>What it does</h2>
+    <div class="points">
+      <div class="point">
+        <div class="art mac" aria-hidden="true"><div class="pillc col"><span style="display:flex;align-items:center;gap:8px"><span class="rd"></span><span class="levelbar"><i style="width:62%"></i></span><span class="time">0:04</span></span><span>Can you send me the slides</span></div></div>
+        <h3>Dictation in any app</h3>
+        <p>Press <kbd>Option</kbd> <kbd>`</kbd> and talk, and Dictate transcribes as you go. Press it again and the text lands where you were writing. If the app quits mid dictation, the next launch recovers it into your history.</p>
+      </div>
+      <div class="point">
+        <div class="art mac" aria-hidden="true"><div class="ask"><span class="g">Record this call?</span><span class="bt">Not now</span><span class="bt main">Record</span></div><div class="ml"><span class="w">Me</span><span>Thanks for joining, Alex.</span></div><div class="ml"><span class="w">Call</span><span>Sure. Let's start with the budget.</span></div></div>
+        <h3>You and the call, kept apart</h3>
+        <p>Dictate asks before it records, and no bot joins. It records your microphone and the call's audio separately, so every line is labelled Me or Call.</p>
+      </div>
+      <div class="point">
+        <div class="art mac" aria-hidden="true"><div class="toggle-row"><span>Retry unsure segments</span><span class="switch on"></span></div><div class="toggle-row"><span>Fix the text before pasting</span><span class="switch"></span></div></div>
+        <h3>A better transcription pipeline</h3>
+        <p>Whisper scores how sure it is of each part. Parts below a confidence threshold are decoded again automatically, and Dictate keeps the better version. A model in Ollama on your Mac can also clean up the transcript, and it is off until you turn it on.</p>
+      </div>
+      <div class="point">
+        <div class="art mac" aria-hidden="true"><div class="sug"><span class="g">Qdrant</span><span class="bt main">Add</span><span class="bt">Dismiss</span></div><div class="sug"><span class="g">OAuth</span><span class="bt main">Add</span><span class="bt">Dismiss</span></div></div>
+        <h3>Key terms</h3>
+        <p>Add the names Whisper gets wrong, spelled your way. Dictate suggests more from your corrections and adds nothing until you press Add.</p>
+      </div>
+      <div class="point">
+        <div class="art mac" aria-hidden="true"><div class="tool"><span>search_transcripts</span><span class="switch on"></span></div><div class="tool"><span>wait_for_transcript</span><span class="switch on"></span></div><div class="tool"><span>start_recording</span><span class="switch"></span></div></div>
+        <h3>Your agents can read it</h3>
+        <p>Claude Code or any MCP client can search your dictations and calls. Tools that record or change anything start off.</p>
+      </div>
     </div>
-    <div class="point">
-      <h2>Your agents read along</h2>
-      <p>Claude Code and other agents follow an online call live and search past ones over MCP.</p>
+  </section>
+
+  <section class="faq" id="questions">
+    <h2>Questions</h2>
+    <div class="faq-list">
+      <details open>
+        <summary><h3>How is it different from Handy and OpenSuperWhisper?</h3></summary>
+        <p>At the core they are close: all three run on your Mac with no sign-in. <a href="https://handy.computer">Handy</a> also runs Parakeet, works on Windows and Linux, and has a public download. What Dictate adds is retries, online calls with both sides apart, and a local MCP server for your agents.</p>
+      </details>
+      <details>
+        <summary><h3>Why Whisper and not Parakeet?</h3></summary>
+        <p>Retries use the confidence Whisper gives each part it writes, and key terms go into Whisper's prompt. Parakeet is faster, and I have not measured it against this pipeline.</p>
+      </details>
+      <details>
+        <summary><h3>Is it open source?</h3></summary>
+        <p>No. It is source available under FSL-1.1-MIT: you can read, change and run the code, but not offer it in a commercial product that competes with it. Each version becomes MIT two years after release, and versions up to 0.11.0 already are. The code and licence are on <a href="https://github.com/spashii/dictate">GitHub</a>.</p>
+      </details>
+      <details>
+        <summary><h3>Does anything leave my Mac?</h3></summary>
+        <p>Not your audio. Dictate goes online for its speech models (1.6 GB, once) and for updates, which count checks by app, version and country and never store your IP address. If you connect an agent, it can read your transcripts, and where it sends them depends on that agent. Audio and transcripts stay in one folder on your Mac, kept forever or for 30 days. <a href="https://github.com/spashii/dictate/blob/main/docs/user/data.md">Where everything is kept</a></p>
+      </details>
+      <details>
+        <summary><h3>What does it ask permission for?</h3></summary>
+        <p>Microphone, to hear you. Accessibility, to paste into the app you are in; without it your text waits on the clipboard. Call audio, to hear the other side of an online call; it records only the call app's sound, and you can skip it and still dictate.</p>
+      </details>
+      <details>
+        <summary><h3>What can my agent see?</h3></summary>
+        <p>Your dictations and call transcripts, through the tools you leave on. The server listens only on your Mac and needs the token in Settings, Agents. Tools that record or change anything start off, because your agent reads what the other side of a call says, and that could steer it.</p>
+      </details>
+      <details>
+        <summary><h3>Why the email?</h3></summary>
+        <p>The link is personal, so I know who is running Dictate and can tell you when something breaks. The app itself has no sign-in.</p>
+      </details>
+      <details>
+        <summary><h3>I use OpenSuperWhisper. Will they clash?</h3></summary>
+        <p>Both start on Option+`. Change one in Settings, Shortcuts. If OpenSuperWhisper already has the speech model, Dictate reuses it instead of downloading 1.6 GB again.</p>
+      </details>
+      <details>
+        <summary><h3>Which call apps work, and should I tell people?</h3></summary>
+        <p>Zoom, Teams, Slack, Discord, FaceTime, WhatsApp, Signal, Telegram, Webex, Skype and Element, and calls in a browser tab such as Meet. Dictate does not tell the people on the other side apart. Tell them you are recording, because the law differs by country.</p>
+      </details>
+      <details>
+        <summary><h3>Which languages?</h3></summary>
+        <p>Whisper detects the language. Large v3 (3.1 GB) is there for languages where turbo does worse. The published tests are English only.</p>
+      </details>
     </div>
-    <div class="point">
-      <h2>No key throws a recording away</h2>
-      <p>The audio is on disk as you speak. After a crash or a quit, the next launch transcribes it.</p>
-    </div>
   </section>
 
-  <section class="rough">
-    <h2>Dictation, and how it works</h2>
-    <p>Press <kbd>Option+`</kbd> in any text field, talk, and press it again. Whisper large v3 turbo runs on your Mac with your key terms in its prompt, and Voice decodes the segments it's unsure of a second time and shows you what each retry changed.</p>
-    <p><b>Rough edges:</b> Apple silicon only. Both sides of an online call need Blend. The speech model is a 1.6 GB download.</p>
-  </section>
-
-  <section class="rough">
-    <h2>Is the code public?</h2>
-    <p>Yes. The code is source available under the Functional Source License, so you can check what Dictate does with your audio. You get the signed build, which updates itself, by email.</p>
-  </section>
-
-  <section class="bottom">
-    <p>Your audio never leaves your Mac, and there are no accounts. Voice goes online only to download the speech model and to check for updates. The update server counts update checks by app, version and country and never stores your IP address.</p>
-    <form class="signup" id="get" method="post" action="https://dictate.firstversion.in/api/signup">
-      <label class="sr" for="email">Email</label>
-      <input id="email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" required maxlength="254">
+  <section class="bottom" id="get">
+    <h2>Get Dictate</h2>
+    <form class="signup" method="post" action="https://dictate.firstversion.in/api/signup">
+      <label class="l" for="email-end">Email address</label>
+      <div class="field">
+        <input id="email-end" name="email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" required maxlength="254">
+        <button class="button primary" type="submit">Email me the link</button>
+      </div>
       <div class="hp" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div>
       <input type="hidden" name="source" value=""><input type="hidden" name="utm_source" value=""><input type="hidden" name="utm_medium" value=""><input type="hidden" name="utm_campaign" value="">
-      <button class="button primary" type="submit">Get early access</button>
       <div class="cf-turnstile" data-sitekey="0x4AAAAAAF-MEHP47FLn7LEY" data-appearance="interaction-only"></div>
       <p class="err" role="alert" hidden></p>
-      <p class="fine">We will email you the download link, a little beta news, and your free licence later. Reply to the email to be removed. <a href="privacy.html">Privacy</a></p>
+      <p class="fine">There is no public download during the beta. Free during the beta, and beta users keep it. I use your email for the link and beta news. Reply to be removed.</p>
     </form>
+    <p class="meta">Apple silicon, macOS 15 or later.</p>
+  </section>
+
+  <section class="recommend">
+    <h2>My other work</h2>
+    <div class="work">
+      <a class="point" href="https://spashii.github.io/blend/">
+        <img src="blend.svg" alt="" width="52" height="52">
+        <div><h3>Blend Mic</h3>
+        <p>A free, open source virtual microphone for Mac that mixes your voice with any app's sound.</p></div>
+      </a>
+    </div>
   </section>
 </main>
-<footer class="site">Made by <a href="https://github.com/spashii">Sameer</a>.</footer>
+<footer class="site">Made by <a href="https://github.com/spashii">Sameer</a>. Source available (FSL-1.1-MIT). <a href="https://github.com/spashii/dictate">GitHub</a>. <a href="evals.html">Evals</a>. <a href="privacy.html">Privacy</a>.</footer>
+
 <script src="form.js" defer></script>
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "14285a6efcfe4ee891ba0c75f932711c"}'></script>
+<script>
+if (location.hostname === "spashii.github.io") {
+  const s = document.createElement("script");
+  s.defer = true; s.src = "https://static.cloudflareinsights.com/beacon.min.js";
+  s.dataset.cfBeacon = '{"token": "14285a6efcfe4ee891ba0c75f932711c"}';
+  document.head.append(s);
+}
+</script>
+<script>
+/* Hero demo, about 11 seconds. Everything is a function of the clock. It plays once, holds on the
+   last frame, and replays with Replay. Reduced motion shows the last frame. */
+(() => {
+  const $ = id => document.getElementById(id);
+  const demo = $("demo"), pill = $("pill"), prow = $("prow"), lines = $("lines"), dtext = $("dtext");
+  const callwin = $("callwin"), chat = $("chat"), keys = $("keys"), inp = $("inp"), replay = $("replay");
+  const ids = ["m-user", "m-t1", "m-t2", "m-t3", "m-t4", "m-sum", "m-mail"].map($);
+  const T = { nudge: 300, press: 800, rec: 950, l1: 1300, l2: 1900, stop: 2700, chat: 3300, pillOff: 3500,
+    keys: 3900, dict: 4700, words: 4800, wordsEnd: 6700, paste: 6900, send: 7300,
+    t1: 7700, t2: 8150, t3: 8600, t4: 9050, sum: 9650, mail: 10300, end: 11000 };
+  const L1 = "Thanks for joining, Alex.", L2 = "Sure. I will send the Northwind slides today.";
+  const SAY = "Summarise my call with Alex and draft a follow-up email. Check our earlier calls too, and add any names you misheard to my key terms.".split(" ");
+  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  demo.classList.add("js");
+  const show = (el, on) => el.classList.toggle("show", on);
+  let sig = "";
+  const render = t => {
+    const secs = Math.max(0, Math.floor((t - T.rec) / 125));
+    const nw = t < T.words ? 0 : Math.min(SAY.length, Math.ceil((t - T.words) / (T.wordsEnd - T.words) * SAY.length));
+    const s = {
+      call: t < T.stop,
+      phase: t < T.rec ? "ask" : t < T.stop ? "rec" : t < T.dict ? "stopped" : "dict",
+      press: t >= T.press && t < T.rec,
+      pillOn: (t >= T.nudge && t < T.pillOff) || (t >= T.dict && t < T.paste),
+      l1: t >= T.l1 && t < T.stop, l2: t >= T.l2 && t < T.stop,
+      sec: t < T.stop ? secs : 0, chat: t >= T.chat, keys: t >= T.keys && t < T.dict,
+      nw, pasted: t >= T.paste && t < T.send, sent: t >= T.send,
+      m: [t >= T.send, t >= T.t1, t >= T.t2, t >= T.t3, t >= T.t4, t >= T.sum, t >= T.mail]
+    };
+    const key = JSON.stringify(s);
+    if (key === sig) return;
+    sig = key;
+    const fmt = n => "0:" + String(Math.min(n, 59)).padStart(2, "0");
+    pill.classList.toggle("on", s.pillOn);
+    pill.classList.toggle("open", s.l1 || s.nw > 0);
+    callwin.classList.toggle("gone", !s.call);
+    show(chat, s.chat); show(keys, s.keys);
+    if (s.phase === "ask") {
+      prow.innerHTML = '<span>Record this call?</span><span class="bt">Not now</span><span class="bt main' + (s.press ? ' press' : '') + '">Record</span>';
+    } else if (s.phase === "rec") {
+      prow.innerHTML = '<span class="rd"></span><span>Recording call</span><span class="time">' + fmt(s.sec) + '</span><span class="hint">\u21e7\u2325` stops</span>';
+    } else if (s.phase === "stopped") {
+      prow.innerHTML = '<span class="sq"></span><span>Alex</span><span class="time">' + fmt(secs0()) + '</span><span class="bt main">Copy Transcript</span>';
+    } else {
+      prow.innerHTML = '<span class="rd"></span><span class="levelbar"><i style="width:62%"></i></span><span class="time">' + fmt(Math.floor((s.nw) / 8)) + '</span>';
+    }
+    lines.innerHTML = (s.l1 ? '<div class="cl" style="opacity:' + (s.l2 ? .6 : 1) + '"><span class="me">Me</span><span>' + L1 + '</span></div>' : "")
+      + (s.l2 ? '<div class="cl"><span class="them">Call</span><span>' + L2 + '</span></div>' : "");
+    dtext.textContent = s.phase === "dict" ? SAY.slice(0, s.nw).join(" ") : "";
+    $("m-user").textContent = SAY.join(" ");
+    inp.innerHTML = s.pasted ? '<span class="pasted">' + SAY.join(" ") + '</span>' : '<span class="ph">Message</span>';
+    ids.forEach((el, i) => show(el, s.m[i]));
+  };
+  const secs0 = () => Math.floor((T.stop - T.rec) / 125);
+  if (still) { render(T.end); replay.hidden = true; return; }
+  let raf = 0, base = 0;
+  const frame = now => {
+    const t = now - base;
+    if (t >= T.end) { render(T.end); return; }
+    render(t); raf = requestAnimationFrame(frame);
+  };
+  const play = () => { cancelAnimationFrame(raf); sig = ""; base = performance.now(); raf = requestAnimationFrame(frame); };
+  replay.addEventListener("click", play);
+  render(0);
+  const io = new IntersectionObserver(([e], o) => { if (e.isIntersecting) { o.disconnect(); play(); } }, { threshold: .5 });
+  io.observe(demo);
+  window.__seek = t => { io.disconnect(); cancelAnimationFrame(raf); sig = ""; render(t); };
+})();
+</script>
 </body>
 </html>

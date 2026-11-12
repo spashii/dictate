@@ -1,10 +1,13 @@
-// Signup form: fills in where the visitor came from (utm_*, ?ref=), then sends it to the Dictate
+// Signup forms: fill in where the visitor came from (utm_*, ?ref=), then sends it to the Dictate
 // worker. Without JavaScript the form still posts normally and the worker redirects back here.
-const form = document.getElementById("get");
 const q = new URLSearchParams(location.search);
-const set = (name, value) => { const el = form.querySelector(`[name="${name}"]`); if (el && value) el.value = value.slice(0, 64); };
+const setIn = form => (name, value) => { const el = form.querySelector(`[name="${name}"]`); if (el && value) el.value = value.slice(0, 64); };
+document.querySelectorAll("form.signup").forEach(form => {
+const set = setIn(form);
 set("utm_source", q.get("utm_source")); set("utm_medium", q.get("utm_medium")); set("utm_campaign", q.get("utm_campaign"));
-set("source", q.get("ref") || q.get("utm_source") || "site");
+// Referring site host only (never the full URL), and not this site itself.
+const refHost = (() => { try { const h = new URL(document.referrer).hostname.replace(/^www\./, ""); return h && h !== "spashii.github.io" ? h : ""; } catch { return ""; } })();
+set("source", q.get("ref") || q.get("utm_source") || refHost || "site");
 
 const err = form.querySelector(".err");
 const button = form.querySelector("button");
@@ -23,4 +26,5 @@ form.addEventListener("submit", async (e) => {
   err.hidden = false;
   button.disabled = false;
   if (window.turnstile) window.turnstile.reset();
+});
 });

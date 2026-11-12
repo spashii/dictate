@@ -1,25 +1,69 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Privacy · Dictate</title><link rel="icon" href="icon.svg" type="image/svg+xml">
-<style>
-:root{--bg:#f8f7f6;--fg:#0c0b0b;--muted:#6f6b69}@media(prefers-color-scheme:dark){:root{--bg:#141211;--fg:#f4f1ef;--muted:#a39d99}}
-*{box-sizing:border-box;margin:0}body{background:var(--bg);color:var(--fg);font:17px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
-main{max-width:620px;margin:0 auto;padding:72px 24px}h1{font-size:34px;letter-spacing:-.03em;margin-bottom:8px}h2{font-size:18px;margin-top:28px}p,li{color:var(--muted);margin-top:8px}ul{margin-left:20px}a{color:inherit}
-</style></head><body><main>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy | Dictate</title>
+<meta name="description" content="What Dictate stores, what goes online, and what never leaves your Mac. Local dictation and call transcripts for Mac, with no accounts.">
+<link rel="canonical" href="https://spashii.github.io/dictate/privacy.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Dictate">
+<meta property="og:url" content="https://spashii.github.io/dictate/privacy.html">
+<meta property="og:title" content="Privacy | Dictate">
+<meta property="og:description" content="What Dictate stores, what goes online, and what never leaves your Mac. Local dictation and call transcripts for Mac, with no accounts.">
+<meta property="og:image" content="https://spashii.github.io/dictate/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Dictate: local dictation and call transcripts for Mac">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Privacy | Dictate">
+<meta name="twitter:description" content="What Dictate stores, what goes online, and what never leaves your Mac. Local dictation and call transcripts for Mac, with no accounts.">
+<meta name="twitter:image" content="https://spashii.github.io/dictate/og.png">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="nav" aria-label="Main">
+  <a class="brand" href="./"><img src="icon.svg" alt="" width="24" height="24">Dictate</a>
+  <div class="links">
+    <a href="evals.html">Evals</a>
+    <a href="./#questions">Questions</a>
+    <a href="https://github.com/spashii/dictate">GitHub</a>
+    <a class="button primary small" href="./#get">Get Dictate</a>
+  </div>
+</nav>
+<main id="main" class="doc">
 <h1>Privacy</h1>
-<p>Short version: we keep your email to send you Dictate, and you can ask us to delete it at any time.</p>
-<h2>What we store when you sign up</h2>
-<ul><li>Your email address.</li><li>When you signed up, and which wording of the form you saw.</li><li>Where you came from, if the link you followed said so (for example a campaign name).</li><li>Whether your download link was sent, and whether you opened it.</li></ul>
-<p>We do not store your IP address. To stop spam, we keep a salted, one-way hash of it for about two hours, which cannot be turned back into your address.</p>
-<h2>What we use it for</h2>
-<p>To email you the download link and occasional beta news. Nothing else, and we do not sell or share your address.</p>
+<p>Short version: I keep your email to send you Dictate, and you can ask me to delete it at any time.</p>
+<h2>What I store when you sign up</h2>
+<ul><li>Your email address.</li><li>When you signed up, and which wording of the form you saw.</li><li>Where you came from, if the link you followed said so (for example a campaign name).</li><li>Whether your download link was sent, whether you opened it, and whether the download started.</li></ul>
+<p>I do not store your IP address. To stop spam, I keep a salted, one-way hash of it for about two hours, which cannot be turned back into your address.</p>
+<h2>What I use it for</h2>
+<p>To email you the download link and occasional beta news. Nothing else, and I do not sell or share your address.</p>
 <h2>Who handles it</h2>
-<p>The signup form and its database run on Cloudflare, and the spam check is Cloudflare Turnstile. The site is hosted on GitHub Pages, and counts visits with Cloudflare Web Analytics, which sets no cookies and does not follow you across sites. We send each email by hand.</p>
+<p>The controller of your data is Sameer, the developer of Dictate. The signup form and its database run on Cloudflare, and the spam check is Cloudflare Turnstile. The site is hosted on GitHub Pages. Download links are sent from Sameer's own address.</p>
+<p>This site counts visits with Cloudflare Web Analytics, which sets no cookies and does not track you across sites.</p>
 <h2>Deleting your data</h2>
-<p>Reply to any email from us and ask to be removed. We delete your email and signup record. You can also ask for a copy of what we hold, or for a correction.</p>
-<h2>How long we keep it</h2>
-<p>Until the beta ends or you ask us to delete it, whichever comes first.</p>
+<p>Reply to any email from me and ask to be removed. I delete your email and signup record. You can also ask for a copy of what I hold, or for a correction.</p>
+<h2>Contact</h2>
+<p>Reply to any email I sent you.</p>
+<h2>How long I keep it</h2>
+<p>Until the beta ends or you ask me to delete it, whichever comes first.</p>
 <h2>The app itself</h2>
-<p>Your audio stays on your Mac. The app goes online only to fetch its speech model and to check for updates.</p>
+<p>Your audio stays on your Mac. The app goes online only to fetch its speech models and to check for updates. It reaches three hosts:</p>
+<ul><li>huggingface.co, for the speech and voice activity models.</li><li>apps.firstversion.in, for update checks.</li><li>dictate.firstversion.in, for update downloads.</li></ul>
+<p>The update server counts checks by app, version and country and never stores your IP address. If you connect an agent, it can read your transcripts, and where it sends them depends on that agent.</p>
 <p><a href="./">Back to Dictate</a></p>
-</main><script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "14285a6efcfe4ee891ba0c75f932711c"}'></script>
-</body></html>
+</main>
+<footer class="site">Made by <a href="https://github.com/spashii">Sameer</a>. Source available (FSL-1.1-MIT). <a href="https://github.com/spashii/dictate">GitHub</a>. <a href="evals.html">Evals</a>. <a href="privacy.html">Privacy</a>.</footer>
+<script>
+if (location.hostname === "spashii.github.io") {
+  const s = document.createElement("script");
+  s.defer = true; s.src = "https://static.cloudflareinsights.com/beacon.min.js";
+  s.dataset.cfBeacon = '{"token": "14285a6efcfe4ee891ba0c75f932711c"}';
+  document.head.append(s);
+}
+</script>
+</body>
+</html>
