@@ -223,7 +223,8 @@ final class AppModel {
         Task {
             do {
                 let retried = try await pipeline.run(URL(fileURLWithPath: dictation.audioPath), whisper: whisper)
-                store?.setOrigin(retried.id, dictation.origin, createdAt: dictation.createdAt)
+                store?.setOrigin(retried.id, dictation.origin, createdAt: dictation.createdAt,
+                                 timeZone: dictation.timeZone)
                 store?.delete(dictation.id)
                 recent = store?.recent(5) ?? recent
                 if retried.finalText.isEmpty {
