@@ -631,6 +631,8 @@ public final class CallStore: @unchecked Sendable {
             ALTER TABLE calls ADD COLUMN time_zone TEXT;
             ALTER TABLE dictations ADD COLUMN time_zone TEXT;
             """),
+        // A name a person gave a recording; a call has had one since calls-1.
+        ("titles-1", "ALTER TABLE dictations ADD COLUMN title TEXT;"),
     ]
 
     /// The names of the migrations this file has had.

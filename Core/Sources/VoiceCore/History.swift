@@ -26,6 +26,18 @@ public struct HistoryEntry: Sendable, Identifiable, Equatable, Hashable {
     public var hasText = true
     /// The recording the entry keeps, whether or not the file is still there.
     public var audioPath: String? = nil
+    /// The call's app, such as Slack, when the recorder could tell.
+    public var appName: String? = nil
+    /// The name a person gave it, which replaces the date as the row's main text.
+    public var customTitle: String? = nil
+
+    /// What kind of recording it is, as the menu names a call: "Slack call", "Call" or "Dictation".
+    public var kindLabel: String {
+        switch kind {
+        case .call: appName.map { "\($0) call" } ?? "Call"
+        case .dictation: "Dictation"
+        }
+    }
 
     public var id: String { "\(kind.rawValue):\(ref)" }
 }
@@ -128,18 +140,19 @@ extension CallStore {
         }
         return try queue.sync {
             let dictations = try db.query("""
-                SELECT d.id, d.created_at, d.duration, coalesce(d.corrected_text, d.final_text), d.time_zone, d.audio_path,
+                SELECT d.id, d.created_at, d.duration, coalesce(d.corrected_text, d.final_text), d.time_zone, d.audio_path, d.title,
                   (SELECT count(*) FROM segment_retries r WHERE r.dictation_id = d.id AND r.kept = 1 AND r.changed = 1)
                   + (SELECT count(*) FROM fix_edits f WHERE f.dictation_id = d.id)
-                  + (SELECT count(*) FROM edits e WHERE e.target = 'dictation:' || d.id)
+                  + (SELECT count(*) FROM edits e WHERE e.target = 'dictation:' || d.id AND e.kind <> 'rename_recording')
                 FROM dictations d WHERE d.duration >= ? AND coalesce(d.corrected_text, d.final_text) <> ''
                   AND (?3 IS NULL OR d.id IN (SELECT value FROM json_each(?3))
-                       OR coalesce(d.corrected_text, d.final_text) LIKE ?4 ESCAPE '\\')
+                       OR coalesce(d.corrected_text, d.final_text) LIKE ?4 ESCAPE '\\'
+                       OR coalesce(d.title, '') LIKE ?4 ESCAPE '\\')
                 ORDER BY d.created_at DESC LIMIT ?2
                 """, [Dictation.tooShort, limit, found, like]) { row in
                 HistoryEntry(kind: .dictation, ref: row.text(0), at: row.date(1), timeZone: row.string(4),
                              duration: row.double(2), title: Self.preview(row.text(3)), firstLine: Self.preview(row.text(3)),
-                             changes: row.int(6), audioPath: row.string(5))
+                             changes: row.int(7), audioPath: row.string(5), customTitle: row.string(6))
             }
             let calls = try db.query("""
                 SELECT c.id, c.started_at, coalesce(c.ended_at, c.started_at) - c.started_at,
@@ -150,7 +163,8 @@ extension CallStore {
                           AND trim(coalesce(s.corrected_text, s.text), ' ' || char(9, 10, 13)) <> ''),
                   (SELECT trim(coalesce(s.corrected_text, s.text)) FROM call_segments s WHERE s.call_id = c.id
                    AND trim(coalesce(s.corrected_text, s.text), ' ' || char(9, 10, 13)) <> ''
-                   ORDER BY s.start_ms, s.id LIMIT 1)
+                   ORDER BY s.start_ms, s.id LIMIT 1),
+                  c.title, c.app_name
                 FROM calls c WHERE \(Self.heardSomething("c"))
                   AND (?2 IS NULL OR c.id IN (SELECT value FROM json_each(?2))
                        OR coalesce(c.title, '') LIKE ?3 ESCAPE '\\' OR EXISTS (
@@ -160,7 +174,8 @@ extension CallStore {
                 """, [limit, found, like]) { row in
                 HistoryEntry(kind: .call, ref: row.text(0), at: row.date(1), timeZone: row.string(4),
                              duration: row.double(2), title: row.text(3), firstLine: row.string(8).map(Self.preview) ?? "",
-                             changes: row.int(6), hasText: row.int(7) != 0, audioPath: row.string(5))
+                             changes: row.int(6), hasText: row.int(7) != 0, audioPath: row.string(5), appName: row.string(10),
+                             customTitle: row.string(9))
             }
             return Array((dictations + calls).sorted { $0.at > $1.at }.prefix(limit))
         }
@@ -212,7 +227,8 @@ extension CallStore {
     private func correctionChanges(_ target: String) throws -> [Int64: [HistoryChange]] {
         let edits = try db.query("""
             SELECT id, client, old_value, new_value, target FROM edits
-            WHERE (target = ?1 OR target LIKE ?1 || '/segment:%') AND kind IN ('correct_dictation', 'correct_segment', 'undo')
+            WHERE (target = ?1 OR target LIKE ?1 || '/segment:%') AND (kind IN ('correct_dictation', 'correct_segment')
+              OR (kind = 'undo' AND undoes IN (SELECT id FROM edits WHERE kind IN ('correct_dictation', 'correct_segment'))))
             ORDER BY id
             """, [target]) { row in
             (id: row.int64(0), client: row.string(1), before: Self.editText(row.string(2)),
