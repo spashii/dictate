@@ -32,8 +32,9 @@ final class Preferences {
     var whisperModel: WhisperModel { didSet { save(whisperModel.rawValue, "whisperModel") } }
     /// Forever by default: past dictations are the test set for whisper and the prompt.
     var history: History { didSet { save(history.rawValue, "history") } }
-    /// Decodes the segments whisper was least sure of a second time, within half the first
-    /// decode's time. On by default.
+    /// Decodes the segments whisper was least sure of a second time, worst first. No further
+    /// retry starts once the retries so far took half the first decode's time; the one in
+    /// progress finishes. On by default.
     var retrySegments: Bool { didSet { UserDefaults.standard.set(retrySegments, forKey: "retrySegments") } }
     /// How History labels a line's time: the clock it was said at, or the time into the recording.
     var historyTimes: HistoryTimeMode { didSet { save(historyTimes.rawValue, HistoryTimeMode.defaultsKey) } }

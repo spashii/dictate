@@ -23,6 +23,6 @@ On a 16 GB Mac, Whisper and a large Ollama model don't fit on the GPU together. 
 
 Speech recognition is Whisper large v3 turbo (whisper.cpp) on your Mac's GPU. Dictate cuts the audio at pauses with the Silero voice activity model and sends each piece to Whisper with the key terms and the text before it as the prompt.
 
-Whisper gives every segment a confidence, and Dictate stores it. Dictate decodes the least sure segments again with beam search, spending at most half the time of the first pass, and shows you what each retry changed.
+Whisper gives every segment a confidence, and Dictate stores it. Dictate decodes the least sure segments again with beam search, worst first, and shows you what each retry changed. No new retry starts once the retries so far have taken half the time of the first pass. A retry already running finishes, so the total can go slightly over.
 
 Dictation shares Whisper with an online call, so a dictation during one waits behind the call's pieces.
