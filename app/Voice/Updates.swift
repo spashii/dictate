@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import Sparkle
 
-/// Updates come through Sparkle. It reads the appcast from dictate.firstversion.in, which
+/// Updates come through Sparkle. It reads the appcast from apps.firstversion.in, the update host, which
 /// counts the checks, verifies each update against the signing key in Info.plist, and asks
 /// before installing. On the second launch it asks whether to check automatically. Apart
 /// from the speech model downloads, nothing else in Dictate goes online.
