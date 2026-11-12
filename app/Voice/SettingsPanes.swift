@@ -411,41 +411,43 @@ struct AboutPane: View {
 
     var body: some View {
         @Bindable var updates = model.updates
-        VStack(spacing: 0) {
-            Spacer()
-            VStack(spacing: 4) {
-                Image(nsImage: NSApp.applicationIconImage)
-                    .resizable()
-                    .frame(width: 96, height: 96)
-                Text(AppName.name).font(.title.weight(.semibold)).padding(.top, 8)
-                Text("Version \(Self.version)").foregroundStyle(.secondary)
-                Button("Check for Updates\u{2026}") { model.updates.check() }
-                    .disabled(!model.updates.canCheck)
-                    .padding(.top, 10)
-                Toggle("Check for updates automatically", isOn: $updates.automatic)
-                    .toggleStyle(.checkbox)
-                    .padding(.top, 4)
-                VStack(spacing: 6) {
-                    Link(destination: URL(string: "https://github.com/spashii")!) {
-                        Label("github.com/spashii", systemImage: "arrow.up.right.square")
-                    }
-                    Link(destination: SupportItem.repository) {
-                        Label("github.com/spashii/dictate", systemImage: "arrow.up.right.square")
+        Form {
+            Section {
+                HStack(spacing: 14) {
+                    Image(nsImage: NSApp.applicationIconImage)
+                        .resizable()
+                        .frame(width: 56, height: 56)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(AppName.name).font(.title2.weight(.semibold))
+                        Text("Version \(Self.version)").foregroundStyle(.secondary)
                     }
                 }
-                .padding(.top, 20)
+                .padding(.vertical, 4)
             }
-            Spacer()
-            HStack(spacing: 4) {
-                Text("Source available under the Functional Source License (FSL-1.1-MIT), \u{00A9} 2026 The Dictate authors. Each version becomes MIT two years after its release.")
-                    .foregroundStyle(.secondary)
-                Button("Third-party notices") { showingNotices = true }
-                    .buttonStyle(.link)
+            Section {
+                LabeledContent("Updates") {
+                    Button("Check for Updates\u{2026}") { model.updates.check() }
+                        .disabled(!model.updates.canCheck)
+                }
+                Toggle("Check for updates automatically", isOn: $updates.automatic)
             }
-            .font(.caption)
-            .padding(.bottom, 16)
+            Section {
+                Link(destination: URL(string: "https://github.com/spashii")!) {
+                    Label("github.com/spashii", systemImage: "arrow.up.right.square")
+                }
+                Link(destination: SupportItem.repository) {
+                    Label("github.com/spashii/dictate", systemImage: "arrow.up.right.square")
+                }
+            } footer: {
+                HStack(spacing: 4) {
+                    Text("Source available under the Functional Source License (FSL-1.1-MIT), \u{00A9} 2026 The Dictate authors. Each version becomes MIT two years after its release.")
+                    Button("Third-party notices") { showingNotices = true }
+                        .buttonStyle(.link)
+                }
+                .padding(.top, 8)
+            }
         }
-        .frame(maxWidth: .infinity)
+        .formStyle(.grouped)
         .sheet(isPresented: $showingNotices) { NoticesSheet() }
     }
 
