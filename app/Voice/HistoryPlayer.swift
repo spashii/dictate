@@ -15,8 +15,19 @@ final class HistoryPlayer {
     /// as playing while paused too.
     private(set) var hasStarted = false
 
+    /// The line being heard. It changes only when the playhead moves into another line, so a
+    /// view that reads it redraws then, not at every tick of `currentTime`.
+    private(set) var playingLine: Int?
+    /// Which line a time falls in; set by whoever shows the transcript.
+    @ObservationIgnored var lineAt: ((Double) -> Int?)?
+
     @ObservationIgnored private var player: AVAudioPlayer?
     @ObservationIgnored private var ticker: Task<Void, Never>?
+
+    private func updatePlayingLine() {
+        let line = hasStarted ? lineAt?(currentTime) : nil
+        if line != playingLine { playingLine = line }
+    }
 
     func load(_ url: URL?) {
         stop()
@@ -50,6 +61,7 @@ final class HistoryPlayer {
         guard let player else { return }
         player.currentTime = min(max(0, seconds), duration)
         currentTime = player.currentTime
+        updatePlayingLine()
     }
 
     func stop() {
@@ -61,6 +73,7 @@ final class HistoryPlayer {
         isLoaded = false
         currentTime = 0
         duration = 0
+        playingLine = nil
     }
 
     private func resume() {
@@ -69,16 +82,21 @@ final class HistoryPlayer {
         isPlaying = true
         hasStarted = true
         currentTime = player.currentTime
+        updatePlayingLine()
         ticker?.cancel()
         ticker = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(100))
                 guard let self, let player = self.player else { return }
                 self.currentTime = player.currentTime
+                self.updatePlayingLine()
                 if !player.isPlaying {
                     self.isPlaying = false
                     // Reached the end: nothing is playing any more.
-                    if player.currentTime == 0 || player.currentTime >= self.duration - 0.05 { self.hasStarted = false }
+                    if player.currentTime == 0 || player.currentTime >= self.duration - 0.05 {
+                        self.hasStarted = false
+                        self.updatePlayingLine()
+                    }
                     return
                 }
             }

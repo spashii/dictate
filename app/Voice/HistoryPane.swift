@@ -18,10 +18,15 @@ final class HistoryModel {
     var search = ""
     var selection: HistoryEntry.ID?
     private(set) var detail: HistoryDetail?
+    /// The detail's blocks, made once when it loads instead of on every redraw.
+    private(set) var blocks: [TranscriptBlock] = []
     private(set) var waveform: [Float] = []
     let player = HistoryPlayer()
     @ObservationIgnored private var store: CallStore?
     @ObservationIgnored private var loading: Task<Void, Never>?
+    /// How many entries are read; the list grows by a page when its end comes into view.
+    @ObservationIgnored private var limit = HistoryModel.page
+    private static let page = 200
 
     var visible: [HistoryEntry] {
         switch filter {
@@ -33,16 +38,32 @@ final class HistoryModel {
 
     var selected: HistoryEntry? { visible.first { $0.id == selection } }
 
-    /// The list as it is now, for the search text; the selection stays when its entry is still there.
+    /// The list as it is now, for the search text. The selection and the open detail stay put,
+    /// so a refresh while someone reads or listens changes nothing they are looking at, unless
+    /// the selected entry itself changed (an agent corrected it) and nothing is playing.
     func reload() {
         let query = search
+        let limit = limit
         Task {
             let store = await openStore()
-            let read = (try? await Task.detached { try store?.historyEntries(matching: query) ?? [] }.value) ?? []
+            let read = (try? await Task.detached { try store?.historyEntries(limit: limit, matching: query) ?? [] }.value) ?? []
             guard query == search else { return }
+            let before = selected
+            guard read != entries else { return }
             entries = read
-            keepSelection()
+            if detail == nil || !visible.contains(where: { $0.id == selection }) {
+                keepSelection()
+            } else if let before, let now = selected, before != now, !player.isPlaying {
+                select(selection)
+            }
         }
+    }
+
+    /// Reads the next page when the last row is reached and the last read was full.
+    func loadMoreIfNeeded(at entry: HistoryEntry) {
+        guard entry.id == entries.last?.id, entries.count >= limit else { return }
+        limit += Self.page
+        reload()
     }
 
     /// Called when the filter changes: a selection the filter hides moves to the first row.
@@ -56,6 +77,7 @@ final class HistoryModel {
         player.stop()
         guard let entry = visible.first(where: { $0.id == id }) else {
             detail = nil
+            blocks = []
             waveform = []
             return
         }
@@ -64,6 +86,9 @@ final class HistoryModel {
             let read = try? await Task.detached { try store?.historyDetail(entry) }.value
             guard !Task.isCancelled else { return }
             detail = read ?? nil
+            blocks = (read ?? nil).map(TranscriptBlocks.make) ?? []
+            let shown = read ?? nil
+            player.lineAt = { seconds in shown?.line(at: seconds)?.id }
             let audio = entry.audioFile
             player.load(audio)
             waveform = []
@@ -130,6 +155,13 @@ struct HistoryPane: View {
             .frame(minWidth: 380, maxWidth: .infinity)
         }
         .onAppear { history.reload() }
+        .task {
+            // Recordings finish and agents correct text while the window is open.
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                history.reload()
+            }
+        }
         .task(id: history.search) {
             // Typing settles for a moment before the database is asked.
             try? await Task.sleep(for: .milliseconds(200))
@@ -186,6 +218,7 @@ private struct HistoryList: View {
             } else {
                 List(history.visible, selection: $history.selection) { entry in
                     HistoryRow(entry: entry)
+                        .onAppear { history.loadMoreIfNeeded(at: entry) }
                         .contextMenu {
                             Button("Copy") { Task { await history.copy(entry) } }
                         }
@@ -229,11 +262,15 @@ private struct HistoryDetailView: View {
     @Environment(AppModel.self) private var model
     let history: HistoryModel
     let detail: HistoryDetail
+    /// The one popover, anchored to the corrected word under the pointer.
+    @State private var hovered: HoveredCorrection?
 
     var body: some View {
         let preferences = model.preferences
-        let blocks = TranscriptBlocks.make(detail)
-        let playing = history.player.hasStarted ? detail.line(at: history.player.currentTime) : nil
+        let blocks = history.blocks
+        let player = history.player
+        // Read here, so a change of line redraws this body, and a tick of the clock does not.
+        let playingLine = player.playingLine
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(HistoryTime.title(start: detail.entry.at, zone: detail.entry.timeZone))
@@ -249,10 +286,17 @@ private struct HistoryDetailView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 8) {
                         ForEach(blocks) { block in
-                            TranscriptBlockView(block: block, detail: detail, playing: playing?.id,
+                            // Only the block holding the playing line is told which it is, so the
+                            // others compare equal and are not redrawn when it moves.
+                            TranscriptBlockView(block: block, entry: detail.entry,
+                                                playing: block.lines.contains { $0.id == playingLine } ? playingLine : nil,
                                                 times: preferences.historyTimes,
                                                 showCorrections: preferences.showCorrections,
-                                                play: { history.player.play(from: $0) })
+                                                play: { player.play(from: $0) },
+                                                hover: { id, correction in
+                                    if let correction { hovered = correction } else if hovered?.wordID == id { hovered = nil }
+                                })
+                                .equatable()
                                 .id(block.id)
                         }
                         if preferences.showCorrections {
@@ -260,15 +304,20 @@ private struct HistoryDetailView: View {
                         }
                     }
                     .padding(.vertical, 12)
+                    .coordinateSpace(name: HoveredCorrection.space)
+                    .popover(isPresented: Binding(get: { hovered != nil }, set: { if !$0 { hovered = nil } }),
+                             attachmentAnchor: .rect(.rect(hovered?.frame ?? .zero)), arrowEdge: .bottom) {
+                        if let hovered { CorrectionPopover(correction: hovered.correction) }
+                    }
                 }
-                .onChange(of: playing?.id) { _, id in
-                    guard history.player.isPlaying, let id,
+                .onChange(of: playingLine) { _, id in
+                    guard player.isPlaying, let id,
                           let block = blocks.first(where: { $0.lines.contains { $0.id == id } }) else { return }
                     proxy.scrollTo(block.id)
                 }
             }
             Divider()
-            PlayBar(player: history.player, waveform: history.waveform, duration: detail.entry.duration)
+            PlayBar(player: player, waveform: history.waveform, duration: detail.entry.duration)
         }
         .toolbar {
             ToolbarItem {
@@ -294,20 +343,46 @@ private struct HistoryDetailView: View {
     }
 }
 
+/// The corrected word the pointer is over and where it is in the transcript.
+private struct HoveredCorrection: Equatable {
+    static let space = "transcript"
+    var wordID: String
+    var correction: TextCorrection
+    var frame: CGRect
+}
+
 /// One block of the transcript: its time, who spoke, and the words, laid out so the time, the
-/// label and the first line of text share a baseline.
-private struct TranscriptBlockView: View {
+/// label and the first line of text share a baseline. To VoiceOver it is one element that
+/// reads speaker, time and text, plays from here, and lists its corrections. Return plays it
+/// from the keyboard.
+private struct TranscriptBlockView: View, @MainActor Equatable {
     let block: TranscriptBlock
-    let detail: HistoryDetail
+    let entry: HistoryEntry
+    /// The line being heard, when it is in this block.
     let playing: Int?
     let times: HistoryTimeMode
     let showCorrections: Bool
     let play: (Double) -> Void
+    let hover: (String, HoveredCorrection?) -> Void
     @State private var hovered: Int?
+
+    static func == (a: Self, b: Self) -> Bool {
+        a.block == b.block && a.entry.id == b.entry.id && a.playing == b.playing && a.times == b.times
+            && a.showCorrections == b.showCorrections
+    }
+
+    /// Past this many words a block is laid out in lazily made chunks, so a long monologue
+    /// doesn't build thousands of word views at once.
+    private static let lazyWords = 300
+    private static let chunkWords = 120
+
+    private var time: String {
+        HistoryTime.line(start: entry.at, offset: block.start, zone: entry.timeZone, mode: times)
+    }
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Text(HistoryTime.line(start: detail.entry.at, offset: block.start, zone: detail.entry.timeZone, mode: times))
+            Text(time)
                 .font(.system(size: 12).monospacedDigit())
                 .foregroundStyle(.tertiary)
                 .frame(width: 64, alignment: .trailing)
@@ -319,24 +394,14 @@ private struct TranscriptBlockView: View {
                             .offset(y: -1)
                     }
                 }
-            if detail.entry.kind == .call {
+            if entry.kind == .call {
                 Text(block.speaker ?? "")
                     .fontWeight(.semibold)
                     .foregroundStyle(block.speaker == "Me" ? .primary : .secondary)
                     .frame(width: 40, alignment: .leading)
             }
             VStack(alignment: .leading, spacing: 4) {
-                FlowLayout(lineSpacing: 3) {
-                    ForEach(block.lines) { line in
-                        ForEach(Array(line.words.enumerated()), id: \.offset) { _, word in
-                            WordView(word: word, playing: playing == line.id, hovered: hovered == line.id)
-                                .onHover { inside in
-                                    if inside { hovered = line.id } else if hovered == line.id { hovered = nil }
-                                }
-                                .onTapGesture { play(line.t0) }
-                        }
-                    }
-                }
+                text
                 if showCorrections {
                     ForEach(block.lines.flatMap(\.changes)) { ChangeRow(change: $0) }
                 }
@@ -344,16 +409,78 @@ private struct TranscriptBlockView: View {
         }
         .padding(.horizontal, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .focusable()
+        .onKeyPress(.return) {
+            play(block.start)
+            return .handled
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(block.spokenLabel(time: time))
+        .accessibilityAction(named: "Play from here") { play(block.start) }
+        .modifier(CorrectionContent(descriptions: block.correctionDescriptions))
+    }
+
+    @ViewBuilder private var text: some View {
+        let chunks = Self.chunks(of: block.lines)
+        if chunks.count > 1 {
+            LazyVStack(alignment: .leading, spacing: 3) {
+                ForEach(chunks.indices, id: \.self) { flow(chunks[$0]) }
+            }
+        } else {
+            flow(block.lines)
+        }
+    }
+
+    private func flow(_ lines: [HistoryLine]) -> some View {
+        FlowLayout(lineSpacing: 3) {
+            ForEach(lines) { line in
+                ForEach(Array(line.words.enumerated()), id: \.offset) { index, word in
+                    WordView(word: word, id: "\(line.id)-\(index)", playing: playing == line.id, hovered: hovered == line.id,
+                             hover: hover)
+                        .onHover { inside in
+                            if inside { hovered = line.id } else if hovered == line.id { hovered = nil }
+                        }
+                        .onTapGesture { play(line.t0) }
+                }
+            }
+        }
+    }
+
+    /// Lines in groups of about `chunkWords` words, one group for a block that isn't long.
+    private static func chunks(of lines: [HistoryLine]) -> [[HistoryLine]] {
+        let counts = lines.map { $0.text.split(whereSeparator: \.isWhitespace).count }
+        guard counts.reduce(0, +) > lazyWords else { return [lines] }
+        var chunks: [[HistoryLine]] = [[]]
+        var words = 0
+        for (line, count) in zip(lines, counts) {
+            if words >= chunkWords { chunks.append([]); words = 0 }
+            chunks[chunks.count - 1].append(line)
+            words += count
+        }
+        return chunks
+    }
+}
+
+/// Each correction as a detail VoiceOver reads on request, so none depends on hovering.
+private struct CorrectionContent: ViewModifier {
+    let descriptions: [String]
+
+    func body(content: Content) -> some View {
+        descriptions.enumerated().reduce(AnyView(content)) { view, item in
+            AnyView(view.accessibilityCustomContent(AccessibilityCustomContentKey("Correction \(item.offset + 1)"), item.element))
+        }
     }
 }
 
 /// A word and the space after it, so a highlight over a line has no gaps. A corrected word has a
-/// dotted underline, and hovering it says what it was.
+/// dotted underline; hovering it reports where it is so one shared popover can say what it was.
 private struct WordView: View {
     let word: LineWord
+    let id: String
     let playing: Bool
     let hovered: Bool
-    @State private var showing = false
+    let hover: (String, HoveredCorrection?) -> Void
+    @State private var frame: CGRect = .zero
 
     var body: some View {
         HStack(spacing: 0) {
@@ -362,12 +489,17 @@ private struct WordView: View {
         }
         .background(playing ? Color.accentColor.opacity(0.16) : hovered ? Color.primary.opacity(0.07) : .clear)
         .contentShape(Rectangle())
-        .onHover { inside in
-            guard word.correction != nil else { return }
-            showing = inside
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(HoveredCorrection.space)) } action: {
+            if word.correction != nil { frame = $0 }
         }
-        .popover(isPresented: $showing, arrowEdge: .bottom) {
-            if let correction = word.correction { CorrectionPopover(correction: correction) }
+        .onHover { inside in
+            guard let correction = word.correction else { return }
+            if inside {
+                hover(id, HoveredCorrection(wordID: id, correction: correction, frame: frame))
+            } else {
+                // Only this word's own exit clears it, so entering the next word is not undone.
+                hover(id, nil)
+            }
         }
     }
 }
@@ -468,7 +600,10 @@ private struct PlayBar: View {
             Text(HistoryTime.elapsed(player.currentTime)).monospacedDigit().foregroundStyle(.secondary)
                 .frame(width: 44, alignment: .trailing)
             WaveformScrubber(peaks: waveform, progress: total > 0 ? player.currentTime / total : 0,
-                             enabled: player.isLoaded) { player.seek(to: $0 * total) }
+                             enabled: player.isLoaded,
+                             value: "\(HistoryTime.elapsed(player.currentTime)) of \(HistoryTime.elapsed(total))",
+                             step: { player.seek(to: player.currentTime + Double($0) * 5) },
+                             seek: { player.seek(to: $0 * total) })
                 .frame(height: 30)
             Text(HistoryTime.elapsed(total)).monospacedDigit().foregroundStyle(.secondary)
                 .frame(width: 44, alignment: .leading)
@@ -484,6 +619,10 @@ private struct WaveformScrubber: View {
     let peaks: [Float]
     let progress: Double
     let enabled: Bool
+    /// "0:12 of 1:05", read by VoiceOver.
+    let value: String
+    /// Moves the playhead by this many five-second steps, for VoiceOver's adjust gestures.
+    let step: (Int) -> Void
     let seek: (Double) -> Void
 
     var body: some View {
@@ -505,6 +644,17 @@ private struct WaveformScrubber: View {
                 guard enabled, proxy.size.width > 0 else { return }
                 seek(min(max(0, value.location.x / proxy.size.width), 1))
             })
+        }
+        .accessibilityElement()
+        .accessibilityLabel("Playback position")
+        .accessibilityValue(value)
+        .accessibilityAdjustableAction { direction in
+            guard enabled else { return }
+            switch direction {
+            case .increment: step(1)
+            case .decrement: step(-1)
+            @unknown default: break
+            }
         }
     }
 }
