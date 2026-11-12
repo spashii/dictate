@@ -117,7 +117,7 @@ extension View {
 struct IndicatorView: View {
     @Environment(AppModel.self) private var model
     @Environment(PillHoverState.self) private var hover
-    static let space = "indicator"
+    nonisolated static let space = "indicator"
 
     var body: some View {
         VStack(spacing: 6) {

@@ -77,17 +77,19 @@ struct MainView: View {
     var body: some View {
         @Bindable var model = model
         NavigationSplitView {
-            List(MainPane.allCases, selection: $model.pane) { pane in
-                HStack {
-                    Label(pane.title, systemImage: pane.symbol)
-                    Spacer()
-                    if pane == .general, !model.setupComplete {
-                        Image(systemName: "exclamationmark.circle.fill")
-                            .foregroundStyle(.orange)
-                            .help("Setup isn't finished")
+            List(selection: $model.pane) {
+                ForEach(MainPane.allCases) { pane in
+                    HStack {
+                        Label(pane.title, systemImage: pane.symbol)
+                        Spacer()
+                        if pane == .general, !model.setupComplete {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .foregroundStyle(.orange)
+                                .help("Setup isn't finished")
+                        }
                     }
+                    .tag(pane)
                 }
-                .tag(pane)
             }
             .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 240)
         } detail: {

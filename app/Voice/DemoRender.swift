@@ -5,15 +5,17 @@ import VoiceCore
 
 /// Draws each pane of the main window, in light and dark, and the live pills with the
 /// pointer over them and away, from made-up data, into the folder named by VOICE_DEMO_OUT.
-/// Start it with HOME pointing at an empty folder: the app's database, models and
-/// preferences then all live there, and it refuses to run anywhere else.
+/// It needs a build with the bundle identifier io.github.spashii.voice.demo and
+/// VOICE_DEMO_SUPPORT pointing at an empty voice-demo-home folder, and refuses to run otherwise.
 @MainActor
 enum DemoRender {
     private static var out = URL(fileURLWithPath: ProcessInfo.processInfo.environment["VOICE_DEMO_OUT"] ?? "/dev/null")
 
     static func start(model: AppModel, calls: CallsModel) {
-        guard Paths.support.path.contains("voice-demo-home") else {
-            FileHandle.standardError.write(Data("Refusing to render outside a voice-demo-home folder.\n".utf8))
+        // Preferences live in the bundle's defaults domain, so only a build with its own
+        // identifier may write them; the installed app's would be changed otherwise.
+        guard Paths.support.path.contains("voice-demo-home"), Bundle.main.bundleIdentifier?.hasSuffix(".demo") == true else {
+            FileHandle.standardError.write(Data("Refusing to render outside a demo build and a voice-demo-home folder.\n".utf8))
             exit(2)
         }
         Task {
@@ -62,11 +64,12 @@ enum DemoRender {
                               calls: CallsModel, scrollToEnd: Bool = false) async {
         main.show(pane, model: model, calls: calls)
         guard let window = main.nsWindow else { return }
+        window.animationBehavior = .none
         window.setContentSize(NSSize(width: 880, height: 760))
         window.center()
         window.appearance = NSApp.appearance
         try? await Task.sleep(for: .seconds(1.5))
-        if scrollToEnd, let scroll = window.contentView.flatMap(Self.scrollViews)?.last {
+        if scrollToEnd, let scroll = window.contentView.flatMap(Self.scrollViews)?.max(by: { $0.frame.height < $1.frame.height }) {
             let view = scroll.documentView
             view?.scroll(NSPoint(x: 0, y: (view?.bounds.height ?? 0) - scroll.contentView.bounds.height))
             try? await Task.sleep(for: .seconds(0.6))
@@ -85,6 +88,8 @@ enum DemoRender {
             model.liveText = "so the plan for the pilot is to start with the Northwind workshop"
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 210), styleMask: [.titled],
                                   backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.animationBehavior = .none
             window.titlebarAppearsTransparent = true
             window.titleVisibility = .hidden
             window.appearance = NSApp.appearance
@@ -105,11 +110,21 @@ enum DemoRender {
 
     private static func capture(_ window: NSWindow, as name: String) {
         let file = out.appending(path: name + ".png")
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-        task.arguments = ["-x", "-o", "-l", "\(window.windowNumber)", file.path]
-        try? task.run()
-        task.waitUntilExit()
+        // The compositor's picture of the window, which only an app's own windows can be
+        // read without screen recording permission. The symbol is looked up by name since
+        // the SDK no longer declares it.
+        typealias Create = @convention(c) (CGRect, UInt32, UInt32, UInt32) -> Unmanaged<CGImage>?
+        guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "CGWindowListCreateImage") else {
+            FileHandle.standardError.write(Data("CGWindowListCreateImage is gone.\n".utf8))
+            return
+        }
+        let create = unsafeBitCast(symbol, to: Create.self)
+        // Only this window, without its shadow, at the display's full resolution.
+        guard let image = create(.null, 8, UInt32(window.windowNumber), (1 << 0) | (1 << 3))?.takeRetainedValue() else {
+            FileHandle.standardError.write(Data("No image for \(name).\n".utf8))
+            return
+        }
+        try? NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])?.write(to: file)
     }
 
     /// Made-up history in the throwaway database: three dictations and a call.
@@ -118,18 +133,19 @@ enum DemoRender {
         try FileManager.default.createDirectory(at: Paths.support, withIntermediateDirectories: true)
         let store = try Store(url: Paths.database)
         let now = Date()
-        func dictation(_ id: String, _ ago: Double, _ text: String, edits: String = "") throws {
+        func dictation(_ id: String, _ ago: Double, _ text: String, final: String? = nil, edits: String = "") throws {
             let json = """
             {"id":"\(id)","createdAt":\(now.addingTimeInterval(-ago).timeIntervalSinceReferenceDate),
              "audioPath":"/nonexistent/\(id).wav","duration":6,"mode":"fix","whisperModel":"large-v3-turbo",
-             "rawText":"\(text)","finalText":"\(text)","timings":{},
+             "rawText":"\(text)","finalText":"\(final ?? text)","timings":{},
              "segments":[{"t0":0,"t1":6,"text":"\(text)","avgLogprob":-0.2,"noSpeechProb":0,"compressionRatio":1,
              "speechSeconds":6,"wordsPerSecond":2.5}]\(edits)}
             """
             try store.insert(try JSONDecoder().decode(Dictation.self, from: Data(json.utf8)))
         }
-        try dictation("d1", 300, "Send the agenda for the Northwind workshop to Alex before Friday.",
-                      edits: ",\"fixEdits\":[{\"segment\":0,\"span\":\"Northwynd\",\"replacement\":\"Northwind\",\"keyTerm\":\"Northwind\",\"offset\":25}]")
+        try dictation("d1", 300, "Send the agenda for the Northwynd workshop to Alex before Friday.",
+                      final: "Send the agenda for the Northwind workshop to Alex before Friday.",
+                      edits: ",\"fixEdits\":[{\"segment\":0,\"span\":\"Northwynd\",\"replacement\":\"Northwind\",\"keyTerm\":\"Northwind\",\"offset\":24}]")
         try dictation("d2", 3600 * 3, "Remind me to book the venue and confirm the catering numbers.")
         try dictation("d3", 3600 * 26, "The quarterly report needs the retention chart on the second page.")
         let calls = try CallStore(url: Paths.database)
@@ -155,6 +171,7 @@ private struct DemoPills: View {
                 ForEach(0..<9, id: \.self) { _ in
                     Text("Notes from the planning call: the pilot starts in March and the first review is two weeks later.")
                         .lineLimit(1)
+                        .fontWeight(.regular)
                 }
             }
             .padding(24)

@@ -17,7 +17,13 @@ public enum VoiceError: Error, CustomStringConvertible {
 /// Where Voice keeps its models, recordings and database.
 public enum Paths {
     public static var support: URL {
-        FileManager.default.homeDirectoryForCurrentUser
+        #if DEBUG
+        // Lets a Debug build draw its windows from made-up data without touching the real folder.
+        if let demo = ProcessInfo.processInfo.environment["VOICE_DEMO_SUPPORT"] {
+            return URL(fileURLWithPath: demo, isDirectory: true)
+        }
+        #endif
+        return FileManager.default.homeDirectoryForCurrentUser
             .appending(path: "Library/Application Support/Voice", directoryHint: .isDirectory)
     }
     public static var models: URL { support.appending(path: "models", directoryHint: .isDirectory) }
