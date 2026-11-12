@@ -145,8 +145,8 @@ struct ModelPane: View {
     var body: some View {
         @Bindable var preferences = model.preferences
         Form {
-            Section("Speech model") {
-                Picker("Model", selection: Binding(get: { preferences.whisperModel },
+            Section {
+                Picker("Speech model", selection: Binding(get: { preferences.whisperModel },
                                                    set: { model.chooseWhisperModel($0) })) {
                     ForEach(WhisperModel.allCases) { whisperModel in
                         Text(whisperModel == .largeV3Turbo ? "\(whisperModel.title) (recommended)" : whisperModel.title)
@@ -160,14 +160,14 @@ struct ModelPane: View {
                 }
                 SuggestedTermsView()
             }
-            Section("Retries") {
+            Section {
                 Toggle(isOn: $preferences.retrySegments) {
                     Text("Retry unsure segments")
                     Text("Words whisper was unsure of are transcribed again, more carefully. This can add a moment before the paste.")
                 }
                 RetryStatsView()
             }
-            Section("Fix the text") {
+            Section {
                 Toggle(isOn: $preferences.runPrompt) {
                     Text("Fix the text before pasting")
                     Text("A model on this Mac reads the text with your key terms and can change a few misheard words. This adds a moment before the paste.")
