@@ -10,6 +10,11 @@ let package = Package(
         .library(name: "VoiceCore", targets: ["VoiceCore"]),
         .executable(name: "dictate-cli", targets: ["dictate-cli"]),
     ],
+    dependencies: [
+        // TEMPORARY: BlendKit from a local checkout on the Air, while Blend's release isn't
+        // out. D5 replaces it with the released package pinned `exact:`.
+        .package(path: "../../blendkit-build/kit/kit"),
+    ],
     targets: [
         // whisper.cpp's prebuilt framework, with Metal and its shaders built in. Release b5454
         // is the build of v1.9.5.
@@ -20,11 +25,12 @@ let package = Package(
         ),
         .target(
             name: "VoiceCore",
-            dependencies: ["whisper"],
+            dependencies: ["whisper", .product(name: "BlendKit", package: "kit")],
             linkerSettings: [.linkedLibrary("sqlite3")]
         ),
         .executableTarget(name: "dictate-cli", dependencies: ["VoiceCore", "whisper"]),
         // whisper too, so a test can check the tokenizer against a fully loaded model.
-        .testTarget(name: "VoiceCoreTests", dependencies: ["VoiceCore", "whisper"]),
+        .testTarget(name: "VoiceCoreTests",
+                    dependencies: ["VoiceCore", "whisper", .product(name: "BlendKit", package: "kit")]),
     ]
 )

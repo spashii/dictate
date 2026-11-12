@@ -15,6 +15,11 @@ packages:
   # Records, transcribes, cleans up and stores; shared with dictate-cli.
   VoiceCore:
     path: ../Core
+  # Records both sides of a call and meters call apps (Blend Mic's engine).
+  # TEMPORARY: a local checkout on the Air, while Blend's release isn't out. D5 replaces it
+  # with the released package pinned exactVersion.
+  BlendKit:
+    path: ../../blendkit-build/kit/kit
   # The global shortcuts, and the fields that record them in Settings.
   KeyboardShortcuts:
     url: https://github.com/sindresorhus/KeyboardShortcuts
@@ -86,6 +91,7 @@ targets:
     dependencies:
       - package: VoiceCore
         product: VoiceCore
+      - package: BlendKit
       - package: KeyboardShortcuts
       - package: Sparkle
       - sdk: AppKit.framework
