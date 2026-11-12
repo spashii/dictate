@@ -111,14 +111,14 @@ private func count(_ url: URL, _ sql: String) throws -> Int {
     @Test func aSegmentReadsAsItsCorrectionEverywhere() throws {
         let calls = try CallStore(url: temporaryCallDatabase())
         let call = try calls.createCall(NewCall(split: true))
-        let written = try calls.appendSegments(call.id, [sampleSegment(.me, 0, "we met sam at akme"),
+        let written = try calls.appendSegments(call.id, [sampleSegment(.me, 0, "we met ana at akme"),
                                                          sampleSegment(.call, 1500, "great")])
-        let (segment, _) = try calls.correctSegment(call.id, written[0].id, text: "We met Sameer at Acme.",
+        let (segment, _) = try calls.correctSegment(call.id, written[0].id, text: "We met Alexis at Acme.",
                                                     client: nil)
-        #expect(segment.text == "We met Sameer at Acme.")
-        #expect(segment.originalText == "we met sam at akme")
+        #expect(segment.text == "We met Alexis at Acme.")
+        #expect(segment.originalText == "we met ana at akme")
         #expect(try calls.segments(call.id).map(\.corrected) == [true, false])
-        #expect(try calls.transcript(call.id).contains("Me: We met Sameer at Acme."))
+        #expect(try calls.transcript(call.id).contains("Me: We met Alexis at Acme."))
         #expect(try calls.correctedSegments(call.id) == 1)
         // The cursor a live follower holds still works: corrections change no ids.
         #expect(try calls.latestCursor() == written[1].id)
@@ -159,14 +159,14 @@ private func count(_ url: URL, _ sql: String) throws -> Int {
 
 @Suite struct KeyTermsTests {
     @Test func parsesAndDedupesWithoutCase() {
-        #expect(KeyTerms.parse("Northwind, Acme\n northwind ,,\nSameer, ACME") == ["Northwind", "Acme", "Sameer"])
+        #expect(KeyTerms.parse("Northwind, Acme\n northwind ,,\nAlexis, ACME") == ["Northwind", "Acme", "Alexis"])
         #expect(KeyTerms.prompt(KeyTerms.parse("Northwind, Acme")) == "Northwind, Acme.")
     }
 
     @Test func addsOnlyNewTermsInTheListsOwnStyle() {
-        let commas = KeyTerms.adding(["northwind", "Echo", "echo", "Sam, Orca"], to: "Northwind, Acme")
-        #expect(commas.text == "Northwind, Acme, Echo, Sam, Orca")
-        #expect(commas.added == ["Echo", "Sam", "Orca"])
+        let commas = KeyTerms.adding(["northwind", "Echo", "echo", "Ana, Orca"], to: "Northwind, Acme")
+        #expect(commas.text == "Northwind, Acme, Echo, Ana, Orca")
+        #expect(commas.added == ["Echo", "Ana", "Orca"])
         #expect(commas.present == ["northwind", "echo"])
         #expect(KeyTerms.adding(["Echo"], to: "Northwind\nAcme\n").text == "Northwind\nAcme\nEcho")
         #expect(KeyTerms.adding(["Echo"], to: "").text == "Echo")
@@ -178,8 +178,8 @@ private func count(_ url: URL, _ sql: String) throws -> Int {
             let added = KeyTerms.adding(["VoiceTestTerm"], to: text)
             #expect(KeyTerms.removing(["voicetestterm"], from: added.text).text == text)
         }
-        let removed = KeyTerms.removing(["acme", "Nope"], from: "Northwind, Acme, Sameer")
-        #expect(removed.text == "Northwind, Sameer")
+        let removed = KeyTerms.removing(["acme", "Nope"], from: "Northwind, Acme, Alexis")
+        #expect(removed.text == "Northwind, Alexis")
         #expect(removed.removed == ["Acme"])
         #expect(removed.missing == ["Nope"])
         #expect(KeyTerms.removing(["Northwind"], from: "Northwind, Acme").text == "Acme")
@@ -188,23 +188,23 @@ private func count(_ url: URL, _ sql: String) throws -> Int {
     @Test func refusesAnAddThatOutgrowsThePromptWhole() async throws {
         let calls = try CallStore(url: temporaryCallDatabase())
         let settings = MemoryKeyTerms("Northwind")
-        // "Northwind." is 10 tokens here; the limit leaves room for ", Echo" and ", Sam" but
+        // "Northwind." is 10 tokens here; the limit leaves room for ", Echo" and ", Ana" but
         // not for ", Acme" as well.
         let editor = KeyTermsEditor(settings: settings, tokenizer: CharacterTokenizer(max: 21), store: calls)
-        await #expect(throws: ToolError.self) { try await editor.add(["Echo", "Acme", "Sam"], client: nil) }
+        await #expect(throws: ToolError.self) { try await editor.add(["Echo", "Acme", "Ana"], client: nil) }
         do {
-            _ = try await editor.add(["Echo", "Acme", "Sam"], client: nil)
+            _ = try await editor.add(["Echo", "Acme", "Ana"], client: nil)
         } catch let error as ToolError {
             #expect(error.message.contains("whisper reads at most 21"))
             #expect(error.message.contains("11 tokens are left"))
-            #expect(error.message.contains("these fit: Echo, Sam."))
+            #expect(error.message.contains("these fit: Echo, Ana."))
         }
         #expect(settings.value == "Northwind")
         #expect(try calls.edits().isEmpty)
 
-        let change = try await editor.add(["Echo", "Sam"], client: nil)
-        #expect(change.terms == ["Northwind", "Echo", "Sam"])
-        #expect(change.tokens == "Northwind, Echo, Sam.".count)
+        let change = try await editor.add(["Echo", "Ana"], client: nil)
+        #expect(change.terms == ["Northwind", "Echo", "Ana"])
+        #expect(change.tokens == "Northwind, Echo, Ana.".count)
         #expect(change.limit == 21)
         await #expect(throws: ToolError.self) { try await editor.add(["X"], client: nil) }
     }
@@ -220,7 +220,7 @@ private func count(_ url: URL, _ sql: String) throws -> Int {
         let loaded: OpaquePointer? = whisper_init_from_file_with_params(path, params)
         let full = try #require(loaded)
         defer { whisper_free(full) }
-        let samples = ["Northwind, Acme, Sameer, ECHO, Fieldwork Lab.", "hello", "Zoë's café, naïve 2026 – 7766.",
+        let samples = ["Northwind, Acme, Alexis, ECHO, Fieldwork Lab.", "hello", "Zoë's café, naïve 2026 – 7766.",
                        KeyTerms.prompt((1...60).map { "Term\($0)" })]
         for text in samples {
             #expect(try light.tokens(text) == -Int(whisper_tokenize(full, text, nil, 0)), "\(text)")

@@ -187,8 +187,8 @@ private func counts(_ diff: WordDiff) -> [Int] {
     }
 
     @Test func aStretchPairsWhatItCanAndCountsTheRest() {
-        let diff = WordDiff("send it to sam today", "send it to Sameer and Northwind today")
-        #expect(diff.changes == [.init(before: ["sam"], after: ["Sameer", "and", "Northwind"])])
+        let diff = WordDiff("send it to ana today", "send it to Alexis and Northwind today")
+        #expect(diff.changes == [.init(before: ["ana"], after: ["Alexis", "and", "Northwind"])])
         #expect(counts(diff) == [1, 2, 0])
     }
 

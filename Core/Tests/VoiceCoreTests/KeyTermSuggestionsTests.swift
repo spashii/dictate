@@ -22,7 +22,7 @@ private func proposal(_ term: String, _ heard: String...) -> TermProposals.Propo
         let text = "“Acme’s” plan -- it's T3-Code, 'quoted'"
         #expect(WordDiff.wordRanges(text).map { String(text[$0]) } == WordDiff.words(text))
         #expect(WordDiff.words(text) == ["Acme’s", "plan", "it's", "T3", "Code", "quoted"])
-        let diff = WordDiff("we met sam at akme", "we met Sameer and Ana at Acme")
+        let diff = WordDiff("we met ivy at akme", "we met Alexis and Ana at Acme")
         #expect(diff.spans == [WordDiff.Span(before: 2..<3, after: 2..<5), WordDiff.Span(before: 4..<5, after: 6..<7)])
     }
 
