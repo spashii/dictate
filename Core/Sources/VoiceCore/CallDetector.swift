@@ -225,7 +225,7 @@ public enum CallApps {
     }
 
     /// The process macOS holds responsible for this one: the app behind a helper.
-    private static func responsible(_ pid: pid_t) -> pid_t {
+    static func responsible(_ pid: pid_t) -> pid_t {
         typealias Responsible = @convention(c) (pid_t) -> pid_t
         guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "responsibility_get_pid_responsible_for_pid")
         else { return pid }
@@ -238,7 +238,7 @@ public enum CallApps {
                                    mElement: kAudioObjectPropertyElementMain)
     }
 
-    private static func objects() -> [AudioObjectID] {
+    static func objects() -> [AudioObjectID] {
         var address = address(kAudioHardwarePropertyProcessObjectList)
         var size: UInt32 = 0
         let system = AudioObjectID(kAudioObjectSystemObject)
@@ -255,7 +255,7 @@ public enum CallApps {
         return AudioObjectGetPropertyData(object, &address, 0, nil, &size, &value) == noErr && value != 0
     }
 
-    private static func string(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector) -> String? {
+    static func string(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector) -> String? {
         var address = address(selector)
         var value: Unmanaged<CFString>?
         var size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
