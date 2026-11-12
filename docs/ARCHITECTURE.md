@@ -4,7 +4,7 @@ Dictate has three parts:
 
 - **VoiceCore** (`Core/Sources/VoiceCore`, Swift 6): records, transcribes, cleans up, stores, detects calls and serves MCP. It has no UI code. It builds on whisper.cpp's prebuilt xcframework (release b5454, which is v1.9.5, with Metal built in) and the system SQLite.
 - **dictate-cli** (`Core/Sources/dictate-cli`): runs the same code from a shell, with no window and no sound. Batch transcription, the call tests and the MCP server without the app all use it.
-- **Voice.app** (`app/Voice`, SwiftUI and AppKit): the menu bar, the indicator, the call prompt, Settings, the global shortcuts (the KeyboardShortcuts package) and the paste. It decides when the core runs and shows the result. It has no recording or transcription logic of its own.
+- **Voice.app** (`app/Voice`, SwiftUI and AppKit): the menu bar, the indicator, the call prompt, the main window, the global shortcuts (the KeyboardShortcuts package) and the paste. It decides when the core runs and shows the result. It has no recording or transcription logic of its own.
 
 Beside them, `tools/` (zsh) builds, releases, syncs and fetches models, and `site/` is the website and the update feed.
 
@@ -59,18 +59,19 @@ Agents:
 
 ## The app
 
-- `VoiceApp.swift`: the menu, and the quit sequence.
+- `VoiceApp.swift`: the menu, Cmd+, and the quit sequence.
+- `MainWindow.swift`, `HistoryPane.swift`, `SettingsPanes.swift`: the one window, a sidebar of the Library (History) and the Settings panes, opened by the person from the menu or Cmd+, and at launch while setup is unfinished. A window brings the app to the Dock and forward (`WindowPolicy.swift`); the last one closing sends it back to the menu bar.
 - `AppModel.swift`: the dictation state (idle, recording, transcribing, cleaning up, a notice), one pipeline per Whisper model, recovery at launch and the paste.
 - `Calls.swift` (`CallsModel`): detection to prompt, the call shortcut, the source, record and stop, rebuild and compress at launch, and the warning when a call app reads the mix. Also the prompt panel and the menu and Settings parts.
-- `AgentAccess.swift`: runs the MCP server while the app runs, with the Settings switch, the addresses and the token.
+- `AgentAccess.swift`: runs the MCP server while the app runs, with the Settings switch, the host and port, the token and the tools that are off.
 - `Updates.swift`: Sparkle, the Check for Updates button and the automatic switch. An update Sparkle downloads on its own would wait for a quit; Dictate takes it over and installs it the first time nothing is recording, transcribing or fixing and no call app is in a call (`Activity` in VoiceCore), watching the dictation phase and the calls until then.
-- `HistoryWindow.swift`, `EditsText.swift`: the History window, opened only from the menu's Recent section and from Settings, never at launch, reading off the main thread; a play button on each flagged or changed segment plays that stretch of the recording through the default output when clicked. After a paste, the dictation pill shows the words the retries and the fix changed for 3 seconds, the old struck through; the paste never waits for it.
-- `Indicator.swift`, `CallPill.swift`, `Paster.swift`, `Preferences.swift`, `SettingsView.swift`, `RetryStatsView.swift`, `Setup.swift`, `Downloads.swift`: the pills (a dictation's, and a call's while it records, with the call's newest three lines from `LiveCallLines`, fed by the same wait as `wait_for_transcript` and emptied after 20 quiet seconds), the paste, UserDefaults, Settings and the retry numbers in it, the first-run window and the model downloads.
+- `HistoryPane.swift`, `HistoryPlayer.swift`, `EditsText.swift`: History reads off the main thread. Consecutive lines of one speaker are drawn as one block but stay separate segments (`TranscriptBlocks` in VoiceCore), so a click plays the recording from that segment. Words a retry, fix or correction wrote are found in the line's text and underlined. After a paste, the dictation pill shows the words the retries and the fix changed for 3 seconds, the old struck through; the paste never waits for it.
+- `Indicator.swift`, `CallPill.swift`, `Paster.swift`, `Preferences.swift`, `RetryStatsView.swift`, `Setup.swift`, `Downloads.swift`: the pills (a dictation's, and a call's while it records, with the call's newest three lines from `LiveCallLines`, fed by the same wait as `wait_for_transcript` and emptied after 20 quiet seconds), the paste, UserDefaults, the retry numbers in Settings, the setup steps and the model downloads.
 
 ## A dictation
 
 1. **Shortcut.** `KeyboardShortcuts` calls `AppModel.toggle` on key up. A press while a dictation is being transcribed does nothing. The dictation runs the fix step only if its switch is on and no call is using Whisper.
-2. **Start.** `AppModel.start` makes a `LiveTranscription` on the current pipeline's transcriber, with the language and key terms from Settings, shows the indicator, asks for the microphone and starts the `Recorder`.
+2. **Start.** `AppModel.start` makes a `LiveTranscription` on the current pipeline's transcriber, with the key terms from Settings and the language detected, shows the indicator, asks for the microphone and starts the `Recorder`.
 3. **Record.** The recorder points an `AVAudioEngine` at the chosen microphone (or the default), taps it in the device's own format, converts to 16 kHz mono and appends to `recordings/<ms>.wav` as 16-bit PCM. After each write it passes the same samples to `LiveTranscription`.
 4. **Chunk.** `Chunker` compares each 20 ms frame with a noise floor: the 15th percentile of the last 10 seconds, plus 10 dB. It closes a chunk after a 0.6 second pause (0.3 once the chunk passes 15 seconds) and never under 4 seconds. If no pause comes by 25 seconds, it cuts at the quietest 0.3 seconds. One worker decodes the chunks in order, each with the key terms and the last 50 words of the chunk before. The indicator shows the text so far.
 5. **Stop.** The recorder closes the file. Under 0.3 seconds, the dictation is a history row with the audio and "Too short to transcribe".
@@ -114,11 +115,11 @@ Quitting during a call closes the WAV without waiting for the transcript and lea
 
 ## MCP
 
-- One endpoint, `POST /mcp` on `127.0.0.1:7766`, JSON-RPC, one JSON answer per request. No event stream and no sessions, both of which the spec leaves optional, so a 60 second `wait_for_transcript` doesn't hold up anyone else.
+- One endpoint, `POST /mcp` on `127.0.0.1:7766` unless Settings sets another IPv4 host or port, JSON-RPC, one JSON answer per request. No event stream and no sessions, both of which the spec leaves optional, so a 60 second `wait_for_transcript` doesn't hold up anyone else.
 - Every request needs the bearer token, from this Mac too. The comparison looks at every byte. If there is an `Origin` header, it has to be local or the request's own host, so a web page can't try. A body is limited to 4 MB with a token and 64 KB without, a batch to 10 messages, and a closed connection cancels its request.
 - The app hosts it through `AgentAccess` while it runs. `dictate-cli mcp` serves the same against the same file when it doesn't, and only one of the two can hold the port.
 - Reads go to the database, often written by another process, so a wait looks at the file every 500 ms. `start_recording` and `stop_recording` go back into the app through `RecordingControl`, which `CallsModel` implements; dictate-cli has none and answers with an error.
-- If you set up Tailscale Serve, it puts HTTPS on your tailnet and reaches the server from `127.0.0.1`, so to the server a tailnet agent looks local. The token is what keeps other devices out.
+- If you set up Tailscale Serve, it puts HTTPS on your tailnet and reaches the server from `127.0.0.1`, so to the server a tailnet agent looks local. The token is what keeps other devices out. Tools Settings turns off are filtered in the router on every request, so they hide from `tools/list` and refuse calls without a restart.
 
 [MCP.md](MCP.md) has the addresses, the tools and the call store's tables.
 

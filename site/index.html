@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Voice: live transcripts of your online calls, made on your Mac</title>
-<meta name="description" content="Voice transcribes your online calls live on your Mac, with you and the other side kept apart, lets your agents read along over MCP, and does dictation. Free and open source, for macOS.">
-<meta property="og:title" content="Voice: live transcripts of your online calls, made on your Mac">
+<title>Dictate: live transcripts of your online calls, made on your Mac</title>
+<meta name="description" content="Dictate transcribes your online calls live on your Mac, with you and the other side kept apart, lets your agents read along over MCP, and does dictation. Free and open source, for macOS.">
+<meta property="og:title" content="Dictate: live transcripts of your online calls, made on your Mac">
 <meta property="og:description" content="Zoom, Meet, Teams and Discord written down as they happen, you and the other side kept apart, and readable by your agents. Whisper runs on your Mac.">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <style>
@@ -96,15 +96,15 @@
   <section class="hero">
     <div>
       <h1>Live transcripts of your online calls, made on your Mac.</h1>
-      <p class="lede">Voice writes down Zoom, Meet, Teams and Discord calls as they happen, with you and the other side kept apart. Your agents can read along. It does fast dictation too.</p>
+      <p class="lede">Dictate writes down Zoom, Meet, Teams and Discord calls as they happen, with you and the other side kept apart. Your agents can read along. It does fast dictation too.</p>
       <div class="actions">
-        <a class="button primary" href="https://github.com/spashii/voice/releases/latest">Download for Mac</a>
-        <a class="button" href="https://github.com/spashii/voice">View on GitHub</a>
+        <a class="button primary" href="https://github.com/spashii/dictate/releases/latest">Download for Mac</a>
+        <a class="button" href="https://github.com/spashii/dictate">View on GitHub</a>
       </div>
       <p class="meta">Free and open source · Apple silicon, macOS 15 or later</p>
     </div>
 
-    <div class="shot" role="img" aria-label="Voice's call pill while it records an online call, showing the last three lines labelled Me and Call">
+    <div class="shot" role="img" aria-label="Dictate's call pill while it records an online call, showing the last three lines labelled Me and Call">
       <div class="callpill">
         <div class="head"><span class="rec"></span><span>Recording call</span><span class="time">12:04</span><span class="hint">&#x2325;&#x21E7;` stops</span></div>
         <div class="cl old"><b class="me">Me</b><span>Yes, they're in the shared folder.</span></div>
@@ -115,13 +115,13 @@
   </section>
 
   <section class="why">
-    <p>I wanted really fast transcription on my own Whisper pipeline, one I could hack on. <a href="https://handy.computer">Handy</a> and <a href="https://github.com/Starmel/OpenSuperWhisper">OpenSuperWhisper</a> are my favorites and I learned a lot from them, but I wanted something simpler. With Blend, Voice also hears both sides of an online call, so it writes down you and them separately.</p>
+    <p>I wanted really fast transcription on my own Whisper pipeline, one I could hack on. <a href="https://handy.computer">Handy</a> and <a href="https://github.com/Starmel/OpenSuperWhisper">OpenSuperWhisper</a> are my favorites and I learned a lot from them, but I wanted something simpler. With Blend, Dictate also hears both sides of an online call, so it writes down you and them separately.</p>
   </section>
 
   <section class="points">
     <div class="point">
       <h2>Online calls, both sides apart</h2>
-      <p>With a <a href="https://spashii.github.io/blend/">Blend</a> split mix, you're Me and everyone else is Call. Voice asks when an online call starts, or press <kbd>Option+Shift+`</kbd>.</p>
+      <p>With a <a href="https://spashii.github.io/blend/">Blend</a> split mix, you're Me and everyone else is Call. Dictate asks when an online call starts, or press <kbd>Option+Shift+`</kbd>.</p>
     </div>
     <div class="point">
       <h2>Your agents read along</h2>
@@ -135,18 +135,18 @@
 
   <section class="rough">
     <h2>Dictation, and how it works</h2>
-    <p>Press <kbd>Option+`</kbd> in any text field, talk, and press it again. Whisper large v3 turbo runs on your Mac with your key terms in its prompt, and Voice decodes the segments it's unsure of a second time and shows you what each retry changed.</p>
+    <p>Press <kbd>Option+`</kbd> in any text field, talk, and press it again. Whisper large v3 turbo runs on your Mac with your key terms in its prompt, and Dictate decodes the segments it's unsure of a second time and shows you what each retry changed.</p>
     <p><b>Rough edges:</b> Apple silicon only. Both sides of an online call need Blend. The speech model is a 1.6 GB download.</p>
   </section>
 
   <section class="bottom">
-    <p>Your audio never leaves your Mac, and there are no accounts. Voice goes online only to download the speech model and to check for updates. The update server counts update checks by app, version and country and never stores your IP address.</p>
+    <p>Your audio never leaves your Mac, and there are no accounts. Dictate goes online only to download the speech model and to check for updates. The update server counts update checks by app, version and country and never stores your IP address.</p>
     <div class="actions">
-      <a class="button primary" href="https://github.com/spashii/voice/releases/latest">Download for Mac</a>
+      <a class="button primary" href="https://github.com/spashii/dictate/releases/latest">Download for Mac</a>
     </div>
-    <p class="brew">Or with Homebrew: <code>brew tap spashii/voice https://github.com/spashii/voice</code>, then <code>brew trust spashii/voice</code>, then <code>brew install --cask voice</code></p>
+    <p class="brew">Or with Homebrew: <code>brew tap spashii/dictate https://github.com/spashii/dictate</code>, then <code>brew trust spashii/dictate</code>, then <code>brew install --cask dictate</code></p>
   </section>
 </main>
-<footer class="site">Made by <a href="https://github.com/spashii">Sameer</a>. MIT licensed. <a href="https://github.com/spashii/voice">Source on GitHub</a></footer>
+<footer class="site">Made by <a href="https://github.com/spashii">Sameer</a>. MIT licensed. <a href="https://github.com/spashii/dictate">Source on GitHub</a></footer>
 </body>
 </html>

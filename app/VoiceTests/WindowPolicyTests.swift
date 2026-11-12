@@ -20,7 +20,7 @@ final class WindowPolicyTests: XCTestCase {
         XCTAssertTrue(WindowPolicy.counts(window()))
     }
 
-    /// The pills and the call prompt float over other apps and must not pull Voice forward.
+    /// The pills and the call prompt float over other apps and must not pull Dictate forward.
     func testPanelsDoNotCount() {
         XCTAssertFalse(WindowPolicy.counts(window(panel: true)))
         XCTAssertFalse(WindowPolicy.counts(window(panel: true, titled: false)))

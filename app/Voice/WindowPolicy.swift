@@ -1,6 +1,6 @@
 import AppKit
 
-/// Voice lives in the menu bar and has no Dock icon, until it opens a window: then it is an
+/// Dictate lives in the menu bar and has no Dock icon, until it opens a window: then it is an
 /// ordinary app, so the window comes forward and can be found in the Dock and the app
 /// switcher. When the last window closes it goes back to the menu bar.
 enum WindowPolicy {

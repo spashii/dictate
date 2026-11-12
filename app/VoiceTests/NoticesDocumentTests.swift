@@ -5,7 +5,7 @@ final class NoticesDocumentTests: XCTestCase {
         let text = """
         # Third-party notices
 
-        Voice includes the following
+        Dictate includes the following
         software.
 
         ## whisper.cpp
@@ -20,7 +20,7 @@ final class NoticesDocumentTests: XCTestCase {
         """
         XCTAssertEqual(NoticesDocument.parse(text), [
             .heading(level: 1, text: "Third-party notices"),
-            .paragraph("Voice includes the following software."),
+            .paragraph("Dictate includes the following software."),
             .heading(level: 2, text: "whisper.cpp"),
             .paragraph("https://example.com, release 1."),
             .code("MIT License\n\nCopyright (c) 2023"),

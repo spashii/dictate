@@ -1,6 +1,6 @@
-# Voice
+# Dictate
 
-Voice is a macOS app for dictation and for live transcripts of online calls, made on your Mac with Whisper. The speech, storage and MCP server live in `Core/` (the `VoiceCore` Swift package, plus the `voice-cli` tool), the menu bar app is in `app/`, and build and release scripts are in `tools/`. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) has the design and its constraints; [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) has build, test and release steps.
+Dictate is a macOS app for dictation and for live transcripts of online calls, made on your Mac with Whisper. The speech, storage and MCP server live in `Core/` (the `VoiceCore` Swift package, plus the `voice-cli` tool), the menu bar app is in `app/`, and build and release scripts are in `tools/`. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) has the design and its constraints; [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) has build, test and release steps.
 
 ## Documentation
 

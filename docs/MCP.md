@@ -11,7 +11,7 @@ Every request carries `Authorization: Bearer <token>`, from this Mac too; withou
 
 ## Who serves it
 
-Dictate hosts the server while it runs, unless Settings, General, "Agents can read transcripts" is off. That row shows both addresses and copies the token. When Dictate isn't running nothing answers, and the tailnet address returns 502.
+Dictate hosts the server while it runs, unless Settings, Agents, "Agents can read transcripts" is off. That page sets the host and port (the server restarts when they change), copies or regenerates the token, copies the setup for an agent app, and switches each tool on or off. A tool that is off is missing from `tools/list` and refuses `tools/call`, for agents already connected too. When Dictate isn't running nothing answers, and the tailnet address returns 502.
 
 `dictate-cli mcp` serves the same thing without the app, against the same database:
 
@@ -50,7 +50,7 @@ $TS serve --https=8443 off                            # off
 $TS status --json | jq -r .Self.DNSName               # your Mac's tailnet name
 ```
 
-Serve terminates TLS and connects from 127.0.0.1, so the token is what keeps other tailnet devices out. Dictate's Settings show the tailnet address once Serve forwards to it.
+Serve terminates TLS and connects from 127.0.0.1, so the token is what keeps other tailnet devices out. Point Serve at the port set in Settings, Agents.
 
 ## Tools
 
@@ -65,7 +65,7 @@ Serve terminates TLS and connects from 127.0.0.1, so the token is what keeps oth
 | `tag_call` | `id`, `add`, `remove` |
 | `list_dictations` | dictations newest first; `since`, `limit` |
 | `get_dictation` | one dictation with raw and final text, timings and segments, and `fix_edits` when the fix step ran: each edit's segment, span, replacement, key_term, offset, and rejected with the reason when it wasn't applied |
-| `start_recording`, `stop_recording` | record a call from the source in Settings, Calls, and stop it once the last words are transcribed; only the app can, so `dictate-cli mcp` answers with an error |
+| `start_recording`, `stop_recording` | record a call from the source in Settings, Microphones, and stop it once the last words are transcribed; only the app can, so `dictate-cli mcp` answers with an error |
 | `correct_dictation` | `id`, `text`: stores the correction beside the dictation's text, which reads and search then return with `corrected: true` and `original_text`, and pastes nothing |
 | `correct_segment` | `call_id`, `segment_id` (the `id` from `get_transcript` in format segments), `text`: the same for one segment of a call |
 | `list_key_terms` | the key terms from Settings, with the tokens they take of whisper's prompt, counted with whisper.cpp's tokenizer, and its limit of 224 |
