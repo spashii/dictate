@@ -28,6 +28,10 @@ public final class CallRecorder: @unchecked Sendable {
     private let lock = OSAllocatedUnfairLock()
     private var engine: AVAudioEngine?
     private var watch: InputWatch?
+    /// The tapped app and the join of its sound with the microphone's, while a call records
+    /// the two sides from separate inputs.
+    private var tap: ProcessTap?
+    private var join: CallJoin?
     private var session: CallSession?
     /// Calls whose audio is being compressed, so one call is never converted twice at once.
     private var compressing: Set<String> = []
@@ -58,6 +62,47 @@ public final class CallRecorder: @unchecked Sendable {
                 do {
                     done.resume(returning: try self.startDevice(source, transcriber, whisper, appBundleID, appName,
                                                                 title))
+                } catch {
+                    self.stopEngine()
+                    done.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    /// What a started call tells the person: why it isn't recording what they chose.
+    public struct Started: Sendable {
+        public var call: Call
+        public var notices: [String]
+    }
+
+    /// Starts the call a plan describes: a Blend mix as one device, or the microphone for me
+    /// and a tap on the app for the call. When the app can't be tapped the microphone is
+    /// recorded alone, and the notice says so, so a call is never lost to the tap.
+    public func start(_ plan: CallPlan, transcriber: Transcriber, whisper: WhisperOptions = WhisperOptions(),
+                      appBundleID: String? = nil, appName: String? = nil, title: String? = nil) async throws -> Started {
+        try await withCheckedThrowingContinuation { (done: CheckedContinuation<Started, Error>) in
+            queue.async {
+                var notices = plan.notices
+                do {
+                    if let mix = plan.mix {
+                        let call = try self.startDevice(mix, transcriber, whisper, appBundleID, appName, title)
+                        done.resume(returning: Started(call: call, notices: notices))
+                        return
+                    }
+                    if let app = plan.app {
+                        do {
+                            let call = try self.startTapped(plan.microphone, app, transcriber, whisper, appBundleID,
+                                                            appName, title)
+                            done.resume(returning: Started(call: call, notices: notices))
+                            return
+                        } catch let failure as TapUnavailable {
+                            Self.log.error("No tap on \(app.bundleID, privacy: .public): \(failure.reason, privacy: .public)")
+                            notices.append(CallPlanner.tapFailedNotice(app.name))
+                        }
+                    }
+                    let call = try self.startDevice(plan.microphone, transcriber, whisper, appBundleID, appName, title)
+                    done.resume(returning: Started(call: call, notices: notices))
                 } catch {
                     self.stopEngine()
                     done.resume(throwing: error)
@@ -278,6 +323,81 @@ public final class CallRecorder: @unchecked Sendable {
         return try store.call(session.callID)!
     }
 
+    /// Why a tap couldn't be made, before any call exists, so the call falls back to the
+    /// microphone without a failed entry in the history.
+    private struct TapUnavailable: Error {
+        let reason: String
+    }
+
+    /// Me is the microphone and the call is a tap on the app, joined into two channels at the
+    /// microphone's rate. The tap is made and started before the call exists; if it can't be,
+    /// the call isn't started here at all.
+    private func startTapped(_ microphone: CallSource, _ app: CallTapTarget, _ transcriber: Transcriber,
+                             _ whisper: WhisperOptions, _ appBundleID: String?, _ appName: String?,
+                             _ title: String?) throws -> Call {
+        guard callID == nil else { throw VoiceError.audio("A call is already being recorded.") }
+        let engine = AVAudioEngine()
+        let input = engine.inputNode
+        if let uid = microphone.deviceUID {
+            guard var device = InputDevices.id(forUID: uid), let unit = input.audioUnit,
+                  AudioUnitSetProperty(unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0,
+                                       &device, UInt32(MemoryLayout<AudioDeviceID>.size)) == noErr else {
+                throw VoiceError.audio("\(microphone.name) isn't available.")
+            }
+        }
+        guard let format = input.deviceFormat else { throw VoiceError.audio("No microphone is available.") }
+
+        let join = CallJoin(rate: format.sampleRate)
+        let tap = ProcessTap(app)
+        do {
+            try tap.start { samples, rate in join.pushCall(samples, rate: rate) }
+        } catch {
+            throw TapUnavailable(reason: "\(error)")
+        }
+        let session: CallSession
+        do {
+            session = try begin(format: AVAudioFormat(standardFormatWithSampleRate: format.sampleRate, channels: 2)!,
+                                labels: [.me, .call], order: [0, 1], deviceUID: microphone.deviceUID, transcriber,
+                                whisper, appBundleID: appBundleID, appName: appName, title: title)
+        } catch {
+            tap.stop()
+            throw error
+        }
+        join.setSink { session.ingest($0) }
+        let channels = Int(format.channelCount)
+        input.installTap(onBus: 0, bufferSize: 4096, format: format) { buffer, _ in
+            join.pushMe(Self.mono(buffer, channels: channels))
+        }
+        engine.prepare()
+        do {
+            try engine.start()
+        } catch {
+            tap.stop()
+            lock.withLockUnchecked { self.session = nil }
+            session.close()
+            try? store.failCall(session.callID, error: "The input wouldn't start: \(error)")
+            throw error
+        }
+        self.engine = engine
+        self.tap = tap
+        self.join = join
+        watch = InputWatch(engine) { [weak self] in self?.inputWentAway() }
+        return try store.call(session.callID)!
+    }
+
+    /// One channel of the microphone, averaged when it has several.
+    static func mono(_ buffer: AVAudioPCMBuffer, channels: Int) -> [Float] {
+        guard let data = buffer.floatChannelData else { return [] }
+        let frames = Int(buffer.frameLength)
+        let count = max(1, min(channels, Int(buffer.format.channelCount)))
+        if count == 1 { return Array(UnsafeBufferPointer(start: data[0], count: frames)) }
+        var out = [Float](repeating: 0, count: frames)
+        for c in 0..<count { for f in 0..<frames { out[f] += data[c][f] } }
+        let scale = 1 / Float(count)
+        for f in 0..<frames { out[f] *= scale }
+        return out
+    }
+
     /// Starts the session for a source's audio in this format. A split source whose audio
     /// doesn't come as two channels is failed before it records anything, since it would
     /// end as a finished call with a side missing. The failed call keeps its file and stays
@@ -345,6 +465,11 @@ public final class CallRecorder: @unchecked Sendable {
             engine.stop()
         }
         engine = nil
+        tap?.stop()
+        tap = nil
+        // The last samples of both sides reach the call before it is finished.
+        join?.flush()
+        join = nil
     }
 }
 
