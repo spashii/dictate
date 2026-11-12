@@ -13,6 +13,14 @@ struct WelcomePane: View {
             Text("Dictate is free during the beta.")
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+            Text("Activate once with your email. It opens in your browser.")
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            if let problem = model.activationProblem {
+                Text(problem)
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+            }
             Button("Activate in Browser") { model.beginActivation() }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)

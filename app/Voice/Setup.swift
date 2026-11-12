@@ -6,7 +6,7 @@ struct ActivationStep: View {
 
     var body: some View {
         StepRow(title: "Activated", done: model.activation.isActivated) {
-            Button("Activate\u{2026}") { model.beginActivation() }
+            Button("Activate in Browser") { model.beginActivation() }
         }
     }
 }

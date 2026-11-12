@@ -35,7 +35,7 @@ final class AppModel {
         var title: String {
             switch self {
             case .allowAccessibility: "Allow\u{2026}"
-            case .activate: "Activate"
+            case .activate: "Activate in Browser"
             }
         }
     }
@@ -62,7 +62,7 @@ final class AppModel {
     let downloads = ModelDownloads()
     let agents = AgentAccess()
     let updates = Updates()
-    let activation = Activation(store: KeychainActivationStore())
+    let activation: Activation
     /// Held only while Dictate may record.
     /// What a locked Dictate keeps off.
     private(set) var lock = LockPolicy(unlocked: false)
@@ -84,7 +84,8 @@ final class AppModel {
     @ObservationIgnored private lazy var indicator = Indicator(model: self)
     @ObservationIgnored private lazy var mainWindow = MainWindow(model: self)
 
-    init() {
+    init(activation: Activation = Activation(store: KeychainActivationStore())) {
+        self.activation = activation
         recorder = Recorder(onLevel: { [weak self] level in
             Task { @MainActor in self?.level = level }
         }, onInputLost: { [weak self] in
@@ -140,11 +141,14 @@ final class AppModel {
     }
 
     var setupComplete: Bool {
-        microphoneAllowed && accessibilityAllowed && downloads.state(preferences.whisperModel) == .ready
+        #if DEBUG
+        if snapshotSetupComplete { return true }
+        #endif
+        return microphoneAllowed && accessibilityAllowed && downloads.state(preferences.whisperModel) == .ready
     }
 
     /// The menu bar glyph, from Assets: three pills like the app icon, outlined when idle,
-    /// the centre one filled while dictating, dots while working, and all filled with a dot
+    /// the center one filled while dictating, dots while working, and all filled with a dot
     /// while a call records. A dictation shows over the call, which the indicator still shows.
     var menuBarImage: String {
         switch phase {
@@ -157,7 +161,7 @@ final class AppModel {
     /// The first line of the menu.
     var statusText: String {
         switch phase {
-        case .idle, .notice, .edits: fixesText ? "Ready" : "Ready, whisper only"
+        case .idle, .notice, .edits: fixesText ? "Ready" : "Ready, Whisper only"
         case .recording(_, let began): "Listening " + Self.clock(now.timeIntervalSince(began))
         case .transcribing: "Transcribing"
         case .cleaningUp: "Fixing the text"
@@ -180,7 +184,7 @@ final class AppModel {
         updates.onStaged = { [weak self] in self?.installUpdateWhenQuiet() }
         installUpdateWhenQuiet()
         // Ollama can start or stop at any time; a localhost check every half minute keeps
-        // the menu's "whisper only" honest without asking on every keypress.
+        // the menu's "Whisper only" honest without asking on every keypress.
         Task {
             while !Task.isCancelled {
                 await refreshOllama()
@@ -497,7 +501,7 @@ final class AppModel {
         } else if !pasted {
             show("Copied. Allow Dictate in Accessibility to paste for you.", action: .allowAccessibility)
         } else if let error = dictation.error {
-            show("Pasted whisper's text; the fix failed: \(error)")
+            show("Pasted Whisper's text. Fix the text before pasting failed: \(error)")
             await refreshOllama()
         } else if inputLost {
             show("\(lost) and pasted what it heard before.")
@@ -543,6 +547,13 @@ final class AppModel {
         mainWindow.show(lock.landing(for: pane), calls: calls)
     }
 
+    #if DEBUG
+    /// Set by the app-shots run so the window draws as it does on a finished install.
+    var snapshotSetupComplete = false
+
+    func unlockForSnapshots() { lock = LockPolicy(activation) }
+    #endif
+
     func openHistory() { openMainWindow(.history) }
 
     /// Cmd+, and the menu's Settings: the first settings pane.
@@ -560,11 +571,15 @@ final class AppModel {
 
     /// Opens the activation page in the browser with this Mac's nonce, and Welcome here.
     func beginActivation() {
+        activationProblem = nil
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
         NSWorkspace.shared.open(activation.pageURL(page: BuildFlavor.activationPage, version: version,
                                                    scheme: BuildFlavor.isDev ? BuildFlavor.urlScheme : nil))
         openMainWindow(.welcome)
     }
+
+    /// Why the last activation failed, kept on Welcome until the next try.
+    var activationProblem: String?
 
     func acceptActivation(url: URL) {
         let wasActivated = activation.isActivated
@@ -577,13 +592,16 @@ final class AppModel {
     private func finishActivation(_ result: Result<Void, Activation.Refusal>) {
         switch result {
         case .success:
+            activationProblem = nil
             activationChanged()
             openMainWindow(.setup)
             notice("Dictate is activated")
         case .failure(.otherRequest):
-            notice("This activation was for another request. Press Activate again.")
+            activationProblem = "This activation was for another request. Press Activate in Browser again."
+            openMainWindow(.welcome)
         case .failure(.invalid), .failure(.notSaved):
-            notice("Dictate could not use that activation. Press Activate again.")
+            activationProblem = "Dictate could not use that activation. Press Activate in Browser again."
+            openMainWindow(.welcome)
         }
     }
 
