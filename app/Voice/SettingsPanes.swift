@@ -64,7 +64,7 @@ struct MicrophonesPane: View {
         let microphones = model.devices.filter { device in !calls.mixes.contains { $0.deviceUID == device.uid } }
         Form {
             Section {
-                Picker("Default microphone for dictation", selection: $preferences.microphoneUID) {
+                Picker("Microphone for dictation", selection: $preferences.microphoneUID) {
                     Text("System default").tag("")
                     ForEach(microphones) { device in
                         Text(device.name).tag(device.uid)
@@ -74,7 +74,7 @@ struct MicrophonesPane: View {
                         Text("Not connected").tag(preferences.microphoneUID)
                     }
                 }
-                Picker("Default microphone for calls", selection: $calls.microphoneUID) {
+                Picker("Microphone for calls", selection: $calls.microphoneUID) {
                     Text("System default").tag("")
                     ForEach(microphones) { device in
                         Text(device.name).tag(device.uid)
@@ -97,31 +97,21 @@ struct MicrophonesPane: View {
             } header: {
                 Text("Call audio")
             } footer: {
-                BlendMicNote(installed: blendInstalled, mixes: !calls.mixes.isEmpty)
+                BlendMicNote()
             }
         }
         .formStyle(.grouped)
         .task { await calls.refreshSources() }
         .onAppear { model.refreshDevices() }
     }
-
-    private var blendInstalled: Bool {
-        !calls.mixes.isEmpty
-            || BlendMic.isInstalled(inputNames: model.devices.map(\.name),
-                                    appURL: NSWorkspace.shared.urlForApplication(withBundleIdentifier: BlendMic.bundleID))
-    }
 }
 
-/// Blend Mic is optional: its mixes are one more place to hear a call from.
+/// Why a call's audio has a choice at all: Dictate records it itself, and a Blend Mic mix is
+/// the alternative for people who already use Blend Mic.
 struct BlendMicNote: View {
-    let installed: Bool
-    let mixes: Bool
-
     var body: some View {
         HStack(spacing: 4) {
-            Text(mixes ? "Already using Blend Mic? Pick its mix above."
-                 : installed ? "Already using Blend Mic? Its mixes appear above while Blend is running."
-                 : "Already using Blend Mic? Its mixes appear above.")
+            Text("Dictate records a call\u{2019}s audio itself. If you use Blend Mic, you can record its mix instead.")
             Link("About Blend Mic", destination: BlendMic.website)
         }
     }
