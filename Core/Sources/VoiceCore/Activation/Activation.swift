@@ -2,15 +2,13 @@ import CryptoKit
 import Foundation
 import Observation
 
-/// What is kept between launches, apart from the nonce: the signed token and when the 7 day
-/// grace began. One record, so deleting the Keychain item resets both.
+/// What is kept between launches, apart from the nonce: the signed token. Deleting the
+/// Keychain item that holds it returns Dictate to a fresh install.
 public struct ActivationRecord: Codable, Equatable, Sendable {
     public var token: String?
-    public var graceStart: Date?
 
-    public init(token: String? = nil, graceStart: Date? = nil) {
+    public init(token: String? = nil) {
         self.token = token
-        self.graceStart = graceStart
     }
 }
 
@@ -37,10 +35,7 @@ public final class MemoryActivationStore: ActivationStore {
 public final class Activation {
     public enum State: Equatable, Sendable {
         case locked
-        /// The activation page was opened with this nonce and the token has not come back.
-        case pending(nonce: String)
         case activated
-        case grace(until: Date)
     }
 
     public enum Refusal: Error, Equatable, Sendable {
@@ -52,13 +47,11 @@ public final class Activation {
         case notSaved
     }
 
-    public static let graceLength: TimeInterval = 7 * 24 * 3600
     public static let nonceLifetime: TimeInterval = 24 * 3600
 
     private enum Key {
         static let nonce = "activationNonce"
         static let nonceDate = "activationNonceDate"
-        static let pressed = "activationPressed"
     }
 
     @ObservationIgnored private let store: ActivationStore
@@ -80,31 +73,13 @@ public final class Activation {
         refresh()
     }
 
+    /// Dictation, call recording and an agent's start_recording all ask this.
     public var isActivated: Bool { state == .activated }
 
-    /// Dictation, call recording and an agent's start_recording all ask this.
-    public var allowsRecording: Bool {
-        switch state {
-        case .activated, .grace: true
-        case .locked, .pending: false
-        }
-    }
-
-    /// The 7 days are offered once the person has pressed Activate, and once per Mac: a used
-    /// grace is never offered again, whether it is running or over.
-    public var canOfferGrace: Bool {
-        !allowsRecording && defaults.bool(forKey: Key.pressed) && store.load().graceStart == nil
-    }
-
-    /// Recomputes the state, for the clock moving on (the grace ending) and for a changed store.
+    /// Recomputes the state from the store, which the Keychain can change under the app.
     public func refresh() {
-        let record = store.load()
-        if let text = record.token, (try? ActivationToken.verify(text, keys: keys)) != nil {
+        if let text = store.load().token, (try? ActivationToken.verify(text, keys: keys)) != nil {
             state = .activated
-        } else if let start = record.graceStart, start.addingTimeInterval(Self.graceLength) > now() {
-            state = .grace(until: start.addingTimeInterval(Self.graceLength))
-        } else if let nonce = pendingNonce {
-            state = .pending(nonce: nonce)
         } else {
             state = .locked
         }
@@ -114,7 +89,6 @@ public final class Activation {
     /// left open in an older tab still works.
     @discardableResult
     public func begin() -> String {
-        defaults.set(true, forKey: Key.pressed)
         let nonce = pendingNonce ?? makeNonce()
         if pendingNonce == nil {
             defaults.set(nonce, forKey: Key.nonce)
@@ -131,14 +105,6 @@ public final class Activation {
         let nonce = begin()
         let own = scheme.map { "&s=\($0)" } ?? ""
         return URL(string: base.appending(path: "activate").absoluteString + "#n=\(nonce)&v=\(version)\(own)")!
-    }
-
-    public func startGrace() {
-        guard canOfferGrace else { return }
-        var record = store.load()
-        record.graceStart = now()
-        store.save(record)
-        refresh()
     }
 
     /// A link in the app's scheme: `<scheme>://activate?t=<token>`.

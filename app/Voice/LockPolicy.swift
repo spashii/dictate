@@ -1,6 +1,6 @@
 import VoiceCore
 
-/// What a Mac that is not activated (and not in its 7 days) may reach. Everything that opens
+/// What a Mac that is not activated may reach. Everything that opens
 /// a locked feature asks here, so the window, the hotkeys, the agent server and the menu
 /// follow one rule. Updates, About and Welcome stay, so a broken activation can be fixed.
 struct LockPolicy: Equatable {
@@ -8,7 +8,7 @@ struct LockPolicy: Equatable {
 
     @MainActor
     init(_ activation: Activation) {
-        unlocked = activation.allowsRecording
+        unlocked = activation.isActivated
     }
 
     init(unlocked: Bool) {
@@ -23,19 +23,13 @@ struct LockPolicy: Equatable {
         unlocked || pane == .welcome || pane == .about
     }
 
-    /// The policy to apply now. While a dictation or a call records, whatever was applied stays,
-    /// so a grace that ends mid-recording cannot take the way to stop it.
-    static func next(current: LockPolicy, applied: LockPolicy?, recording: Bool) -> LockPolicy {
-        recording ? (applied ?? current) : current
-    }
-
     /// The pane to show for a request: the one asked for, or Welcome while it is locked.
     func landing(for pane: MainPane) -> MainPane {
         reaches(pane) ? pane : .welcome
     }
 }
 
-/// Holds the global shortcuts only while Dictate may record, so a locked Dictate does not
+/// Holds the global shortcuts only once Dictate is activated, so a locked Dictate does not
 /// take a key from another app. The two actions are injected for tests.
 @MainActor
 final class Hotkeys {

@@ -41,9 +41,10 @@ enum TokenSupport {
     }
 
     @Test func refusesATamperedSignature() {
-        var text = TokenSupport.token()
-        text.removeLast()
-        text.append(text.last == "A" ? "B" : "A")
+        // The first character of the signature, since the last one carries unused padding bits.
+        var parts = TokenSupport.token().split(separator: ".").map(String.init)
+        parts[2] = (parts[2].first == "A" ? "B" : "A") + parts[2].dropFirst()
+        let text = parts.joined(separator: ".")
         #expect(throws: ActivationToken.Failure.badSignature) {
             try ActivationToken.verify(text, keys: TokenSupport.keys)
         }

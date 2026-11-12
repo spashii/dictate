@@ -33,15 +33,13 @@ func refusal(_ result: Result<Void, Activation.Refusal>) -> Activation.Refusal? 
     @Test func startsLockedAndRefusesRecording() {
         let activation = make()
         #expect(activation.state == .locked)
-        #expect(!activation.allowsRecording)
-        #expect(!activation.canOfferGrace)
+        #expect(!activation.isActivated)
     }
 
     @Test func beginMakesAPendingNonce() {
         let activation = make()
         #expect(activation.begin() == "n1")
-        #expect(activation.state == .pending(nonce: "n1"))
-        #expect(!activation.allowsRecording)
+        #expect(!activation.isActivated)
     }
 
     @Test func beginReusesTheNonceForADay() {
@@ -58,7 +56,7 @@ func refusal(_ result: Result<Void, Activation.Refusal>) -> Activation.Refusal? 
         _ = activation.begin()
         try activation.accept(text: TokenSupport.token(nonce: "n1")).get()
         #expect(activation.state == .activated)
-        #expect(activation.allowsRecording)
+        #expect(activation.isActivated)
         #expect(store.record.token != nil)
     }
 
@@ -75,7 +73,7 @@ func refusal(_ result: Result<Void, Activation.Refusal>) -> Activation.Refusal? 
         _ = activation.begin()
         #expect(refusal(activation.accept(text: TokenSupport.token(nonce: "other"))) == .otherRequest)
         #expect(store.record.token == nil)
-        #expect(activation.state == .pending(nonce: "n1"))
+        #expect(!activation.isActivated)
     }
 
     @Test func aTokenWithNoRequestPendingIsRefused() {
@@ -112,41 +110,6 @@ func refusal(_ result: Result<Void, Activation.Refusal>) -> Activation.Refusal? 
     @Test func aStoredTokenOfARemovedKeyDoesNotUnlock() {
         store.record.token = TokenSupport.token(kid: "k0")
         #expect(make().state == .locked)
-    }
-
-    @Test func graceIsOfferedOnlyAfterActivateWasPressed() {
-        let activation = make()
-        activation.startGrace()
-        #expect(activation.state == .locked)
-        _ = activation.begin()
-        #expect(activation.canOfferGrace)
-    }
-
-    @Test func graceUnlocksForSevenDaysThenLocksAndIsNotOfferedAgain() {
-        let activation = make()
-        _ = activation.begin()
-        activation.startGrace()
-        #expect(activation.state == .grace(until: clock.date.addingTimeInterval(7 * 24 * 3600)))
-        #expect(activation.allowsRecording)
-        clock.advance(hours: 24 * 7 - 1)
-        activation.refresh()
-        #expect(activation.allowsRecording)
-        clock.advance(hours: 2)
-        activation.refresh()
-        #expect(!activation.allowsRecording)
-        #expect(!activation.canOfferGrace)
-        #expect(make().state != .activated)
-    }
-
-    @Test func graceSurvivesARelaunchAndActivationEndsIt() throws {
-        let activation = make()
-        _ = activation.begin()
-        activation.startGrace()
-        let relaunched = make()
-        #expect(relaunched.allowsRecording)
-        _ = relaunched.begin()
-        try relaunched.accept(text: TokenSupport.token(nonce: "n1")).get()
-        #expect(relaunched.state == .activated)
     }
 
     @Test func deletingTheRecordLocksAgain() throws {

@@ -62,10 +62,8 @@ final class AppModel {
     let updates = Updates()
     let activation = Activation(store: KeychainActivationStore())
     /// Held only while Dictate may record.
-    /// What a locked Dictate keeps off, as last applied. A running recording holds it back.
+    /// What a locked Dictate keeps off.
     private(set) var lock = LockPolicy(unlocked: false)
-    @ObservationIgnored private var lockApplied = false
-    @ObservationIgnored private var lockDeferred = false
     @ObservationIgnored let hotkeys = Hotkeys(
         enable: { KeyboardShortcuts.enable(.dictate, .recordCall) },
         disable: { KeyboardShortcuts.disable(.dictate, .recordCall) })
@@ -176,13 +174,6 @@ final class AppModel {
         }
         setDefaultLoginItem()
         refreshDevices()
-        // The 7 days end while Dictate runs.
-        Task {
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(60))
-                applyLock()
-            }
-        }
         agents.launch()
         updates.onStaged = { [weak self] in self?.installUpdateWhenQuiet() }
         installUpdateWhenQuiet()
@@ -203,7 +194,7 @@ final class AppModel {
             if downloads.state(preferences.whisperModel) == .missing { downloads.download(preferences.whisperModel) }
         }
         // The model keeps downloading behind Welcome, so Setup is ready once Dictate is activated.
-        if !activation.isActivated && !activation.allowsRecording {
+        if !activation.isActivated {
             openMainWindow(.welcome)
         } else if !setupComplete {
             openMainWindow(.setup)
@@ -577,34 +568,13 @@ final class AppModel {
     }
 
     /// Brings what a locked Dictate keeps off in line with the state: the shortcuts, the agent
-    /// server and the call prompt. Runs at launch, after activation and when the 7 days end.
+    /// server and the call prompt. Runs at launch and after activation.
     func applyLock(force: Bool = false) {
         activation.refresh()
-        let recording = activity.dictationRecording || activity.callRecording
-        let current = LockPolicy(activation)
-        // The lock never lands mid-recording: the shortcut, the menu and an agent are the ways
-        // to stop it. It lands when the recording ends.
-        let policy = LockPolicy.next(current: current, applied: lockApplied ? lock : nil, recording: recording)
-        lockApplied = true
-        lock = policy
-        if policy != current { deferLock() }
-        hotkeys.apply(policy, force: force)
-        agents.setUnlocked(policy.startsAgentServer)
+        lock = LockPolicy(activation)
+        hotkeys.apply(lock, force: force)
+        agents.setUnlocked(lock.startsAgentServer)
         calls?.activationChanged()
-    }
-
-    private func deferLock() {
-        guard !lockDeferred else { return }
-        lockDeferred = true
-        withObservationTracking {
-            _ = activity.dictationRecording
-            _ = activity.callRecording
-        } onChange: { [weak self] in
-            Task { @MainActor in
-                self?.lockDeferred = false
-                self?.applyLock()
-            }
-        }
     }
 
     private func activationChanged() {

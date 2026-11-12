@@ -1,13 +1,14 @@
+import CryptoKit
 import VoiceCore
 import XCTest
 
 @MainActor
 final class RecordingGateTests: XCTestCase {
-    private func activation(_ record: ActivationRecord = ActivationRecord(), now: Date = Date()) -> Activation {
+    private func activation(_ record: ActivationRecord = ActivationRecord()) -> Activation {
         let name = "gate-tests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
-        return Activation(store: MemoryActivationStore(record), defaults: defaults, now: { now }, keys: [:])
+        return Activation(store: MemoryActivationStore(record), defaults: defaults, keys: [:])
     }
 
     func testLockedRefusesWithTheAgentsMessage() {
@@ -22,14 +23,17 @@ final class RecordingGateTests: XCTestCase {
         XCTAssertThrowsError(try RecordingGate.check(locked))
     }
 
-    func testGraceAllows() throws {
-        let now = Date()
-        try RecordingGate.check(activation(ActivationRecord(graceStart: now.addingTimeInterval(-3600)), now: now))
-    }
-
-    func testAnEndedGraceRefuses() {
-        let now = Date()
-        let ended = ActivationRecord(graceStart: now.addingTimeInterval(-8 * 24 * 3600))
-        XCTAssertThrowsError(try RecordingGate.check(activation(ended, now: now)))
+    func testAnActivatedMacAllows() throws {
+        let signer = Curve25519.Signing.PrivateKey()
+        func b64(_ data: Data) -> String {
+            data.base64EncodedString().replacingOccurrences(of: "+", with: "-")
+                .replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
+        }
+        let payload = b64(Data(#"{"kid":"k1","sid":"s1a2b3c4d5e6","n":"n1","iat":1794000000}"#.utf8))
+        let token = "dct1.\(payload).\(b64(try signer.signature(for: Data("dct1.\(payload)".utf8))))"
+        let name = "gate-tests-\(UUID().uuidString)"
+        let activation = Activation(store: MemoryActivationStore(ActivationRecord(token: token)),
+                                    defaults: UserDefaults(suiteName: name)!, keys: ["k1": signer.publicKey])
+        try RecordingGate.check(activation)
     }
 }

@@ -75,55 +75,12 @@ final class LockPolicyTests: XCTestCase {
         XCTAssertFalse(hotkeys.isRegistered)
     }
 
-    func testGraceRegistersThenTheEndUnregisters() {
-        let start = Date()
-        var now = start
-        let store = MemoryActivationStore(ActivationRecord(graceStart: start))
-        let name = "lock-tests-\(UUID().uuidString)"
-        let activation = Activation(store: store, defaults: UserDefaults(suiteName: name)!, now: { now }, keys: [:])
-        var log: [String] = []
-        let hotkeys = Hotkeys(enable: { log.append("on") }, disable: { log.append("off") })
-        hotkeys.apply(LockPolicy(activation))
-        now = start.addingTimeInterval(8 * 24 * 3600)
-        activation.refresh()
-        hotkeys.apply(LockPolicy(activation))
-        XCTAssertEqual(log, ["on", "off"])
-    }
-
     func testApplyingTwiceRegistersOnce() {
         var enabled = 0
         let hotkeys = Hotkeys(enable: { enabled += 1 }, disable: {})
         hotkeys.apply(LockPolicy(unlocked: true))
         hotkeys.apply(LockPolicy(unlocked: true))
         XCTAssertEqual(enabled, 1)
-    }
-
-    func testAGraceThatEndsMidRecordingKeepsTheWayToStop() {
-        let unlocked = LockPolicy(unlocked: true), locked = LockPolicy(unlocked: false)
-        XCTAssertEqual(LockPolicy.next(current: locked, applied: unlocked, recording: true), unlocked)
-        XCTAssertEqual(LockPolicy.next(current: locked, applied: unlocked, recording: false), locked)
-        XCTAssertEqual(LockPolicy.next(current: unlocked, applied: locked, recording: true), locked)
-        XCTAssertEqual(LockPolicy.next(current: locked, applied: nil, recording: true), locked)
-    }
-
-    func testTheHotkeysStayOnUntilTheRecordingEnds() {
-        let start = Date()
-        var now = start
-        let store = MemoryActivationStore(ActivationRecord(graceStart: start))
-        let activation = Activation(store: store, defaults: UserDefaults(suiteName: "lock-\(UUID().uuidString)")!,
-                                    now: { now }, keys: [:])
-        var log: [String] = []
-        let hotkeys = Hotkeys(enable: { log.append("on") }, disable: { log.append("off") })
-        var applied = LockPolicy(activation)
-        hotkeys.apply(applied)
-        now = start.addingTimeInterval(8 * 24 * 3600)
-        activation.refresh()
-        applied = LockPolicy.next(current: LockPolicy(activation), applied: applied, recording: true)
-        hotkeys.apply(applied)
-        XCTAssertEqual(log, ["on"])
-        applied = LockPolicy.next(current: LockPolicy(activation), applied: applied, recording: false)
-        hotkeys.apply(applied)
-        XCTAssertEqual(log, ["on", "off"])
     }
 
     func testForcingRegistersAgainForALateHandler() {

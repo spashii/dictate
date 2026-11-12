@@ -429,7 +429,7 @@ final class CallsModel {
 
     /// The app the prompt asks about: the first in a call that wasn't dismissed.
     var promptApp: DetectedCall? {
-        guard askToRecord, recording == nil, model?.activation.allowsRecording == true else { return nil }
+        guard askToRecord, recording == nil, model?.activation.isActivated == true else { return nil }
         return detected.first { !dismissed.contains($0.bundleID) }
     }
 
