@@ -25,6 +25,9 @@ public struct Dictation: Sendable, Codable, Identifiable {
 
     public var id: String
     public var createdAt: Date
+    /// The IANA zone it was recorded in; nil for dictations from before it was kept, and for
+    /// imported ones, whose zone nobody knows.
+    public var timeZone: String? = nil
     public var audioPath: String
     public var duration: Double
     public var mode: Mode
@@ -127,12 +130,12 @@ public final class Store: @unchecked Sendable {
                 try run("""
                     INSERT OR REPLACE INTO dictations (id, created_at, audio_path, duration, mode,
                       whisper_model, raw_text, final_text, cleanup_model, cleanup_system, record_ms,
-                      load_ms, transcribe_ms, cleanup_ms, paste_ms, error, origin, retry_ms)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                      load_ms, transcribe_ms, cleanup_ms, paste_ms, error, origin, retry_ms, time_zone)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                     """, [d.id, d.createdAt.timeIntervalSince1970, d.audioPath, d.duration, d.mode.rawValue,
                           d.whisperModel, d.rawText, d.finalText, d.cleanupModel, d.cleanupSystem,
                           d.timings.record, d.timings.load, d.timings.transcribe, d.timings.cleanup,
-                          d.timings.paste, d.error, d.origin?.rawValue, d.timings.retry])
+                          d.timings.paste, d.error, d.origin?.rawValue, d.timings.retry, d.timeZone])
                 for (i, s) in d.segments.enumerated() {
                     try run("""
                         INSERT OR REPLACE INTO segments (dictation_id, idx, t0, t1, text, avg_logprob, no_speech_prob,
@@ -184,11 +187,12 @@ public final class Store: @unchecked Sendable {
     }
 
     /// Dates a row by when its audio was recorded rather than when it was transcribed, and
-    /// notes where it came from.
-    public func setOrigin(_ id: String, _ origin: Dictation.Origin?, createdAt: Date) {
+    /// notes where it came from. The zone is the one the audio was recorded in, which the zone
+    /// the row was transcribed in says nothing about, so it is replaced and nil means unknown.
+    public func setOrigin(_ id: String, _ origin: Dictation.Origin?, createdAt: Date, timeZone: String? = nil) {
         queue.sync {
-            _ = try? run("UPDATE dictations SET origin = ?, created_at = ? WHERE id = ?",
-                         [origin?.rawValue, createdAt.timeIntervalSince1970, id])
+            _ = try? run("UPDATE dictations SET origin = ?, created_at = ?, time_zone = ? WHERE id = ?",
+                         [origin?.rawValue, createdAt.timeIntervalSince1970, timeZone, id])
         }
     }
 
@@ -271,7 +275,7 @@ public final class Store: @unchecked Sendable {
             var statement: OpaquePointer?
             guard sqlite3_prepare_v2(db, """
                 SELECT id, created_at, audio_path, duration, mode, whisper_model, raw_text,
-                       coalesce(corrected_text, final_text), cleanup_model, error, origin
+                       coalesce(corrected_text, final_text), cleanup_model, error, origin, time_zone
                 FROM dictations WHERE duration >= ?
                 ORDER BY created_at DESC LIMIT ?
                 """, -1, &statement, nil) == SQLITE_OK else { return [] }
@@ -283,6 +287,7 @@ public final class Store: @unchecked Sendable {
             while sqlite3_step(statement) == SQLITE_ROW {
                 rows.append(Dictation(
                     id: text(0) ?? "", createdAt: Date(timeIntervalSince1970: sqlite3_column_double(statement, 1)),
+                    timeZone: text(11),
                     audioPath: text(2) ?? "", duration: sqlite3_column_double(statement, 3),
                     mode: Dictation.Mode(rawValue: text(4) ?? "") ?? .plain, whisperModel: text(5) ?? "",
                     rawText: text(6) ?? "", finalText: text(7) ?? "", cleanupModel: text(8), cleanupSystem: nil,

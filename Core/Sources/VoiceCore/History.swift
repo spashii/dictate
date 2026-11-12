@@ -11,6 +11,8 @@ public struct HistoryEntry: Sendable, Identifiable, Equatable, Hashable {
     /// The dictation's or call's id.
     public var ref: String
     public var at: Date
+    /// The IANA zone it was recorded in; nil when unknown, which shows as the current zone.
+    public var timeZone: String? = nil
     public var duration: Double
     /// The text's start, or the call's name.
     public var title: String
@@ -19,6 +21,8 @@ public struct HistoryEntry: Sendable, Identifiable, Equatable, Hashable {
     /// Whether it has words to copy. A dictation listed always has; a call that heard nothing
     /// has none, and the window offers no Copy for it.
     public var hasText = true
+    /// The recording the entry keeps, whether or not the file is still there.
+    public var audioPath: String? = nil
 
     public var id: String { "\(kind.rawValue):\(ref)" }
 }
@@ -99,27 +103,29 @@ extension CallStore {
     public func historyEntries(limit: Int = 200) throws -> [HistoryEntry] {
         try queue.sync {
             let dictations = try db.query("""
-                SELECT d.id, d.created_at, d.duration, coalesce(d.corrected_text, d.final_text),
+                SELECT d.id, d.created_at, d.duration, coalesce(d.corrected_text, d.final_text), d.time_zone, d.audio_path,
                   (SELECT count(*) FROM segment_retries r WHERE r.dictation_id = d.id AND r.kept = 1 AND r.changed = 1)
                   + (SELECT count(*) FROM fix_edits f WHERE f.dictation_id = d.id)
                   + (SELECT count(*) FROM edits e WHERE e.target = 'dictation:' || d.id)
                 FROM dictations d WHERE d.duration >= ? AND coalesce(d.corrected_text, d.final_text) <> ''
                 ORDER BY d.created_at DESC LIMIT ?
                 """, [Dictation.tooShort, limit]) { row in
-                HistoryEntry(kind: .dictation, ref: row.text(0), at: row.date(1), duration: row.double(2),
-                             title: Self.preview(row.text(3)), changes: row.int(4))
+                HistoryEntry(kind: .dictation, ref: row.text(0), at: row.date(1), timeZone: row.string(4),
+                             duration: row.double(2), title: Self.preview(row.text(3)), changes: row.int(6),
+                             audioPath: row.string(5))
             }
             let calls = try db.query("""
                 SELECT c.id, c.started_at, coalesce(c.ended_at, c.started_at) - c.started_at,
-                  coalesce(c.title, c.app_name || ' call', 'Call'),
+                  coalesce(c.title, c.app_name || ' call', 'Call'), c.time_zone, c.audio_path,
                   (SELECT count(*) FROM segment_retries r WHERE r.call_id = c.id AND r.kept = 1 AND r.changed = 1)
                   + (SELECT count(*) FROM edits e WHERE e.target LIKE 'call:' || c.id || '/segment:%'),
                   EXISTS (SELECT 1 FROM call_segments s WHERE s.call_id = c.id
                           AND trim(coalesce(s.corrected_text, s.text), ' ' || char(9, 10, 13)) <> '')
                 FROM calls c ORDER BY c.started_at DESC LIMIT ?
                 """, [limit]) { row in
-                HistoryEntry(kind: .call, ref: row.text(0), at: row.date(1), duration: row.double(2),
-                             title: row.text(3), changes: row.int(4), hasText: row.int(5) != 0)
+                HistoryEntry(kind: .call, ref: row.text(0), at: row.date(1), timeZone: row.string(4),
+                             duration: row.double(2), title: row.text(3), changes: row.int(6), hasText: row.int(7) != 0,
+                             audioPath: row.string(5))
             }
             return Array((dictations + calls).sorted { $0.at > $1.at }.prefix(limit))
         }

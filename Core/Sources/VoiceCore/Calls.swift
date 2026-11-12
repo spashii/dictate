@@ -16,6 +16,8 @@ public struct Call: Sendable, Codable, Identifiable, Equatable {
 
     public var id: String
     public var startedAt: Date
+    /// The IANA zone the call was recorded in; nil for calls from before it was kept.
+    public var timeZone: String? = nil
     public var endedAt: Date?
     /// The app the call ran in, such as us.zoom.xos, when the recorder could tell.
     public var appBundleID: String?
@@ -77,6 +79,7 @@ public struct CallSegment: Sendable, Codable, Equatable, Identifiable {
 public struct NewCall: Sendable {
     public var id: String
     public var startedAt: Date
+    public var timeZone: String
     public var appBundleID: String?
     public var appName: String?
     public var deviceUID: String?
@@ -85,11 +88,13 @@ public struct NewCall: Sendable {
     public var title: String?
     public var speakers: [String]?
 
-    public init(id: String = UUID().uuidString, startedAt: Date = Date(), appBundleID: String? = nil,
+    public init(id: String = UUID().uuidString, startedAt: Date = Date(),
+                timeZone: String = TimeZone.current.identifier, appBundleID: String? = nil,
                 appName: String? = nil, deviceUID: String? = nil, split: Bool, audioPath: String? = nil,
                 title: String? = nil, speakers: [String]? = nil) {
         self.id = id
         self.startedAt = startedAt
+        self.timeZone = timeZone
         self.appBundleID = appBundleID
         self.appName = appName
         self.deviceUID = deviceUID
