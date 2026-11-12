@@ -16,10 +16,10 @@ packages:
   VoiceCore:
     path: ../Core
   # Records both sides of a call and meters call apps (Blend Mic's engine).
-  # TEMPORARY: a local checkout on the Air, while Blend's release isn't out. D5 replaces it
-  # with the released package pinned exactVersion.
+  # Pinned to the Blend Mic release; move it by hand to the next one.
   BlendKit:
-    path: ../../blendkit-build/kit/kit
+    url: https://github.com/spashii/blend
+    exactVersion: 0.9.0
   # The global shortcuts, and the fields that record them in Settings.
   KeyboardShortcuts:
     url: https://github.com/sindresorhus/KeyboardShortcuts
