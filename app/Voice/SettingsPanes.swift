@@ -304,6 +304,8 @@ struct AgentsPane: View {
                 Text(addressError).foregroundStyle(.red)
             } else if case .failed(let message) = agents.status {
                 Text(message).foregroundStyle(.red)
+            } else if let warning = MCPEndpoint.exposureWarning(host: hostText) {
+                Text(warning).foregroundStyle(.orange)
             }
         }
         .onChange(of: focus) { old, new in

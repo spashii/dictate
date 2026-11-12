@@ -11,11 +11,14 @@ public protocol RecordingControl: Sendable {
 public enum MCPServerError: Error, CustomStringConvertible {
     case portInUse(UInt16)
     case failed(String)
+    /// The address isn't on any interface right now; start() retries before giving up.
+    case addressNotAvailable(String)
 
     public var description: String {
         switch self {
         case .portInUse(let port): "Port \(port) is in use: Dictate or dictate-cli mcp is already serving it."
         case .failed(let message): "The MCP server couldn't start: \(message)"
+        case .addressNotAvailable(let address): "The MCP server couldn't start: \(address) isn't available on this Mac."
         }
     }
 }
@@ -67,14 +70,43 @@ public final class MCPServer: @unchecked Sendable {
         set { router.switches.disabled = newValue }
     }
 
+    /// The address the listener is bound to, once started.
+    public private(set) var listenAddress: String?
+
     /// Listens on the one address it was given, 127.0.0.1 unless Settings says otherwise, and
-    /// returns the port, which differs from the one asked for only when that was 0.
+    /// returns the port, which differs from the one asked for only when that was 0. A
+    /// restart can bind while the old socket is still in TIME_WAIT, and an address whose
+    /// interface isn't up yet (a VPN or Tailscale address at login) is retried for a few
+    /// seconds instead of failing the first time.
     @discardableResult
-    public func start() async throws -> UInt16 {
+    public func start(retryAddressFor seconds: Int = 10) async throws -> UInt16 {
         guard let address = MCPEndpoint.address(host: host), let ipv4 = IPv4Address(address) else {
             throw MCPServerError.failed("\(host) isn't an IPv4 address.")
         }
+        var attempt = 0
+        var busy = 0
+        while true {
+            do {
+                let (listener, port) = try await bind(ipv4)
+                queue.sync { self.listener = listener }
+                listenAddress = address
+                return port
+            } catch MCPServerError.portInUse(let port) {
+                // A restart's old listener closes a moment after stop() returns.
+                busy += 1
+                guard busy <= 6 else { throw MCPServerError.portInUse(port) }
+                try await Task.sleep(for: .milliseconds(250))
+            } catch MCPServerError.addressNotAvailable(let unavailable) {
+                attempt += 1
+                guard attempt <= seconds else { throw MCPServerError.failed("\(unavailable) isn't available on this Mac.") }
+                try await Task.sleep(for: .seconds(1))
+            }
+        }
+    }
+
+    private func bind(_ ipv4: IPv4Address) async throws -> (NWListener, UInt16) {
         let parameters = NWParameters.tcp
+        parameters.allowLocalEndpointReuse = true
         parameters.requiredLocalEndpoint = .hostPort(host: .ipv4(ipv4),
                                                      port: NWEndpoint.Port(rawValue: requestedPort) ?? .any)
         let listener: NWListener
@@ -93,6 +125,8 @@ public final class MCPServer: @unchecked Sendable {
                 case .failed(let error), .waiting(let error):
                     if case .posix(let code) = error, code == .EADDRINUSE {
                         once.resume(.failure(MCPServerError.portInUse(requestedPort)))
+                    } else if case .posix(let code) = error, code == .EADDRNOTAVAIL {
+                        once.resume(.failure(MCPServerError.addressNotAvailable("\(ipv4)")))
                     } else {
                         once.resume(.failure(MCPServerError.failed("\(error)")))
                     }
@@ -106,8 +140,7 @@ public final class MCPServer: @unchecked Sendable {
             listener.newConnectionHandler = { [weak self] connection in self?.accept(connection) }
             listener.start(queue: queue)
         }
-        queue.sync { self.listener = listener }
-        return port
+        return (listener, port)
     }
 
     /// Stops listening and closes every connection, including requests still waiting.

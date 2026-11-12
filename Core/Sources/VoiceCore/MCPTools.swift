@@ -71,6 +71,13 @@ public enum MCPEndpoint {
     }
 
     public static let defaultHost = "127.0.0.1"
+
+    /// What to tell a person who sets an address other than this Mac's own: the token is sent
+    /// in clear text over plain HTTP, so anyone on that network path can read it.
+    public static func exposureWarning(host: String) -> String? {
+        guard let address = address(host: host), !address.hasPrefix("127.") else { return nil }
+        return "\(address == "0.0.0.0" ? "0.0.0.0 listens on every network this Mac is on" : "\(address) is not this Mac's own address"). The token travels unencrypted, so use it only on a network you trust."
+    }
 }
 
 /// What to give an agent app so it can connect: the URL, a JSON config for apps that take one,
@@ -89,6 +96,7 @@ public struct MCPSetup: Sendable, Equatable {
             {
               "mcpServers": {
                 "dictate": {
+                  "type": "http",
                   "url": "\(url)",
                   "headers": { "Authorization": "Bearer \(token)" }
                 }

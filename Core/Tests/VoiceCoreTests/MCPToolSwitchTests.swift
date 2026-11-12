@@ -27,6 +27,15 @@ import Testing
         #expect(!MCPServer.offByDefault.contains("list_calls") && !MCPServer.offByDefault.contains("get_transcript"))
     }
 
+    /// What the app's AgentAccess starts with on a Mac that never ran Dictate.
+    @Test func aNewInstallListsNoWritingOrRecordingTool() async throws {
+        let store = UserDefaults(suiteName: "dictate-tests-\(UUID().uuidString)")!
+        let disabled = AgentSettings.disabledTools(in: store, existingInstall: false)
+        let names = try await listed(try router(disabled: disabled))
+        for tool in MCPServer.offByDefault { #expect(!names.contains(tool), "\(tool)") }
+        #expect(names.contains("list_calls") && names.contains("get_transcript"))
+    }
+
     @Test func everyToolIsListedByDefault() async throws {
         let names = try await listed(try router())
         #expect(names == MCPServer.toolCatalog.map(\.name))
@@ -99,6 +108,37 @@ import Testing
         defer { server.stop() }
         let port = try await server.start()
         #expect(port > 0)
+        // "localhost" is bound as the loopback address, not on every interface.
+        #expect(server.listenAddress == "127.0.0.1")
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/mcp")!)
+        request.httpMethod = "POST"
+        let (_, response) = try await URLSession.shared.data(for: request)
+        #expect((response as? HTTPURLResponse)?.statusCode == 401)
+    }
+
+    @Test func aRestartCanTakeTheSamePortAtOnce() async throws {
+        let calls = try CallStore(url: temporaryCallDatabase())
+        let token = String(repeating: "ab", count: 32)
+        let first = MCPServer(store: calls, token: token, port: 0)
+        let port = try await first.start()
+        first.stop()
+        let second = MCPServer(store: calls, token: token, port: port)
+        defer { second.stop() }
+        #expect(try await second.start() == port)
+    }
+
+    @Test func anAddressNoInterfaceHasFailsAfterTheRetries() async throws {
+        let calls = try CallStore(url: temporaryCallDatabase())
+        let server = MCPServer(store: calls, token: String(repeating: "ab", count: 32), port: 0, host: "203.0.113.77")
+        await #expect(throws: MCPServerError.self) { try await server.start(retryAddressFor: 1) }
+    }
+
+    @Test func onlyAddressesBeyondThisMacGetAWarning() {
+        #expect(MCPEndpoint.exposureWarning(host: "127.0.0.1") == nil)
+        #expect(MCPEndpoint.exposureWarning(host: "localhost") == nil)
+        #expect(MCPEndpoint.exposureWarning(host: "nowhere") == nil)
+        #expect(MCPEndpoint.exposureWarning(host: "0.0.0.0")?.contains("unencrypted") == true)
+        #expect(MCPEndpoint.exposureWarning(host: "192.168.1.20")?.contains("unencrypted") == true)
     }
 
     @Test func aServerWithABadHostFailsToStart() async throws {
@@ -155,6 +195,8 @@ import Testing
         let object = try #require(JSONSerialization.jsonObject(with: Data(setup.json.utf8)) as? [String: Any])
         let servers = try #require(object["mcpServers"] as? [String: Any])
         let dictate = try #require(servers["dictate"] as? [String: Any])
+        // Claude Code reads an entry with a url and no type as a stdio server and skips it.
+        #expect(dictate["type"] as? String == "http")
         #expect(dictate["url"] as? String == "http://127.0.0.1:8123/mcp")
         #expect((dictate["headers"] as? [String: String])?["Authorization"] == "Bearer abc123")
         #expect(setup.copied.hasPrefix("{") && setup.copied.hasSuffix("abc123\""))
