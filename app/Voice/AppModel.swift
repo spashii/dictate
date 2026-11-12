@@ -53,6 +53,8 @@ final class AppModel {
     /// What Ollama has installed; nil while it isn't running.
     var ollamaModels: [String]?
     var devices: [InputDevice] = []
+    /// The app holding macOS secure keyboard input, which silences global shortcuts; nil when none does.
+    private(set) var secureInput: SecureInput.Holder?
     var microphoneAllowed = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
     var accessibilityAllowed = Paster.hasAccess
     var openAtLogin = SMAppService.mainApp.status == .enabled
@@ -183,6 +185,14 @@ final class AppModel {
             while !Task.isCancelled {
                 await refreshOllama()
                 try? await Task.sleep(for: .seconds(30))
+            }
+        }
+        // One flag check every few seconds; the app holding it is looked up only while it is set.
+        Task {
+            while !Task.isCancelled {
+                let holder = lock.showsRecordingMenu ? SecureInput.holder() : nil
+                if holder != secureInput { secureInput = holder }
+                try? await Task.sleep(for: .seconds(4))
             }
         }
         if setupComplete {

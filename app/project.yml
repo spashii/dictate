@@ -141,6 +141,7 @@ targets:
       - path: Voice/LockPolicy.swift
       - path: Voice/MainPane.swift
       - path: Voice/HistoryDisplay.swift
+      - path: Voice/SecureInput.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.spashii.voice.tests

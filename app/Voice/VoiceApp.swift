@@ -110,6 +110,9 @@ struct MenuContent: View {
         }
         if model.lock.showsRecordingMenu {
             Text(model.statusText)
+            if let holder = model.secureInput {
+                Text(holder.menuText)
+            }
             Button(model.isRecording ? "Stop and paste" : "Dictate  \(KeyboardShortcuts.getShortcut(for: .dictate)?.description ?? "")") {
                 model.toggle()
             }
