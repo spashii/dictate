@@ -3,8 +3,9 @@ import VoiceCore
 
 // The commands for agents, which need no whisper model:
 //
-//   dictate-cli mcp [--port N] [--db PATH]
-//       serves MCP on 127.0.0.1 (port 7766) against the app's database until stopped, for
+//   dictate-cli mcp [--host ADDRESS] [--port N] [--db PATH]
+//       serves MCP on the host, port and tool switches Dictate's Agents settings hold
+//       (127.0.0.1, 7766 and the new-install defaults when it never stored any) against the app's database until stopped, for
 //       when Dictate isn't running; the two can't both hold the port. Key-term changes go to
 //       the app's defaults, which a running Dictate watches
 //   dictate-cli fake-call [--every SECONDS] [--count N] [--db PATH]
@@ -36,8 +37,11 @@ private func runAgentCommand(_ command: String, _ arguments: [String], dbPath: S
     let database = dbPath.map { URL(fileURLWithPath: $0) } ?? Paths.database
     switch command {
     case "mcp":
-        let port = option("--port").flatMap(UInt16.init) ?? MCPServer.defaultPort
-        try await serve(database, port: port)
+        // The app's settings apply unless a flag overrides them, so the same tools stay off
+        // and the server keeps the address agents were set up with.
+        let app = AgentSettings.endpoint(in: AgentSettings.appDefaults)
+        let port = option("--port").flatMap(UInt16.init) ?? app.port
+        try await serve(database, host: option("--host").flatMap(MCPEndpoint.address(host:)) ?? app.host, port: port)
     case "fake-call":
         if arguments.contains("--remove") {
             try removeFakeCalls(database)
@@ -54,12 +58,13 @@ private func log(_ message: String) {
     FileHandle.standardError.write(Data((message + "\n").utf8))
 }
 
-private func serve(_ database: URL, port: UInt16) async throws {
+private func serve(_ database: URL, host: String, port: UInt16) async throws {
     let store = try CallStore(url: database)
     let token = try MCPToken.load()
-    let server = MCPServer(store: store, token: token, port: port, keyTerms: AppDefaultsKeyTerms(), version: "dictate-cli")
+    let server = MCPServer(store: store, token: token, port: port, keyTerms: AppDefaultsKeyTerms(), version: "dictate-cli",
+                           host: host, disabledTools: AgentSettings.disabledToolsForReading(in: AgentSettings.appDefaults))
     let bound = try await server.start()
-    log("MCP at http://127.0.0.1:\(bound)\(MCPServer.endpointPath) on \(database.path); token in \(MCPToken.file.path)")
+    log("MCP at http://\(host):\(bound)\(MCPServer.endpointPath) on \(database.path); token in \(MCPToken.file.path)")
     while true {
         try await Task.sleep(for: .seconds(3600))
         // Holds the server: its listener only keeps a weak reference.
