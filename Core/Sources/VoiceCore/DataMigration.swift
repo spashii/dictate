@@ -58,7 +58,11 @@ public enum DataMigration {
         let fm = FileManager.default
         let new = root.appending(path: newName, directoryHint: .isDirectory)
         let old = root.appending(path: oldName, directoryHint: .isDirectory)
-        if fm.fileExists(atPath: new.appending(path: markerName).path) { return .nothingToDo }
+        if fm.fileExists(atPath: new.appending(path: markerName).path) {
+            // Also retried on later launches, in case an earlier rewrite could not finish.
+            rewriteAudioPaths(database: new.appending(path: "voice.sqlite"), from: old, to: new)
+            return .nothingToDo
+        }
         // A symlink at Voice (left by an earlier migration) isn't data to move.
         var isLink: Bool { (try? old.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true }
         guard fm.fileExists(atPath: old.path), !isLink else { return .nothingToDo }
@@ -70,10 +74,48 @@ public enum DataMigration {
         }
         // Past this point the data has moved; neither step below can undo that.
         try? Data("\(Date())\n".utf8).write(to: new.appending(path: markerName))
+        // Stored audio paths still name the Voice folder. They resolve through the link below
+        // today, but the link is a courtesy that a user or a cleanup tool can delete, and
+        // recovery compares paths to decide which recordings are orphans.
+        rewriteAudioPaths(database: new.appending(path: "voice.sqlite"), from: old, to: new)
         // Agents and scripts that read the old token path keep working. It is a link, so
         // there is still one copy of the data.
         try? fm.createSymbolicLink(at: old, withDestinationURL: new)
         return .moved
+    }
+
+    /// Points every stored audio path under `old` at `new`. Safe to run again: rows already
+    /// under `new` don't match. Tables that don't exist yet (an old database) are skipped.
+    /// Returns how many rows changed.
+    @discardableResult
+    static func rewriteAudioPaths(database: URL, from old: URL, to new: URL) -> Int {
+        guard isSQLiteFile(database), let db = try? SQLiteConnection(url: database) else { return 0 }
+        let oldPrefix = old.path + "/"
+        let newPrefix = new.path + "/"
+        do {
+            return try db.transaction {
+                var changed = 0
+                for table in ["dictations", "calls"] {
+                    let exists = try db.query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", [table]) { $0.int(0) }
+                    guard !exists.isEmpty else { continue }
+                    changed += try db.run("""
+                        UPDATE \(table) SET audio_path = ? || substr(audio_path, ?)
+                        WHERE audio_path IS NOT NULL AND substr(audio_path, 1, ?) = ?
+                        """, [newPrefix, oldPrefix.count + 1, oldPrefix.count, oldPrefix])
+                }
+                return changed
+            }
+        } catch {
+            log.error("Couldn't rewrite stored audio paths: \(String(describing: error), privacy: .public)")
+            return 0
+        }
+    }
+
+    /// Opening anything else with SQLite would treat its neighbours (-wal) as that database's.
+    private static func isSQLiteFile(_ url: URL) -> Bool {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
+        defer { try? handle.close() }
+        return (try? handle.read(upToCount: 15)).map { String(decoding: $0, as: UTF8.self) == "SQLite format 3" } ?? false
     }
 
     public static func moveItem(_ from: URL, _ to: URL) throws {

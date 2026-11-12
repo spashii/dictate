@@ -122,4 +122,52 @@ import Testing
         #expect(text(root.appending(path: "Voice/voice.sqlite")) == "db")
         #expect(!FileManager.default.fileExists(atPath: root.appending(path: "Dictate").path))
     }
+
+    @Test func storedAudioPathsFollowTheFolderAndSurviveWithoutTheLink() throws {
+        let root = try root()
+        let voice = root.appending(path: "Voice", directoryHint: .isDirectory)
+        let recordings = voice.appending(path: "recordings", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: recordings, withIntermediateDirectories: true)
+        let spoken = recordings.appending(path: "1700000000000.wav")
+        let call = recordings.appending(path: "1700000100000.m4a")
+        try Data("a".utf8).write(to: spoken)
+        try Data("b".utf8).write(to: call)
+        let database = voice.appending(path: "voice.sqlite")
+        do {
+            let store = try Store(url: database)
+            try store.insert(Dictation(audio: spoken, duration: 2, mode: .plain, whisperModel: "test", error: "x"))
+            let calls = try CallStore(url: database)
+            try calls.createCall(NewCall(id: "call-1", split: true, audioPath: call.path))
+        }
+
+        #expect(DataMigration.run(in: root) == .moved)
+        // The courtesy link goes away: nothing may depend on it.
+        try FileManager.default.removeItem(at: root.appending(path: "Voice"))
+
+        let dictate = root.appending(path: "Dictate", directoryHint: .isDirectory)
+        let store = try Store(url: dictate.appending(path: "voice.sqlite"))
+        let paths = store.audioPaths()
+        #expect(paths == [dictate.appending(path: "recordings/1700000000000.wav").path])
+        #expect(paths.allSatisfy { FileManager.default.fileExists(atPath: $0) })
+        #expect(Recovery.orphans(in: dictate.appending(path: "recordings"), known: paths).isEmpty)
+
+        let stored = try CallStore(url: dictate.appending(path: "voice.sqlite")).call("call-1")
+        #expect(stored?.audioPath == dictate.appending(path: "recordings/1700000100000.m4a").path)
+        #expect(stored?.audioPath.map { FileManager.default.fileExists(atPath: $0) } == true)
+
+        // Running the rewrite again changes nothing.
+        #expect(DataMigration.rewriteAudioPaths(database: dictate.appending(path: "voice.sqlite"), from: voice, to: dictate) == 0)
+    }
+
+    @Test func orphansAreMatchedByFileNameNotByFolder() throws {
+        let root = try root()
+        let folder = root.appending(path: "recordings", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try Data("a".utf8).write(to: folder.appending(path: "1.wav"))
+        try Data("b".utf8).write(to: folder.appending(path: "2.wav"))
+
+        let found = Recovery.orphans(in: folder, known: ["/elsewhere/Voice/recordings/1.wav"])
+
+        #expect(found.map(\.lastPathComponent) == ["2.wav"])
+    }
 }

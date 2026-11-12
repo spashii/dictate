@@ -6,11 +6,14 @@ import Foundation
 /// sizes when the file is closed. After a crash, a force quit or a power cut the header
 /// still says the file is empty, even though the audio is all there.
 public enum Recovery {
-    /// WAVs in the folder that no history row points at, oldest first.
+    /// WAVs in the folder that no history row points at, oldest first. Rows are matched by
+    /// file name, so a row that still names the folder's old location (Voice before the
+    /// move to Dictate) never makes its recording look like an orphan to be transcribed twice.
     public static func orphans(in folder: URL, known: Set<String>) -> [URL] {
+        let names = Set(known.map { ($0 as NSString).lastPathComponent })
         let files = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []
         return files
-            .filter { $0.pathExtension.lowercased() == "wav" && !known.contains($0.path) }
+            .filter { $0.pathExtension.lowercased() == "wav" && !names.contains($0.lastPathComponent) }
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
     }
 
