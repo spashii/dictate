@@ -98,8 +98,10 @@ final class CallsModel {
     private func migrateLegacyInput() {
         let defaults = UserDefaults.standard
         guard defaults.string(forKey: "callAudio") == nil else { return }
-        let migrated = CallAudioChoice.migrate(legacyInput: defaults.string(forKey: "callSource"),
-                                               mixUIDs: Set(mixes.compactMap(\.deviceUID)))
+        // Until the stored input is a connected device the old key stays, and the next refresh tries again.
+        guard let migrated = CallAudioChoice.migrate(legacyInput: defaults.string(forKey: "callSource"),
+                                                     mixUIDs: Set(mixes.compactMap(\.deviceUID)),
+                                                     connectedUIDs: Set(devices.map(\.uid))) else { return }
         audioChoice = migrated.choice
         microphoneUID = migrated.microphoneUID
         defaults.removeObject(forKey: "callSource")

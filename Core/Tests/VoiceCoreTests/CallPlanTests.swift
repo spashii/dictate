@@ -106,12 +106,20 @@ private func inputs(_ choice: CallAudioChoice = .automatic, microphone: String =
         #expect(CallAudioChoice(stored: "garbage") == .automatic)
     }
 
-    @Test func anOldCallInputKeepsItsMeaning() {
-        #expect(CallAudioChoice.migrate(legacyInput: "mix.split", mixUIDs: ["mix.split"]).choice
+    @Test func anOldCallInputKeepsItsMeaning() throws {
+        let connected: Set<String> = ["mix.split", "BuiltIn"]
+        #expect(CallAudioChoice.migrate(legacyInput: "mix.split", mixUIDs: ["mix.split"], connectedUIDs: connected)?.choice
                 == .blendMix(deviceUID: "mix.split"))
-        let mic = CallAudioChoice.migrate(legacyInput: "BuiltIn", mixUIDs: ["mix.split"])
+        let mic = try #require(CallAudioChoice.migrate(legacyInput: "BuiltIn", mixUIDs: ["mix.split"], connectedUIDs: connected))
         #expect(mic.choice == .automatic && mic.microphoneUID == "BuiltIn")
-        let none = CallAudioChoice.migrate(legacyInput: nil, mixUIDs: [])
+        let none = try #require(CallAudioChoice.migrate(legacyInput: nil, mixUIDs: [], connectedUIDs: []))
         #expect(none.choice == .automatic && none.microphoneUID.isEmpty)
+    }
+
+    /// The mix isn't listed yet at the first refresh: keep the old key instead of making it a microphone.
+    @Test func aStoredInputThatIsNotConnectedWaits() {
+        #expect(CallAudioChoice.migrate(legacyInput: "mix.split", mixUIDs: [], connectedUIDs: ["BuiltIn"]) == nil)
+        #expect(CallAudioChoice.migrate(legacyInput: "mix.split", mixUIDs: ["mix.split"], connectedUIDs: ["BuiltIn"])?.choice
+                == .blendMix(deviceUID: "mix.split"))
     }
 }

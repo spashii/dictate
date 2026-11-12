@@ -42,9 +42,16 @@ public enum CallAudioChoice: Sendable, Equatable {
     /// Settings before call audio could be tapped had one "Record from" input, a Blend mix or
     /// a microphone. A mix stays the call audio and a microphone becomes the call microphone,
     /// so nobody's setup changes meaning.
-    public static func migrate(legacyInput: String?, mixUIDs: Set<String>) -> (choice: CallAudioChoice, microphoneUID: String) {
+    ///
+    /// nil means "not yet": the stored input isn't a connected device right now (a Blend mix
+    /// whose driver hasn't listed it, an unplugged headset). Guessing then would turn a mix
+    /// into a microphone for good, so the caller keeps the old setting and asks again at the
+    /// next device refresh.
+    public static func migrate(legacyInput: String?, mixUIDs: Set<String>,
+                               connectedUIDs: Set<String>) -> (choice: CallAudioChoice, microphoneUID: String)? {
         guard let legacyInput, !legacyInput.isEmpty else { return (.automatic, "") }
         if mixUIDs.contains(legacyInput) { return (.blendMix(deviceUID: legacyInput), "") }
+        guard connectedUIDs.contains(legacyInput) else { return nil }
         return (.automatic, legacyInput)
     }
 }
