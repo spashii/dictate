@@ -2,11 +2,10 @@ import Foundation
 import Observation
 import Sparkle
 
-/// Updates come through Sparkle: it reads the appcast through apps.idea2prod.in, which passes
-/// the one on Dictate's website through and counts the checks, checks each update against the
-/// signing key in Info.plist, and asks before installing. On the second launch it asks
-/// whether to check automatically. Apart from the speech model downloads, nothing else in
-/// Dictate goes online.
+/// Updates come through Sparkle. It reads the appcast from dictate.firstversion.in, which
+/// counts the checks, verifies each update against the signing key in Info.plist, and asks
+/// before installing. On the second launch it asks whether to check automatically. Apart
+/// from the speech model downloads, nothing else in Dictate goes online.
 ///
 /// An update Sparkle downloads on its own waits for Dictate to quit, and a menu bar app that
 /// opens at login is almost never quit, so it could stay staged for weeks. Dictate takes the
@@ -75,7 +74,7 @@ final class Updates {
 }
 
 /// Marks update checks from the owner's own Macs (the OwnerMac default), so the counts at
-/// apps.idea2prod.in can leave them out. Sparkle adds the pair to the appcast's query; every
+/// update server can leave them out. Sparkle adds the pair to the appcast's query; every
 /// other Mac sends no parameters, and the system profile stays off.
 final class UpdaterDelegate: NSObject, SPUUpdaterDelegate {
     /// Takes Sparkle's install-now block for a staged update; set by Updates.

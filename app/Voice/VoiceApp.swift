@@ -34,6 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// The data folder moves before anything can open the database.
     override init() {
         DataMigration.run()
+        BundleRename.renameIfNeeded()
         model = AppModel()
         calls = CallsModel()
         super.init()

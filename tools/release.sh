@@ -1,38 +1,25 @@
 #!/bin/zsh
 # Builds the release disk image on a Mac: tools/release.sh [--publish]
 #
-# Output: build/release/Dictate-VERSION.dmg and its .sha256, with the same Voice.app in
-# build/release/stage, and Dictate.dmg, a byte-identical copy that is uploaded beside it. The
-# app is named Dictate but its bundle stays Voice.app so existing installs keep updating.
-# Built in the Release configuration and signed with a Developer ID under the hardened runtime with a secure timestamp; both the app and the image are
-# notarized and stapled, so Dictate opens on any Mac without a Gatekeeper warning, offline too.
-# The identity comes from the release keychain Blend's tools/release-identity.sh sets up (one
-# Developer ID signs both apps), or from VOICE_SIGN_ID and VOICE_NOTARY_PROFILE in your login
-# keychain.
+# Output in build/release: Dictate-VERSION.dmg and its .sha256, the same Dictate.app in
+# stage, and appcast.xml, a feed with this release as its one item. The app is built in the
+# Release configuration and signed with a Developer ID under the hardened runtime with a
+# secure timestamp; both the app and the image are notarized and stapled, so Dictate opens on
+# any Mac without a Gatekeeper warning, offline too. The identity comes from the release
+# keychain Blend's tools/release-identity.sh sets up (one Developer ID signs both apps), or
+# from VOICE_SIGN_ID and VOICE_NOTARY_PROFILE in your login keychain.
 #
-# With the update key in place, the image then becomes the newest entry in the update feed
-# (site/appcast.xml) and the Homebrew cask (Casks/dictate.rb). --publish uploads it as GitHub
-# release vVERSION and pushes the feed and the cask; it needs a clean, pushed git checkout
-# and gh logged in. Over SSH gh can't read the Mac's keychain, so publish from the machine
-# with the checkout instead, as docs/DEVELOPMENT.md describes.
+# Nothing is published by default: the script prints the command that uploads the image
+# with the private download site's publish-release.sh. --publish runs it, and also replaces
+# the feed that installed apps read, so only pass it when the release is ready for them.
+# VOICE_PUBLISH_TOOL points at publish-release.sh when it isn't in ~/work/dictate-web/tools.
 set -euo pipefail
 root=${0:A:h:h}
 cd $root
 version=$(<VERSION)
 publish=false
-if [[ ${1:-} == --publish ]]; then
-  publish=true
-  # The release is built from HEAD and tagged there, so HEAD has to be exactly what is on
-  # GitHub; these checks fail when GitHub can't be reached, rather than passing.
-  [[ -z $(git status --porcelain) ]] || { print -u2 "Commit everything first."; exit 1 }
-  git fetch -q origin
-  [[ $(git rev-parse HEAD) == $(git rev-parse "@{u}") ]] || { print -u2 "Push HEAD first."; exit 1 }
-  gh auth status >/dev/null
-  if [[ -n $(gh release list --json tagName -q ".[] | select(.tagName == \"v$version\")") ]]; then
-    print -u2 "v$version is already released; raise VERSION."
-    exit 1
-  fi
-fi
+[[ ${1:-} == --publish ]] && publish=true
+publishTool=${VOICE_PUBLISH_TOOL:-$HOME/work/dictate-web/tools/publish-release.sh}
 
 identity=${VOICE_SIGN_ID:-}
 profile=${VOICE_NOTARY_PROFILE:-}
@@ -76,7 +63,7 @@ xcodebuild -project app/Voice.xcodeproj -scheme Voice -configuration Release \
   -destination "platform=macOS,arch=arm64" -derivedDataPath $out/xcode -quiet \
   MARKETING_VERSION=$version CURRENT_PROJECT_VERSION=$version CODE_SIGN_STYLE=Manual \
   CODE_SIGN_IDENTITY="$identity" OTHER_CODE_SIGN_FLAGS="$signFlags" build
-app=$out/xcode/Build/Products/Release/Voice.app
+app=$out/xcode/Build/Products/Release/Dictate.app
 # dictate-cli ships inside the app, so `dictate-cli retry-report` and the rest run against the
 # installed version: Contents/Helpers/dictate-cli, loading the app's own whisper framework.
 # voice-cli is a link to it, for scripts written before the rename.
@@ -114,60 +101,59 @@ codesign --verify --deep --strict $app
 
 stage=$out/stage
 mkdir -p $stage
-ditto $app $stage/Voice.app
+ditto $app $stage/Dictate.app
 # The app gets its own ticket, so it opens without a network check once copied out of the
 # image.
-ditto -c -k --keepParent $stage/Voice.app $out/Voice.zip
-notarize $out/Voice.zip
-xcrun stapler staple $stage/Voice.app
-rm $out/Voice.zip
+ditto -c -k --keepParent $stage/Dictate.app $out/Dictate.zip
+notarize $out/Dictate.zip
+xcrun stapler staple $stage/Dictate.app
+rm $out/Dictate.zip
 ln -s /Applications $stage/Applications
 dmg=$out/Dictate-$version.dmg
 hdiutil create -quiet -volname "Dictate $version" -srcfolder $stage -fs HFS+ -format UDZO -ov $dmg
 codesign --sign "$identity" $signFlags $dmg
 notarize $dmg
 xcrun stapler staple $dmg
-spctl --assess --type execute -v $stage/Voice.app
+spctl --assess --type execute -v $stage/Dictate.app
 spctl --assess --type open --context context:primary-signature -v $dmg
 (cd $out && shasum -a 256 ${dmg:t} | tee ${dmg:t}.sha256)
-# The unversioned copy makes releases/latest/download/Dictate.dmg a stable link. It is the
-# same bytes, so the signature and checksum above cover it too.
-cp -f $dmg $out/Dictate.dmg
-
-# The notarized image becomes the newest entry in the update feed and the Homebrew cask.
-# Both are files in the repo, published by committing them after the GitHub release.
+# The notarized image becomes the one item of the update feed. The feed is a file in the
+# build folder, uploaded only on request, so a release can be tried without changing what
+# installed apps are offered.
 sparkle=${VOICE_SPARKLE_DIR:-$HOME/.blend-signing/sparkle-2.10.1}
 sparkleKey=${VOICE_SPARKLE_KEY:-$HOME/.blend-signing/sparkle-private-key}
-releases=${VOICE_RELEASES_URL:-https://github.com/spashii/dictate/releases/download}
+feed=
 if [[ -f $sparkleKey ]]; then
   signature=$($sparkle/bin/sign_update --ed-key-file $sparkleKey $dmg)
-  item="    <item>
+  feed=$out/appcast.xml
+  cat > $feed <<XML
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>Dictate</title>
+    <description>Dictate releases, read by the app's Check for Updates.</description>
+    <language>en</language>
+    <item>
       <title>Dictate $version</title>
       <pubDate>$(LC_ALL=C date -u '+%a, %d %b %Y %H:%M:%S +0000')</pubDate>
       <sparkle:version>$version</sparkle:version>
       <sparkle:shortVersionString>$version</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-      <enclosure url=\"$releases/v$version/${dmg:t}\" $signature type=\"application/octet-stream\"/>
-    </item>"
-  ITEM=$item VERSION=$version perl -0pi -e '
-    s{\s*<item>(?:(?!</item>).)*<sparkle:version>\Q$ENV{VERSION}\E</sparkle:version>.*?</item>}{}s;
-    s{(<!-- tools/release.sh adds each release below this line. -->)}{$1\n$ENV{ITEM}}' site/appcast.xml
-  sha=$(cut -d' ' -f1 $dmg.sha256)
-  sed -i '' -e "s/^  version \".*\"/  version \"$version\"/" -e "s/^  sha256 \".*\"/  sha256 \"$sha\"/" \
-    Casks/dictate.rb
+      <enclosure url="https://dictate.firstversion.in/download/$version" $signature type="application/octet-stream"/>
+    </item>
+  </channel>
+</rss>
+XML
 else
-  print -u2 "No update key at $sparkleKey: site/appcast.xml and Casks/dictate.rb are unchanged."
+  print -u2 "No update key at $sparkleKey: no appcast.xml was written."
 fi
-if $publish; then
-  [[ -f $sparkleKey ]] || { print -u2 "Not published: a release needs the update key."; exit 1 }
-  # The image goes up before the feed that offers it.
-  gh release create v$version $dmg $out/Dictate.dmg $dmg.sha256 --target $(git rev-parse HEAD) \
-    --title "Dictate $version" --generate-notes
-  git commit -q -m "Dictate $version appcast and cask" site/appcast.xml Casks/dictate.rb
-  git push -q
-  echo "Published v$version."
-elif [[ -f $sparkleKey ]]; then
-  echo "Updated site/appcast.xml and Casks/dictate.rb; publish them after the GitHub release."
-fi
-echo "app: $stage/Voice.app"
+echo "app: $stage/Dictate.app"
 echo "dmg: $dmg"
+if $publish; then
+  [[ -n $feed ]] || { print -u2 "Not published: the feed needs the update key."; exit 1 }
+  [[ -x $publishTool ]] || { print -u2 "Not published: $publishTool is missing."; exit 1 }
+  $publishTool $version $dmg $feed
+else
+  echo "Upload the image without changing the feed:  $publishTool $version $dmg"
+  [[ -z $feed ]] || echo "Upload it and replace the feed:             $publishTool $version $dmg $feed   (or rerun with --publish)"
+fi
