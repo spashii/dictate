@@ -116,6 +116,9 @@ public struct TranscriptBlock: Sendable, Equatable, Identifiable {
 public enum TranscriptBlocks {
     /// A dictation's paragraph holds at most this many segments.
     public static let paragraph = 2
+    /// A call side's block holds at most this many lines, so a long turn reads in paragraphs
+    /// and each has its own time to play from.
+    public static let callBlock = 4
 
     /// A call with its sides apart merges each side's consecutive lines; a dictation, and a
     /// call recorded as one mix, has no sides to merge and is cut into short paragraphs.
@@ -125,7 +128,7 @@ public enum TranscriptBlocks {
         var blocks: [TranscriptBlock] = []
         if detail.entry.kind == .call, lines.contains(where: { $0.speaker != nil }) {
             for line in lines {
-                if let last = blocks.last, last.speaker == line.speaker {
+                if let last = blocks.last, last.speaker == line.speaker, last.lines.count < callBlock {
                     blocks[blocks.count - 1].lines.append(line)
                 } else {
                     blocks.append(TranscriptBlock(speaker: line.speaker, lines: [line]))

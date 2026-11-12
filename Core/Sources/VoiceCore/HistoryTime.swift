@@ -44,12 +44,28 @@ public enum HistoryTime {
     /// for the day and month and on a 24 hour clock.
     public static func title(start: Date, zone identifier: String?, current: TimeZone = .current,
                              locale: Locale = .current) -> String {
+        let zone = zone(identifier, current: current)
+        let formatter = dayFormatter(zone: zone, locale: locale)
+        let day = formatter.string(from: start)
+        return day + ", " + String(wallClock(start, in: zone).dropLast(3))
+    }
+
+    /// A list draws a title per row, and making a DateFormatter is slow, so each zone and
+    /// locale keeps one. A formatter is safe to share once configured.
+    private nonisolated(unsafe) static var dayFormatters: [String: DateFormatter] = [:]
+    private static let dayFormattersLock = NSLock()
+
+    private static func dayFormatter(zone: TimeZone, locale: Locale) -> DateFormatter {
+        dayFormattersLock.lock()
+        defer { dayFormattersLock.unlock() }
+        let key = zone.identifier + "|" + locale.identifier
+        if let known = dayFormatters[key] { return known }
         let formatter = DateFormatter()
         formatter.locale = locale
-        formatter.timeZone = zone(identifier, current: current)
+        formatter.timeZone = zone
         formatter.dateFormat = "EEE d MMM"
-        let day = formatter.string(from: start)
-        return day + ", " + String(wallClock(start, in: formatter.timeZone).dropLast(3))
+        dayFormatters[key] = formatter
+        return formatter
     }
 
     /// 21:20:04, on a 24 hour clock whatever the Mac's locale.

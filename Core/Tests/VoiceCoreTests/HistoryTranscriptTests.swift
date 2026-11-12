@@ -24,6 +24,14 @@ private func entry(_ kind: HistoryEntry.Kind) -> HistoryEntry {
         #expect(blocks[1].lines.map(\.t0) == [4, 5, 7])
     }
 
+    @Test func aLongTurnIsCutIntoBlocksOfFourLines() {
+        let lines = (0..<9).map { line($0, "Call", Double($0) * 2, "Point \($0).") }
+        let blocks = TranscriptBlocks.make(HistoryDetail(entry: entry(.call), audioPath: nil, lines: lines,
+                                                         textChanges: []))
+        #expect(blocks.map { $0.lines.count } == [4, 4, 1])
+        #expect(blocks.allSatisfy { $0.speaker == "Call" })
+    }
+
     @Test func aDictationReadsInParagraphsOfTwoSegments() {
         let lines = (0..<5).map { line($0, nil, Double($0) * 2, "Sentence \($0).") }
         let blocks = TranscriptBlocks.make(HistoryDetail(entry: entry(.dictation), audioPath: nil, lines: lines,
