@@ -5,7 +5,8 @@ import Sparkle
 /// Updates come through Sparkle. It reads the appcast from apps.firstversion.in, the update host, which
 /// counts the checks, verifies each update against the signing key in Info.plist, and asks
 /// before installing. On the second launch it asks whether to check automatically. Apart
-/// from the speech model downloads, nothing else in Dictate goes online.
+/// from the speech model downloads, nothing else in Dictate goes online: activation happens in
+/// the browser.
 ///
 /// An update Sparkle downloads on its own waits for Dictate to quit, and a menu bar app that
 /// opens at login is almost never quit, so it could stay staged for weeks. Dictate takes the

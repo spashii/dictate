@@ -29,7 +29,7 @@ Dictate is in beta. Expect bugs, and report them at [github.com/spashii/dictate/
 
 ## Privacy
 
-Your audio never leaves your Mac, and there are no accounts. Dictate goes online only to download the speech model and to check for updates. The update server counts update checks by app, version and country and never stores your IP address. The MCP server for agents listens on this Mac only and answers nothing without its token.
+Your audio never leaves your Mac. You activate each Mac once with your email, in your browser; your email is used to send your one-time activation code. Dictate uses Sparkle for updates: a check tells the update server your Dictate version, and the server counts checks by app, version and country and never stores your IP address. The speech model downloads once. The MCP server for agents listens on this Mac only and answers nothing without its token.
 
 ## Documentation
 
