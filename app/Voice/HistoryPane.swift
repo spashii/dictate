@@ -326,6 +326,8 @@ private struct HistoryDetailView: View {
                     }
                     .padding(.vertical, 12)
                 }
+                // A new recording starts at the top; the swap is still one step.
+                .id(detail.entry.id)
                 .onChange(of: playingBlock) { _, id in
                     guard player.isPlaying, let id else { return }
                     proxy.scrollTo(id)
@@ -352,6 +354,10 @@ private struct TranscriptBlockView: View, @MainActor Equatable {
     let showCorrections: Bool
     let play: (Double) -> Void
     @State private var hovered = false
+    @State private var textWidth: CGFloat = 0
+    @State private var layout: BlockTextLayout?
+    @State private var hoveredMark: DisplayBlock.Mark?
+    @State private var markFrame: CGRect = .zero
 
     static func == (a: Self, b: Self) -> Bool {
         a.block == b.block && a.isCall == b.isCall && a.playing == b.playing && a.times == b.times
@@ -374,7 +380,7 @@ private struct TranscriptBlockView: View, @MainActor Equatable {
                     }
                 }
             if isCall {
-                Text(block.speaker ?? "")
+                Text(block.showsSpeaker ? block.speaker ?? "" : "")
                     .fontWeight(.semibold)
                     .foregroundStyle(SpeakerColors.color(for: block.speaker))
                     .frame(width: 40, alignment: .leading)
@@ -382,6 +388,20 @@ private struct TranscriptBlockView: View, @MainActor Equatable {
             VStack(alignment: .leading, spacing: 4) {
                 Text(block.text(heard: playing))
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { textWidth = $0 }
+                    .onContinuousHover { phase in
+                        switch phase {
+                        case .active(let point): hoverText(at: point)
+                        case .ended: hoveredMark = nil
+                        }
+                    }
+                    .modifier(CorrectionPopoverHost(enabled: !block.marks.isEmpty, mark: $hoveredMark, frame: markFrame))
+                    // A click in the text plays from the line it lands in; one anywhere else
+                    // in the row plays from the block.
+                    .gesture(SpatialTapGesture().onEnded { tap in
+                        let offset = textLayout()?.offset(at: tap.location, nearest: true)
+                        play(offset.map(block.start(at:)) ?? block.start)
+                    })
                 if showCorrections {
                     ForEach(block.changes) { ChangeRow(change: $0) }
                 }
@@ -394,7 +414,6 @@ private struct TranscriptBlockView: View, @MainActor Equatable {
         .contentShape(Rectangle())
         .onHover { hovered = $0 }
         .onTapGesture { play(block.start) }
-        .help(block.correctionDescriptions.joined(separator: "\n"))
         .focusable()
         .onKeyPress(.return) {
             play(block.start)
@@ -405,6 +424,76 @@ private struct TranscriptBlockView: View, @MainActor Equatable {
         .accessibilityAction(named: "Play from here") { play(block.start) }
         .modifier(CorrectionContent(descriptions: block.correctionDescriptions))
     }
+}
+
+extension TranscriptBlockView {
+    /// The layout for the row's current width, made when first needed.
+    private func textLayout() -> BlockTextLayout? {
+        guard textWidth > 0 else { return nil }
+        if let layout, layout.width == textWidth { return layout }
+        let made = BlockTextLayout(string: block.string, width: textWidth)
+        layout = made
+        return made
+    }
+
+    /// Opens the popover while the pointer is on a corrected word; blocks with no
+    /// corrections do no work.
+    private func hoverText(at point: CGPoint) {
+        guard !block.marks.isEmpty, let layout = textLayout() else { return }
+        let mark = layout.offset(at: point, nearest: false).flatMap { offset in
+            block.marks.first { $0.range.contains(offset) }
+        }
+        guard mark != hoveredMark else { return }
+        hoveredMark = mark
+        markFrame = mark.map { layout.rect(of: $0.range) } ?? .zero
+    }
+}
+
+/// The popover for the corrected word under the pointer, on rows that have any.
+private struct CorrectionPopoverHost: ViewModifier {
+    let enabled: Bool
+    @Binding var mark: DisplayBlock.Mark?
+    let frame: CGRect
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if enabled {
+            content.popover(isPresented: Binding(get: { mark != nil }, set: { if !$0 { mark = nil } }),
+                            attachmentAnchor: .rect(.rect(frame)), arrowEdge: .bottom) {
+                if let mark { CorrectionPopover(correction: mark.correction) }
+            }
+        } else {
+            content
+        }
+    }
+}
+
+private struct CorrectionPopover: View {
+    let correction: TextCorrection
+
+    var body: some View {
+        Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 5) {
+            row("Before") { Text(correction.before.isEmpty ? "(nothing)" : correction.before).strikethrough().foregroundStyle(.red) }
+            row("After") { Text(correction.after).fontWeight(.semibold).foregroundStyle(.green) }
+            row("Made by") { Text(correction.source == .correction ? "Agent correction" : correction.source.rawValue.capitalized) }
+            if let before = correction.confidenceBefore {
+                row("Confidence before") { Text(Self.percent(before)).monospacedDigit() }
+            }
+            if let after = correction.confidenceAfter {
+                row("Confidence after") { Text(Self.percent(after)).monospacedDigit() }
+            }
+        }
+        .padding(12)
+        .font(.callout)
+    }
+
+    private func row<Value: View>(_ label: String, @ViewBuilder _ value: () -> Value) -> some View {
+        GridRow {
+            Text(label).foregroundStyle(.secondary)
+            value()
+        }
+    }
+
+    private static func percent(_ value: Double) -> String { "\(Int((value * 100).rounded()))%" }
 }
 
 /// Each correction as a detail VoiceOver reads on request, so none depends on hovering.
