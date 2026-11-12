@@ -19,7 +19,10 @@ final class HistoryModel {
     var selection: HistoryEntry.ID?
     private(set) var detail: HistoryDetail?
     /// The detail's blocks, made once when it loads instead of on every redraw.
-    private(set) var blocks: [TranscriptBlock] = []
+    private(set) var blocks: [DisplayBlock] = []
+    private(set) var detailTitle = ""
+    @ObservationIgnored private var blockOfLine: [Int: Int] = [:]
+    @ObservationIgnored private var loads = 0
     private(set) var waveform: [Float] = []
     let player = HistoryPlayer()
     @ObservationIgnored private var store: CallStore?
@@ -72,31 +75,45 @@ final class HistoryModel {
         select(selection)
     }
 
+    /// The id of the block that holds a line, for scrolling to the one being heard.
+    func blockID(ofLine line: Int?) -> Int? { line.flatMap { blockOfLine[$0] } }
+
+    /// Opens an entry. What is shown stays until the new detail is read, then everything
+    /// changes in one step: a selection never passes through an empty detail.
     func select(_ id: HistoryEntry.ID?) {
         loading?.cancel()
         player.stop()
         guard let entry = visible.first(where: { $0.id == id }) else {
             detail = nil
             blocks = []
+            blockOfLine = [:]
             waveform = []
             return
         }
+        loads += 1
+        let generation = loads
         loading = Task {
             let store = await openStore()
-            let read = try? await Task.detached { try store?.historyDetail(entry) }.value
+            let read = await Task.detached { () -> (HistoryDetail, [DisplayBlock])? in
+                guard let detail = try? store?.historyDetail(entry) else { return nil }
+                return (detail, DisplayBlock.make(detail, generation: generation))
+            }.value
             guard !Task.isCancelled else { return }
-            detail = read ?? nil
-            blocks = (read ?? nil).map(TranscriptBlocks.make) ?? []
-            let shown = read ?? nil
-            player.lineAt = { seconds in shown?.line(at: seconds)?.id }
             let audio = entry.audioFile
+            let shown = read?.0
+            player.lineAt = { seconds in shown?.line(at: seconds)?.id }
             player.load(audio)
+            detail = shown
+            blocks = read?.1 ?? []
+            blockOfLine = Dictionary(blocks.flatMap { block in block.lines.map { ($0.id, block.id) } },
+                                     uniquingKeysWith: { first, _ in first })
+            detailTitle = HistoryTime.title(start: entry.at, zone: entry.timeZone)
             waveform = []
-            if let audio {
-                let peaks = await Task.detached(priority: .utility) { try? Waveform.peaks(of: audio, count: 96) }.value
-                guard !Task.isCancelled else { return }
-                waveform = peaks ?? []
-            }
+            guard let audio else { return }
+            // A long recording's bars take a moment; the transcript doesn't wait for them.
+            let peaks = await Task.detached(priority: .utility) { try? Waveform.peaks(of: audio, count: 96) }.value
+            guard !Task.isCancelled else { return }
+            waveform = peaks ?? []
         }
     }
 
@@ -146,7 +163,8 @@ struct HistoryPane: View {
             HistoryList(history: history)
                 .frame(minWidth: 260, idealWidth: 320, maxWidth: 400)
             Group {
-                if let entry = history.selected, let detail = history.detail, detail.entry.id == entry.id {
+                // The detail on show stays until the next is read; see HistoryModel.select.
+                if history.selection != nil, let detail = history.detail {
                     HistoryDetailView(history: history, detail: detail)
                 } else {
                     ContentUnavailableView("Select a recording", systemImage: "waveform")
@@ -175,32 +193,13 @@ struct HistoryPane: View {
 
 private struct HistoryList: View {
     @Bindable var history: HistoryModel
-    @State private var searching = false
-    @FocusState private var searchFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text("History").font(.headline)
-                Spacer()
-                Button {
-                    searching.toggle()
-                    if searching { searchFocused = true } else { history.search = "" }
-                } label: {
-                    Image(systemName: "magnifyingglass")
-                }
-                .buttonStyle(.borderless)
-                .help("Search")
-            }
-            .padding(.horizontal, 14)
-            .padding(.top, 12)
-            if searching {
-                TextField("Search", text: $history.search)
-                    .textFieldStyle(.roundedBorder)
-                    .focused($searchFocused)
-                    .padding(.horizontal, 12)
-                    .padding(.top, 8)
-            }
+            TextField("Search", text: $history.search)
+                .textFieldStyle(.roundedBorder)
+                .padding(.horizontal, 12)
+                .padding(.top, 12)
             Picker("Show", selection: $history.filter) {
                 ForEach(HistoryModel.Filter.allCases) { Text($0.rawValue).tag($0) }
             }
@@ -218,6 +217,7 @@ private struct HistoryList: View {
             } else {
                 List(history.visible, selection: $history.selection) { entry in
                     HistoryRow(entry: entry)
+                        .equatable()
                         .onAppear { history.loadMoreIfNeeded(at: entry) }
                         .contextMenu {
                             Button("Copy") { Task { await history.copy(entry) } }
@@ -229,8 +229,10 @@ private struct HistoryList: View {
     }
 }
 
-private struct HistoryRow: View {
+private struct HistoryRow: View, @MainActor Equatable {
     let entry: HistoryEntry
+
+    static func == (a: Self, b: Self) -> Bool { a.entry == b.entry }
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -262,67 +264,25 @@ private struct HistoryDetailView: View {
     @Environment(AppModel.self) private var model
     let history: HistoryModel
     let detail: HistoryDetail
-    /// The one popover, anchored to the corrected word under the pointer.
-    @State private var hovered: HoveredCorrection?
 
     var body: some View {
-        let preferences = model.preferences
+        @Bindable var preferences = model.preferences
         let blocks = history.blocks
         let player = history.player
         // Read here, so a change of line redraws this body, and a tick of the clock does not.
         let playingLine = player.playingLine
+        let playingBlock = history.blockID(ofLine: playingLine)
+        let isCall = detail.entry.kind == .call
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(HistoryTime.title(start: detail.entry.at, zone: detail.entry.timeZone))
-                    .font(.title3.weight(.semibold))
-                Text("\(detail.entry.kind == .call ? "Call" : "Dictation") \u{00B7} \(HistoryTime.elapsed(detail.entry.duration))")
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
-            Divider()
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 8) {
-                        ForEach(blocks) { block in
-                            // Only the block holding the playing line is told which it is, so the
-                            // others compare equal and are not redrawn when it moves.
-                            TranscriptBlockView(block: block, entry: detail.entry,
-                                                playing: block.lines.contains { $0.id == playingLine } ? playingLine : nil,
-                                                times: preferences.historyTimes,
-                                                showCorrections: preferences.showCorrections,
-                                                play: { player.play(from: $0) },
-                                                hover: { id, correction in
-                                    if let correction { hovered = correction } else if hovered?.wordID == id { hovered = nil }
-                                })
-                                .equatable()
-                                .id(block.id)
-                        }
-                        if preferences.showCorrections {
-                            ForEach(detail.textChanges) { ChangeRow(change: $0).padding(.leading, 20) }
-                        }
-                    }
-                    .padding(.vertical, 12)
-                    .coordinateSpace(name: HoveredCorrection.space)
-                    .popover(isPresented: Binding(get: { hovered != nil }, set: { if !$0 { hovered = nil } }),
-                             attachmentAnchor: .rect(.rect(hovered?.frame ?? .zero)), arrowEdge: .bottom) {
-                        if let hovered { CorrectionPopover(correction: hovered.correction) }
-                    }
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(history.detailTitle)
+                        .font(.title3.weight(.semibold))
+                    Text("\(isCall ? "Call" : "Dictation") \u{00B7} \(HistoryTime.elapsed(detail.entry.duration))")
+                        .foregroundStyle(.secondary)
                 }
-                .onChange(of: playingLine) { _, id in
-                    guard player.isPlaying, let id,
-                          let block = blocks.first(where: { $0.lines.contains { $0.id == id } }) else { return }
-                    proxy.scrollTo(block.id)
-                }
-            }
-            Divider()
-            PlayBar(player: player, waveform: history.waveform, duration: detail.entry.duration)
-        }
-        .toolbar {
-            ToolbarItem {
+                Spacer()
                 Menu {
-                    @Bindable var preferences = model.preferences
                     Picker("Time", selection: $preferences.historyTimes) {
                         ForEach(HistoryTimeMode.allCases) { Text($0.title).tag($0) }
                     }
@@ -337,127 +297,113 @@ private struct HistoryDetailView: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
                 .help("More")
             }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+            Divider()
+            ScrollViewReader { proxy in
+                ScrollView {
+                    // Lazy, with a row's work done when the recording opened: scrolling only
+                    // lays out the rows that come into view.
+                    LazyVStack(alignment: .leading, spacing: 4) {
+                        ForEach(blocks) { block in
+                            // Only the block holding the playing line is told which it is, so the
+                            // others compare equal and are not redrawn when it moves.
+                            TranscriptBlockView(block: block, isCall: isCall,
+                                                playing: block.id == playingBlock ? playingLine : nil,
+                                                times: preferences.historyTimes,
+                                                showCorrections: preferences.showCorrections,
+                                                play: { player.play(from: $0) })
+                                .equatable()
+                        }
+                        if preferences.showCorrections {
+                            ForEach(detail.textChanges) { ChangeRow(change: $0).padding(.leading, 20) }
+                        }
+                    }
+                    .padding(.vertical, 12)
+                }
+                .onChange(of: playingBlock) { _, id in
+                    guard player.isPlaying, let id else { return }
+                    proxy.scrollTo(id)
+                }
+            }
+            Divider()
+            PlayBar(player: player, waveform: history.waveform, duration: detail.entry.duration)
         }
     }
 }
 
-/// The corrected word the pointer is over and where it is in the transcript.
-private struct HoveredCorrection: Equatable {
-    static let space = "transcript"
-    var wordID: String
-    var correction: TextCorrection
-    var frame: CGRect
-}
-
-/// One block of the transcript: its time, who spoke, and the words, laid out so the time, the
-/// label and the first line of text share a baseline. To VoiceOver it is one element that
+/// One block of the transcript: its time, who spoke, and the words as one piece of text, so
+/// wrapping, the dotted corrections and the highlight of the line being heard cost one text
+/// layout per block. The whole row is the target: hovering anywhere in it shows the play
+/// mark on the time, and a click plays from the block. To VoiceOver it is one element that
 /// reads speaker, time and text, plays from here, and lists its corrections. Return plays it
 /// from the keyboard.
 private struct TranscriptBlockView: View, @MainActor Equatable {
-    let block: TranscriptBlock
-    let entry: HistoryEntry
+    let block: DisplayBlock
+    let isCall: Bool
     /// The line being heard, when it is in this block.
     let playing: Int?
     let times: HistoryTimeMode
     let showCorrections: Bool
     let play: (Double) -> Void
-    let hover: (String, HoveredCorrection?) -> Void
-    @State private var hovered: Int?
+    @State private var hovered = false
 
     static func == (a: Self, b: Self) -> Bool {
-        a.block == b.block && a.entry.id == b.entry.id && a.playing == b.playing && a.times == b.times
+        a.block == b.block && a.isCall == b.isCall && a.playing == b.playing && a.times == b.times
             && a.showCorrections == b.showCorrections
     }
 
-    /// Past this many words a block is laid out in lazily made chunks, so a long monologue
-    /// doesn't build thousands of word views at once.
-    private static let lazyWords = 300
-    private static let chunkWords = 120
-
-    private var time: String {
-        HistoryTime.line(start: entry.at, offset: block.start, zone: entry.timeZone, mode: times)
-    }
-
     var body: some View {
+        let time = times == .clock ? block.clock : block.elapsed
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             Text(time)
                 .font(.system(size: 12).monospacedDigit())
                 .foregroundStyle(.tertiary)
                 .frame(width: 64, alignment: .trailing)
                 .overlay(alignment: .leading) {
-                    if hovered != nil {
+                    if hovered {
                         Image(systemName: "play.circle.fill")
                             .font(.system(size: 14))
                             .foregroundStyle(.tint)
                             .offset(y: -1)
                     }
                 }
-            if entry.kind == .call {
+            if isCall {
                 Text(block.speaker ?? "")
                     .fontWeight(.semibold)
-                    .foregroundStyle(block.speaker == "Me" ? .primary : .secondary)
+                    .foregroundStyle(SpeakerColors.color(for: block.speaker))
                     .frame(width: 40, alignment: .leading)
             }
             VStack(alignment: .leading, spacing: 4) {
-                text
+                Text(block.text(heard: playing))
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 if showCorrections {
-                    ForEach(block.lines.flatMap(\.changes)) { ChangeRow(change: $0) }
+                    ForEach(block.changes) { ChangeRow(change: $0) }
                 }
             }
         }
         .padding(.horizontal, 12)
+        .padding(.vertical, 3)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background(hovered ? Color.primary.opacity(0.05) : .clear)
+        .contentShape(Rectangle())
+        .onHover { hovered = $0 }
+        .onTapGesture { play(block.start) }
+        .help(block.correctionDescriptions.joined(separator: "\n"))
         .focusable()
         .onKeyPress(.return) {
             play(block.start)
             return .handled
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(block.spokenLabel(time: time))
+        .accessibilityLabel(block.spokenLabel(times))
         .accessibilityAction(named: "Play from here") { play(block.start) }
         .modifier(CorrectionContent(descriptions: block.correctionDescriptions))
-    }
-
-    @ViewBuilder private var text: some View {
-        let chunks = Self.chunks(of: block.lines)
-        if chunks.count > 1 {
-            LazyVStack(alignment: .leading, spacing: 3) {
-                ForEach(chunks.indices, id: \.self) { flow(chunks[$0]) }
-            }
-        } else {
-            flow(block.lines)
-        }
-    }
-
-    private func flow(_ lines: [HistoryLine]) -> some View {
-        FlowLayout(lineSpacing: 3) {
-            ForEach(lines) { line in
-                ForEach(Array(line.words.enumerated()), id: \.offset) { index, word in
-                    WordView(word: word, id: "\(line.id)-\(index)", playing: playing == line.id, hovered: hovered == line.id,
-                             hover: hover)
-                        .onHover { inside in
-                            if inside { hovered = line.id } else if hovered == line.id { hovered = nil }
-                        }
-                        .onTapGesture { play(line.t0) }
-                }
-            }
-        }
-    }
-
-    /// Lines in groups of about `chunkWords` words, one group for a block that isn't long.
-    private static func chunks(of lines: [HistoryLine]) -> [[HistoryLine]] {
-        let counts = lines.map { $0.text.split(whereSeparator: \.isWhitespace).count }
-        guard counts.reduce(0, +) > lazyWords else { return [lines] }
-        var chunks: [[HistoryLine]] = [[]]
-        var words = 0
-        for (line, count) in zip(lines, counts) {
-            if words >= chunkWords { chunks.append([]); words = 0 }
-            chunks[chunks.count - 1].append(line)
-            words += count
-        }
-        return chunks
     }
 }
 
@@ -470,67 +416,6 @@ private struct CorrectionContent: ViewModifier {
             AnyView(view.accessibilityCustomContent(AccessibilityCustomContentKey("Correction \(item.offset + 1)"), item.element))
         }
     }
-}
-
-/// A word and the space after it, so a highlight over a line has no gaps. A corrected word has a
-/// dotted underline; hovering it reports where it is so one shared popover can say what it was.
-private struct WordView: View {
-    let word: LineWord
-    let id: String
-    let playing: Bool
-    let hovered: Bool
-    let hover: (String, HoveredCorrection?) -> Void
-    @State private var frame: CGRect = .zero
-
-    var body: some View {
-        HStack(spacing: 0) {
-            Text(word.text).underline(word.correction != nil, pattern: .dot)
-            Text(" ")
-        }
-        .background(playing ? Color.accentColor.opacity(0.16) : hovered ? Color.primary.opacity(0.07) : .clear)
-        .contentShape(Rectangle())
-        .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(HoveredCorrection.space)) } action: {
-            if word.correction != nil { frame = $0 }
-        }
-        .onHover { inside in
-            guard let correction = word.correction else { return }
-            if inside {
-                hover(id, HoveredCorrection(wordID: id, correction: correction, frame: frame))
-            } else {
-                // Only this word's own exit clears it, so entering the next word is not undone.
-                hover(id, nil)
-            }
-        }
-    }
-}
-
-private struct CorrectionPopover: View {
-    let correction: TextCorrection
-
-    var body: some View {
-        Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 5) {
-            row("Before") { Text(correction.before.isEmpty ? "(nothing)" : correction.before).strikethrough().foregroundStyle(.red) }
-            row("After") { Text(correction.after).fontWeight(.semibold).foregroundStyle(.green) }
-            row("Made by") { Text(correction.source == .correction ? "Agent correction" : correction.source.rawValue.capitalized) }
-            if let before = correction.confidenceBefore {
-                row("Confidence before") { Text(Self.percent(before)).monospacedDigit() }
-            }
-            if let after = correction.confidenceAfter {
-                row("Confidence after") { Text(Self.percent(after)).monospacedDigit() }
-            }
-        }
-        .padding(12)
-        .font(.callout)
-    }
-
-    private func row<Value: View>(_ label: String, @ViewBuilder _ value: () -> Value) -> some View {
-        GridRow {
-            Text(label).foregroundStyle(.secondary)
-            value()
-        }
-    }
-
-    private static func percent(_ value: Double) -> String { "\(Int((value * 100).rounded()))%" }
 }
 
 /// A change in a line: its source, the changed words, and the key term, client or reason.
@@ -656,54 +541,5 @@ private struct WaveformScrubber: View {
             @unknown default: break
             }
         }
-    }
-}
-
-// MARK: Layout
-
-/// Words that wrap like text. Each row's height is its tallest word, and the first row's
-/// baseline is the layout's, so the time and label beside it line up with the first line.
-struct FlowLayout: Layout {
-    var lineSpacing: CGFloat = 0
-
-    private struct Arrangement {
-        var frames: [CGRect]
-        var size: CGSize
-    }
-
-    private func arrange(_ subviews: Subviews, width: CGFloat) -> Arrangement {
-        var frames: [CGRect] = []
-        var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0, widest: CGFloat = 0
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-            if x > 0, x + size.width > width {
-                y += rowHeight + lineSpacing
-                x = 0
-                rowHeight = 0
-            }
-            frames.append(CGRect(origin: CGPoint(x: x, y: y), size: size))
-            x += size.width
-            widest = max(widest, x)
-            rowHeight = max(rowHeight, size.height)
-        }
-        return Arrangement(frames: frames, size: CGSize(width: widest, height: y + rowHeight))
-    }
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let arranged = arrange(subviews, width: proposal.width ?? .infinity)
-        return CGSize(width: proposal.width ?? arranged.size.width, height: arranged.size.height)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let arranged = arrange(subviews, width: bounds.width)
-        for (subview, frame) in zip(subviews, arranged.frames) {
-            subview.place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY), proposal: .unspecified)
-        }
-    }
-
-    func explicitAlignment(of guide: VerticalAlignment, in bounds: CGRect, proposal: ProposedViewSize,
-                           subviews: Subviews, cache: inout ()) -> CGFloat? {
-        guard guide == .firstTextBaseline, let first = subviews.first else { return nil }
-        return bounds.minY + first.dimensions(in: .unspecified)[.firstTextBaseline]
     }
 }
