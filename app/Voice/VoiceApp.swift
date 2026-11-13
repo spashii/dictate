@@ -148,8 +148,8 @@ struct MenuContent: View {
 
     var body: some View {
         // Groups are Sections, which the menu separates with real separators. No item has a
-        // tooltip: an open menu showing one drew its highlight a row too high, over the
-        // separator, with the tooltip behind the menu.
+        // tooltip: one firing in the open menu is the likely cause of the highlight drawn a
+        // row too high, over the separator.
         if !model.activation.isActivated {
             Section {
                 Button("Activate in Browser") { model.beginActivation() }
