@@ -29,6 +29,7 @@ extension Snapshots {
         let calls = CallsModel()
         // A call app is open, so the menu offers "Record This Call".
         calls.promptForSnapshots(DetectedCall(bundleID: "com.example.meeting", name: "Meeting"), model: model)
+        calls.setImportProgressForSnapshots(["interview": 0.42])
         let window = try await historyWindow(model, HistoryModel(store: store), calls: calls, dark: dark)
         let menu = NSHostingMenu(rootView: HistoryNewMenu(chooseFiles: {}).environment(model).environment(calls))
         menu.update()

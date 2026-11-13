@@ -554,7 +554,9 @@ private struct HistoryRow: View, @MainActor Equatable {
                     if renaming {
                         RenameField(initial: entry.customTitle ?? "", prompt: entry.fileName ?? date, commit: commit, cancel: cancel)
                     } else {
-                        Text(entry.customTitle ?? entry.fileName ?? date).fontWeight(.semibold).lineLimit(1).truncationMode(.middle)
+                        Text(entry.customTitle ?? entry.fileName ?? date).fontWeight(.semibold).lineLimit(1)
+                            // A file name keeps its extension; a title reads from its start.
+                            .truncationMode(entry.customTitle == nil && entry.fileName != nil ? .middle : .tail)
                         if entry.customTitle == nil, entry.fileName == nil, let zone = entry.originalZoneLabel {
                             Text(zone).font(.caption).foregroundStyle(.secondary)
                         }
@@ -681,7 +683,7 @@ private struct HistoryDetailView: View {
                     Text(entry.customTitle ?? entry.fileName ?? date)
                         .font(.title3.weight(.semibold))
                         .lineLimit(2)
-                        .truncationMode(.middle)
+                        .truncationMode(entry.customTitle == nil && entry.fileName != nil ? .middle : .tail)
                     // An untitled file is already named by its title, so its subtitle starts at the date.
                     Text([entry.fileName != nil && entry.customTitle == nil ? nil : entry.kindLabel,
                           entry.customTitle == nil && entry.fileName == nil ? nil : date,
