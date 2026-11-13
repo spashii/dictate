@@ -253,7 +253,7 @@
         <p>Press <span class="nowrap"><kbd>Option</kbd> <kbd>`</kbd></span> and talk, and Dictate transcribes as you go. Press it again and the text lands where you were writing.</p>
       </div>
       <div class="card">
-        <div class="art well mac" aria-hidden="true"><div class="pill nudge"><svg class="phone" viewBox="0 0 16 16" fill="currentColor"><path d="M4.2 1.6c.5-.3 1.1-.2 1.4.3l1.3 2.2c.3.5.2 1.1-.2 1.4l-.9.7c.6 1.5 1.8 2.8 3.3 3.5l.8-.9c.4-.4 1-.5 1.4-.2l2.2 1.3c.5.3.6.9.3 1.4l-.7 1.2c-.5.8-1.4 1.2-2.3 1C6.4 12.6 3.4 9.6 2.5 5.4c-.2-.9.2-1.8 1-2.3z"/></svg><span>Record this call?</span><span class="s">Meeting</span><span class="sp"></span><span class="bt">Not now</span><span class="bt">Record</span></div><div class="ml"><span class="w">Me</span><span>Thanks for joining, Alex.</span></div><div class="ml"><span class="w">Call</span><span>Sure. Let's start with the budget.</span></div></div>
+        <div class="art well mac" aria-hidden="true"><div class="pill nudge"><img class="dic" src="icon.svg" alt="" width="14" height="14"><span>Record this call?</span><span class="s">Meeting</span><span class="sp"></span><span class="bt">Not now</span><span class="bt">Record</span></div><div class="ml"><span class="w">Me</span><span>Thanks for joining, Alex.</span></div><div class="ml"><span class="w">Call</span><span>Sure. Let's start with the budget.</span></div></div>
         <h3>You and the call, kept apart</h3>
         <p>Dictate asks before it records, and no bot joins. It records your microphone and the call's audio separately, so every line is labelled Me or Call.</p>
       </div>
@@ -413,8 +413,8 @@ if (location.hostname === "spashii.github.io") {
 /* Hero demo, a 19.2 second loop in three steps of about six seconds each: record the call, dictate
    the ask, use it with your own agent. It opens on the meeting window with a Join button, so the
    first frame shows where a call starts before Dictate does anything. The pointer clicks Join and
-   in that same instant the call starts at 0:00 and the Record this call? nudge appears, one
-   sequence, because Dictate notices the call the moment it begins. Every drawn clock counts from
+   the call starts at 0:00 a beat after the press, so the press shows, and the Record this call?
+   nudge appears with it, one sequence, because Dictate notices the call the moment it begins. Every drawn clock counts from
    that Join click, so the recording pill and the stopped pill agree with the call window. Then the
    pointer clicks Record, the pill shows lines as they are said, the call ends and the stopped pill
    rests for a second before the next step. The agent's answer starts at 13.9 s; the finished
@@ -441,7 +441,7 @@ if (location.hostname === "spashii.github.io") {
   const phases = [...beats.querySelectorAll(".phase")], bars = phases.map(b => b.querySelector(".prog b"));
 
   const T = {
-    cursorIn: 300, joinClick: 1000, join: 1000, toRec: 1300, click: 2400, rec: 2600, lines: [3100, 3800, 4400], end: 5000,
+    cursorIn: 300, joinClick: 1000, join: 1150, toRec: 1300, click: 2400, rec: 2600, lines: [3100, 3800, 4400], end: 5000,
     step2: 6000, keys1: 6400, press1: 6550, dict: 6650, chunks: [7000, 7650, 8300, 8950],
     keys2: 9300, press2: 9450, busy: 9500, type: [9800, 10600], send: 11800,
     step3: 11800, tools: [12000, 12450, 12900, 13350], sum: [13900, 14900], mail: [15100, 16100],
