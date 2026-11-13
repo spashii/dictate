@@ -182,6 +182,7 @@ struct ModelPane: View {
                 }
                 Toggle(isOn: $preferences.titleCalls) {
                     Text("Title calls")
+                    Text("A model on this Mac names each call from its transcript when it ends.")
                 }
                 LocalModelRow()
             }
@@ -218,7 +219,7 @@ struct LocalModelRow: View {
                 })
             Picker("Model", selection: selection) {
                 if appleListed {
-                    Text(apple ? "Apple on-device" : "Apple on-device (unavailable)").tag(LocalModelChoice.tag(.apple))
+                    Text(apple ? "Apple Intelligence" : "Apple Intelligence (unavailable)").tag(LocalModelChoice.tag(.apple))
                 }
                 if let models = model.ollamaModels {
                     if appleListed { Divider() }
