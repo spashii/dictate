@@ -56,6 +56,7 @@ final class MainWindow {
 
 struct MainView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.controlActiveState) private var activeState
     let navigation: MainNavigation
     let history: HistoryModel
 
@@ -103,6 +104,7 @@ struct MainView: View {
 /// a bitmap draw of the window leaves the sidebar blank.
 struct MainSidebar: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.controlActiveState) private var activeState
     let navigation: MainNavigation
 
     var body: some View {
@@ -132,6 +134,15 @@ struct MainSidebar: View {
                 Image(systemName: "exclamationmark.circle.fill")
                     .foregroundStyle(.orange)
                     .accessibilityLabel("Setup is not finished")
+            }
+            if pane.showsUpdateDot(updateAvailable: model.updates.available != nil) {
+                Spacer()
+                // White on the selected row while the window is active, as its highlight is then
+                // the accent colour itself.
+                Circle()
+                    .fill(navigation.selection == pane && activeState != .inactive ? Color.white : Color.accentColor)
+                    .frame(width: 8, height: 8)
+                    .accessibilityLabel("Update available")
             }
         }
         .tag(pane)
