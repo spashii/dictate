@@ -1,6 +1,6 @@
 # Dictate
 
-Fast local dictation and call transcription for Mac. Dictate types what you say into any app and records your online calls with your side and theirs kept apart. It runs on your Mac, and no bot joins the call.
+Fast local dictation and call transcription for Mac. Dictate types what you say into any app and records your online calls with your side and theirs kept apart. No bot joins the call.
 
 ## What it does
 
