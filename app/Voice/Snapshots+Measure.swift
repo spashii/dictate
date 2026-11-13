@@ -11,8 +11,9 @@ extension Snapshots {
         let file = FileManager.default.temporaryDirectory.appending(path: "dictate-measure-shots-\(UUID().uuidString).sqlite")
         defer { for ext in ["", "-wal", "-shm"] { try? FileManager.default.removeItem(atPath: file.path + ext) } }
         try seedMeasurements(file)
+        let previous = model.preferences.developerMode
         model.preferences.developerMode = true
-        defer { model.preferences.developerMode = false }
+        defer { model.preferences.developerMode = previous }
         await write(folder, "about-developer-\(suffix)", try await aboutWindow(model, dark: dark))
         await write(folder, "advanced-\(suffix)", try await settingsPane(
             model, .advanced, AdvancedPane(database: file), size: NSSize(width: 1060, height: 1060), dark: dark))
