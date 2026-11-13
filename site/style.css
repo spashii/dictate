@@ -65,18 +65,20 @@
 .art .tool { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-radius: 8px; background: var(--app-control); box-shadow: var(--app-ring); font: 13px var(--mono); }
 
 /* History card: the Me and Call transcript lines of the real History window (a 1704 by 600 capture),
-   cropped to x 694 to 1690 starting at the first transcript line (y 128). Below 735px the whole crop
-   shows (y 128 to 530) at a fixed ratio. From 735px the well is 144px tall like its neighbour: the
-   image keeps its width percentage so no line is cut on the right, and the picture fades out over its
-   last 28px so a line cut by the height dissolves instead of being sliced. The frame's hairline is
-   drawn over the well so it stays visible. */
-.well.shot { position: relative; height: auto; min-height: 0; aspect-ratio: 996 / 402; overflow: hidden; }
+   cropped to x 694 to 1690 starting at y 128. Below 735px the crop runs to y 530 and shows all six
+   entries whole at a fixed ratio. From 735px the well is 144px tall like its neighbour and shows the
+   first four entries (text y 152 to 428) in a crop to y 452, 24px of capture above and below the text.
+   The crop is sized by percentages of the well width, so it is identical at every width and at most
+   141px tall, which leaves no line cut on any side. The well takes the capture's own background so the
+   spare height reads as padding. The frame's hairline is drawn over the well so it stays visible. */
+.well.shot { position: relative; height: auto; min-height: 0; aspect-ratio: 996 / 402; overflow: hidden; background: #fff; }
 .well.shot picture { display: block; }
 .well.shot img { display: block; width: 171.08%; max-width: none; height: auto; margin: -12.85% 0 0 -69.68%; }
 .well.shot::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px var(--hairline); pointer-events: none; }
+@media (prefers-color-scheme: dark) { .well.shot { background: #1e1e1e; } }
 @media (min-width: 735px) {
-  .well.shot { height: 144px; aspect-ratio: auto; }
-  .well.shot picture { height: 100%; overflow: hidden; -webkit-mask-image: linear-gradient(#000 calc(100% - 28px), transparent); mask-image: linear-gradient(#000 calc(100% - 28px), transparent); }
+  .well.shot { height: 144px; aspect-ratio: auto; display: flex; align-items: center; }
+  .well.shot picture { width: 100%; aspect-ratio: 996 / 324; overflow: hidden; }
 }
 
 /* Hero demo. A 420 by 500 scene of the top of a Mac screen, scaled to the column by the script so
@@ -238,3 +240,37 @@
 .get .steps li::before { content: counter(step) "."; font-variant-numeric: tabular-nums; }
 .get .steps li + li { margin-top: 0; }
 .get .meta > span { text-wrap: balance; }
+
+/* And more: one line per item between hairlines, the same rule the Questions list draws, so the list
+   sits quietly between the cards above and the FAQ below. */
+.more-list { list-style: none; padding: 0; border-top: 1px solid var(--hairline); }
+.more-list li { padding: var(--sp-3) 0; border-bottom: 1px solid var(--hairline); }
+
+/* How it compares: a plain table in body text. Dictate's column is drawn exactly like the other two.
+   th is 400 because browsers make it bold. Hairlines between rows match the Questions list. */
+.compare-table { width: 100%; border-collapse: collapse; margin-top: var(--sp-6); text-align: left; }
+.compare p + .compare-table, .compare-table + p { margin-top: var(--sp-6); }
+.compare-table th, .compare-table td { font-weight: 400; text-align: left; vertical-align: top; padding: var(--sp-4) var(--sp-4) var(--sp-4) 0; border-bottom: 1px solid var(--hairline); }
+.compare-table thead tr:first-child > * { border-top: 1px solid var(--hairline); }
+.compare-table tr > :last-child { padding-right: 0; }
+
+/* Below 735 px three columns no longer fit: each row becomes a block, the label on its own line, then
+   each value prefixed by its column name. The roles in the HTML keep the table semantics for screen readers. */
+@media (max-width: 734px) {
+  .compare-table, .compare-table tbody, .compare-table tr, .compare-table th, .compare-table td { display: block; }
+  .compare-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+  .compare-table tbody { border-top: 1px solid var(--hairline); }
+  .compare-table tr { padding: var(--sp-4) 0; border-bottom: 1px solid var(--hairline); }
+  .compare-table th, .compare-table td { padding: 0; border: 0; }
+  .compare-table td { margin-top: var(--sp-1); }
+  .compare-table th + td { margin-top: var(--sp-2); }
+  .compare-table td::before { content: attr(data-label) ": "; }
+}
+
+/* Hero headline: "call transcription" never splits at any width. From 1000px each phrase
+   is an inline-block, so the headline breaks between phrases (three lines) and never inside one
+   unless a phrase is wider than the column. */
+.nowrap { white-space: nowrap; }
+@media (min-width: 1000px) {
+  .h1-part { display: inline-block; }
+}
