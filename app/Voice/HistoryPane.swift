@@ -598,11 +598,10 @@ private struct HistoryRow: View, @MainActor Equatable {
 
     var body: some View {
         let date = HistoryTime.title(start: entry.at, zone: entry.timeZone)
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
             Image(systemName: entry.fileName != nil ? "waveform" : entry.kind == .call ? "phone" : "mic")
                 .foregroundStyle(.secondary)
                 .frame(width: 18)
-                .padding(.top, 1)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     if renaming {
