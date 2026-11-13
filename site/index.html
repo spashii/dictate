@@ -221,7 +221,7 @@
               <div class="ln"><div><span><b class="them">Call</b>I will send the Northwind slides today.</span></div></div>
               <div class="ln"><div><span><b class="me">Me</b>Great, and the Q3 deck is on track.</span></div></div>
             </div>
-            <div class="pill stopped" id="stopped"><img class="dic" src="icon.svg" alt="" width="14" height="14"><i class="sq"></i><span>Meeting call</span><span class="s tn" id="stime">0:03</span><span class="copy">Copy Transcript</span></div>
+            <div class="pill stopped" id="stopped"><img class="dic" src="icon.svg" alt="" width="14" height="14"><i class="sq"></i><span>Meeting call</span><span class="s tn" id="stime">12:41</span><span class="copy">Copy Transcript</span></div>
             <div class="pill dpill" id="dpill">
               <div class="row rec"><img class="dic" src="icon.svg" alt="" width="14" height="14"><i class="dot"></i><span class="lv"><i id="lvl"></i></span><span class="s tn" id="dtime">0:00</span></div>
               <div class="row busy"><img class="dic" src="icon.svg" alt="" width="14" height="14"><i class="spin"></i><span>Transcribing</span></div>
@@ -414,8 +414,10 @@ if (location.hostname === "spashii.github.io") {
    the ask, use it with your own agent. It opens on the meeting window with a Join button, so the
    first frame shows where a call starts before Dictate does anything. The pointer clicks Join and
    the call starts at 0:00 a beat after the press, so the press shows, and the Record this call?
-   nudge appears with it, one sequence, because Dictate notices the call the moment it begins. Every drawn clock counts from
-   that Join click, so the recording pill and the stopped pill agree with the call window. Then the
+   nudge appears with it, one sequence, because Dictate notices the call the moment it begins. The
+   call clock runs as a time lapse from 0:00 at that Join click to a realistic 12:41 at the end,
+   because Dictate is for real meetings, which last minutes, not seconds. One function of
+   t feeds the call window, the recording pill and the stopped pill, so they always agree. Then the
    pointer clicks Record, the pill shows lines as they are said, the call ends and the stopped pill
    rests for a second before the next step. The agent's answer starts at 13.9 s; the finished
    message rests 1.2 s before Send and the answer and mail 2.5 s before the fade. Every frame is a
@@ -447,7 +449,8 @@ if (location.hostname === "spashii.github.io") {
     step3: 11800, tools: [12000, 12450, 12900, 13350], sum: [13900, 14900], mail: [15100, 16100],
     fade: 18600, loop: 19200
   };
-  // Every drawn clock counts from the Join click, so the stopped pill reads the call's length.
+  // The call is a time lapse: CALL_SECONDS of call time pass between the Join click and the end.
+  const CALL_SECONDS = 761;
   const STEPS = [0, T.step2, T.step3, T.fade];
   // One still frame per phase for reduced motion: the stopped call, two chunks of words, the answer.
   const STILL = [T.end + 500, T.chunks[1] + 200, T.mail[1]];
@@ -504,7 +507,7 @@ if (location.hostname === "spashii.github.io") {
     mbicon.dataset.state = on(T.dict, T.busy) ? "dict" : on(T.rec, T.end) ? "call" : "idle";
     cls(callwin, "on", t < T.step2);
     cls(callwin, "joined", on(T.join));
-    const sec = t0 => Math.max(0, Math.floor((t0 - T.join) / 1000));
+    const sec = t0 => Math.floor(CALL_SECONDS * clamp((t0 - T.join) / (T.end - T.join)));
     txt(ctime, t >= T.end ? "Call ended" : clock(sec(t)));
     cls(nudge, "on", on(T.join, T.rec));
     const joinDown = on(T.joinClick, T.joinClick + 200), click = on(T.click, T.click + 200);
