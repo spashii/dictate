@@ -108,9 +108,16 @@ ditto -c -k --keepParent $stage/Dictate.app $out/Dictate.zip
 notarize $out/Dictate.zip
 xcrun stapler staple $stage/Dictate.app
 rm $out/Dictate.zip
-ln -s /Applications $stage/Applications
 dmg=$out/Dictate-$version.dmg
-hdiutil create -quiet -volname "Dictate $version" -srcfolder $stage -fs HFS+ -format UDZO -ov $dmg
+# dmgbuild writes the window layout (background, icon positions) into the image's
+# .DS_Store directly, so no Finder or AppleScript runs. It lives in a venv, not globally.
+dmgbuildVenv=${VOICE_DMGBUILD_VENV:-$HOME/.venvs/dmgbuild}
+if [[ ! -x $dmgbuildVenv/bin/dmgbuild ]]; then
+  python3 -m venv $dmgbuildVenv
+  $dmgbuildVenv/bin/pip install --quiet dmgbuild==1.6.7
+fi
+rm -f $dmg
+$dmgbuildVenv/bin/dmgbuild -s tools/dmg/settings.py -D app=$stage/Dictate.app "Dictate $version" $dmg
 codesign --sign "$identity" $signFlags $dmg
 notarize $dmg
 xcrun stapler staple $dmg
