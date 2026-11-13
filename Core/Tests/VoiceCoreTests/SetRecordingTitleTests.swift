@@ -116,6 +116,26 @@ import Testing
         #expect((answer as? [String: Any])?["edit_id"] == nil)
     }
 
+    @Test func theToolMarksTheAgentEvenWhenTheTextIsUnchangedOrTheClientIsNamedYou() async throws {
+        let fixture = try Fixture()
+        let call = try fixture.store.createCall(NewCall(split: true, title: "Northwind"))
+        #expect(call.titleSource == .user)
+        let body = try JSONSerialization.data(withJSONObject: [
+            "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+            "params": ["name": "set_recording_title", "arguments": ["id": call.id, "title": "Northwind"]]] as [String: Any])
+        let (_, answer) = await fixture.router.handle(body, client: Edit.personClient)
+        #expect(answer != nil)
+        let stored = try #require(try fixture.store.call(call.id))
+        #expect(stored.titleSource == .agent)
+        #expect(try fixture.store.edits().isEmpty)
+
+        let renamed = try JSONSerialization.data(withJSONObject: [
+            "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+            "params": ["name": "set_recording_title", "arguments": ["id": call.id, "title": "Northwind rollout"]]] as [String: Any])
+        _ = await fixture.router.handle(renamed, client: Edit.personClient)
+        #expect(try fixture.store.call(call.id)?.titleSource == .agent)
+    }
+
     @Test func itRefusesAnEmptyTitleAndOneOverTheLimit() async throws {
         let fixture = try Fixture()
         let call = try fixture.store.createCall(NewCall(split: true, title: "Lakeside kickoff"))

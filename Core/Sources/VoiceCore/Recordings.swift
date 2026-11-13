@@ -24,23 +24,33 @@ extension CallStore {
 
     /// Gives a recording a title, or takes it away with nil or blank text. Recorded as an
     /// edit so an agent sees it and `undo_edit` reverts it. Nil when nothing changed. The title's
-    /// source follows the client, also when the title is cleared, so an automatic title never
-    /// comes back over one a person took away.
+    /// source is `source`, else follows the client, also when the title is cleared, so an
+    /// automatic title never comes back over one a person took away. An explicit source on an
+    /// unchanged title still marks it, without an edit.
     @discardableResult
-    public func rename(_ kind: HistoryEntry.Kind, _ ref: String, to title: String?, client: String? = Edit.personClient) throws -> Edit? {
+    public func rename(_ kind: HistoryEntry.Kind, _ ref: String, to title: String?, client: String? = Edit.personClient,
+                       source: TitleSource? = nil) throws -> Edit? {
         let name = title?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
         let target = kind == .call ? Edit.target(call: ref) : Edit.target(dictation: ref)
         return try queue.sync {
             try db.transaction { () -> Edit? in
                 let (table, id) = try Self.recordingRow(target)
-                guard let current = try db.query("SELECT title FROM \(table) WHERE id = ?", [id], { $0.string(0) }).first else {
+                guard let row = try db.query("SELECT title, title_source FROM \(table) WHERE id = ?", [id],
+                                             { ($0.string(0), $0.string(1)) }).first else {
                     throw VoiceError.store("No \(kind.rawValue) \(ref).")
                 }
-                guard (current ?? "") != (name ?? "") else { return nil }
-                try db.run("UPDATE \(table) SET title = ?, title_source = ? WHERE id = ?",
-                           [name, Self.titleSource(client: client).rawValue, id])
-                return try insertEdit(.renameRecording, target: target, client: client, before: Edit.Value(text: current),
-                                      after: Edit.Value(text: name))
+                let current = row.0
+                let newSource = (source ?? Self.titleSource(client: client)).rawValue
+                guard (current ?? "") != (name ?? "") else {
+                    if source != nil, name != nil, row.1 != newSource {
+                        try db.run("UPDATE \(table) SET title_source = ? WHERE id = ?", [newSource, id])
+                    }
+                    return nil
+                }
+                try db.run("UPDATE \(table) SET title = ?, title_source = ? WHERE id = ?", [name, newSource, id])
+                return try insertEdit(.renameRecording, target: target, client: client,
+                                      before: Edit.Value(text: current, source: row.1),
+                                      after: Edit.Value(text: name, source: newSource))
             }
         }
     }

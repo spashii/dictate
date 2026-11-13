@@ -205,7 +205,7 @@ struct MCPRouter: Sendable {
             } else {
                 throw ToolError("No call or dictation \(id).")
             }
-            let edit = try store.rename(kind, id, to: title, client: client)
+            let edit = try store.rename(kind, id, to: title, client: client, source: .agent)
             let source = try store.recordingTitle(kind, id)?.source
             var object: [String: Any] = ["id": id, "kind": kind.rawValue, "title": title,
                                          "title_source": source?.rawValue ?? NSNull()]

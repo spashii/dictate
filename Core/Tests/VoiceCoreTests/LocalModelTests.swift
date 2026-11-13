@@ -29,9 +29,11 @@ import Testing
         }
     }
 
-    @Test func availabilityIsFalseWithoutTheModelAndNeverThrows() {
-        // The Air has Apple Intelligence off; either answer is fine, the call must just return.
-        _ = AppleModel.isAvailable
+    @Test func theAppleEditorIsTheOneAvailabilityPicks() {
+        // An editor that works exactly when the model is available, so the two never disagree.
+        let editor = FixEditors.editor(for: CleanupSettings(engine: .apple))
+        #expect((editor is UnavailableFixEditor) == !AppleModel.isAvailable)
+        #expect(!editor.unloadsWhisper)
     }
 }
 
@@ -165,9 +167,8 @@ private struct FakeEditor: FixEditor {
     }
 
     @Test func appleChosenButUnavailableFailsLikeAStoppedOllama() async throws {
-        if AppleModel.isAvailable { return }
-
-        let outcome = await Pipeline.fix(transcript(["call Alex"]), settings: apple, scope: .every)
+        let outcome = await Pipeline.fix(transcript(["call Alex"]), settings: apple, scope: .every,
+                                         editor: UnavailableFixEditor())
 
         #expect(outcome.text == "call Alex")
         #expect(outcome.error != nil)

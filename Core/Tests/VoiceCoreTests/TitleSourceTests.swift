@@ -58,20 +58,42 @@ import Testing
         #expect(read.titleSource == .agent)
     }
 
-    @Test func undoingARenameRestoresTheTextAndMarksTheUndoingClient() throws {
+    @Test func undoingARenameRestoresTheTextAndTheEarlierSource() throws {
         let (calls, _) = try store()
-        let call = try calls.createCall(NewCall(split: true, title: "Original"))
+        let call = try calls.createCall(NewCall(split: true))
+        try calls.setAutoTitle(call.id, "Automatic")
         let edit = try #require(try calls.rename(.call, call.id, to: "Changed", client: "agent 1"))
         #expect(try calls.call(call.id)?.titleSource == .agent)
 
+        // The person undoing doesn't make the earlier automatic title theirs.
         try calls.undo(edit.id, client: Edit.personClient)
         let read = try #require(try calls.call(call.id))
-        #expect(read.title == "Original")
-        #expect(read.titleSource == .user)
+        #expect(read.title == "Automatic")
+        #expect(read.titleSource == .auto)
 
-        let again = try #require(try calls.rename(.call, call.id, to: "Third"))
+        let mine = try #require(try calls.rename(.call, call.id, to: "Mine"))
+        let again = try #require(try calls.rename(.call, call.id, to: "Third", client: "agent 1"))
         try calls.undo(again.id, client: "agent 1")
-        #expect(try calls.call(call.id)?.titleSource == .agent)
+        #expect(try calls.call(call.id)?.titleSource == .user)
+        try calls.undo(mine.id, client: "agent 1")
+        #expect(try calls.call(call.id)?.titleSource == .auto)
+    }
+
+    @Test func undoingATitleGivenToAnUntitledCallRestoresNoSource() throws {
+        let (calls, _) = try store()
+        let call = try calls.createCall(NewCall(split: true))
+        let edit = try #require(try calls.rename(.call, call.id, to: "Named", client: "agent 1"))
+        try calls.undo(edit.id, client: Edit.personClient)
+        let read = try #require(try calls.call(call.id))
+        #expect(read.title == nil && read.titleSource == nil)
+    }
+
+    @Test func editsStoredWithoutASourceStillDecode() throws {
+        let old = Data(#"{"text":"Old"}"#.utf8)
+        let value = try JSONDecoder().decode(Edit.Value.self, from: old)
+        #expect(value.text == "Old" && value.source == nil)
+        let round = try JSONDecoder().decode(Edit.Value.self, from: JSONEncoder().encode(Edit.Value(text: "x", source: "auto")))
+        #expect(round.source == "auto")
     }
 
     @Test func aDictationsTitleHasASourceToo() throws {
