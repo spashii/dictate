@@ -251,6 +251,71 @@ private func source(_ type: String, in dir: URL) throws -> URL {
         #expect(call?.audioPath.map { FileManager.default.fileExists(atPath: $0) } == true)
     }
 
+    @Test(arguments: ["mov", "m4v"])
+    func cancellingWhileVideoAudioIsExportedKeepsTheCopyAndALaterRunFinishes(type: String) async throws {
+        let work = try Workspace()
+        defer { work.remove() }
+        let start = try await work.recorder.beginImport(try fixture(type, in: work.source))
+        let copy = try #require(start.call.audioPath)
+        let task = Task { await work.recorder.transcribeImport(start.call.id, transcriber: FakeTranscriber()) }
+        task.cancel()
+        let cancelled = await task.value
+
+        #expect(cancelled?.status == .transcribing)
+        #expect(cancelled?.error == nil)
+        #expect(cancelled?.audioPath == copy)
+        #expect(FileManager.default.fileExists(atPath: copy))
+        #expect(work.stored.allSatisfy { !$0.hasSuffix(".partial") })
+
+        let again = await work.recorder.transcribeImport(start.call.id, transcriber: FakeTranscriber())
+        #expect(again?.status == .done)
+        #expect(try !work.store.segments(start.call.id).isEmpty)
+    }
+
+    @Test func theRawVideoCopyGoesOnlyOnceTheCallNamesTheAudio() async throws {
+        let work = try Workspace()
+        defer { work.remove() }
+        let start = try await work.recorder.beginImport(try fixture("mov", in: work.source))
+        let raw = try #require(start.call.audioPath)
+        let call = try #require(await work.recorder.transcribeImport(start.call.id, transcriber: FakeTranscriber()))
+
+        #expect(call.audioPath != raw)
+        #expect(!FileManager.default.fileExists(atPath: raw))
+        #expect(call.audioPath.map { FileManager.default.fileExists(atPath: $0) } == true)
+    }
+
+    @Test func theRowNamesTheFinalPathAndNoPartialRemainsOnceStarted() async throws {
+        let work = try Workspace()
+        defer { work.remove() }
+        let file = try source("wav", in: work.source)
+        let start = try await work.recorder.beginImport(file)
+
+        #expect(work.stored == [URL(fileURLWithPath: try #require(start.call.audioPath)).lastPathComponent])
+        let again = try await work.recorder.beginImport(file)
+        #expect(again.duplicate)
+        #expect(work.stored.allSatisfy { !$0.hasSuffix(".partial") })
+    }
+
+    @Test func moreThanTwoChannelsAreHeardInBothEars() throws {
+        let work = try Workspace()
+        defer { work.remove() }
+        let wav = work.source.appending(path: "Surround.wav")
+        // Dialogue on the centre channel only: the first and second channels are silent.
+        try writeAudio(to: wav, sampleRate: 16_000, channels: 3, frames: 32_000,
+                       sample: { channel, i in channel == 2 ? sine(440, rate: 16_000, amplitude: 0.6)(0, i) : 0 })
+
+        let m4a = try CallAudio.encode(wav, stereoAtMost: true)
+
+        let encoded = try AVAudioFile(forReading: m4a)
+        #expect(encoded.processingFormat.channelCount == 2)
+        let buffer = AVAudioPCMBuffer(pcmFormat: encoded.processingFormat, frameCapacity: 16_000)!
+        try encoded.read(into: buffer, frameCount: 16_000)
+        let left = rms(Array(UnsafeBufferPointer(start: buffer.floatChannelData![0], count: Int(buffer.frameLength)))[...])
+        let right = rms(Array(UnsafeBufferPointer(start: buffer.floatChannelData![1], count: Int(buffer.frameLength)))[...])
+        #expect(left > 0.05 && right > 0.05)
+        #expect(abs(left - right) < 0.02)
+    }
+
     @Test func aCancelledImportIsReadAgainWithoutRepeatingItsWords() async throws {
         let work = try Workspace()
         defer { work.remove() }
@@ -537,6 +602,11 @@ private func source(_ type: String, in dir: URL) throws -> URL {
         }
         let memo = NSHomeDirectory() + "/Library/Application Support/com.apple.voicememos/Recordings/x.m4a"
         #expect(message(memo)?.hasPrefix("Dictate's own") == false)
+    }
+
+    @Test func refusesDictatesOwnFoldersWhateverTheCase() throws {
+        let shouted = Paths.support.appending(path: "calls/x.m4a").path.uppercased()
+        #expect(message(shouted) == "Dictate's own files can't be imported.")
     }
 
     @Test func followsASymlinkToTheFile() throws {

@@ -23,7 +23,7 @@ public enum CallAudio {
     /// Reads and writes the whole file, so call it off the main thread.
     ///
     /// `stereoAtMost` is for an imported file, which can have any number of channels: one with
-    /// more is kept as two (the even channels averaged to the left, the odd to the right), since
+    /// more is kept as two (all channels averaged into both sides), since
     /// the encoder takes no such layout, and one above 48 kHz is brought down to it, since a file the
     /// encoder refuses would be tried again at every launch.
     public static func encode(_ wav: URL, stereoAtMost: Bool = false) throws -> URL {
@@ -86,7 +86,8 @@ public enum CallAudio {
             mixed.frameLength = buffer.frameLength
             let count = Int(format.channelCount)
             for side in 0..<channels {
-                let members = Array(stride(from: side, to: count, by: channels))
+                // Beyond stereo every channel feeds both sides, so centre dialogue is heard in both ears.
+                let members = count > 2 ? Array(0..<count) : [side]
                 for frame in 0..<Int(buffer.frameLength) {
                     to[side][frame] = members.reduce(Float(0)) { $0 + from[$1][frame] } / Float(members.count)
                 }

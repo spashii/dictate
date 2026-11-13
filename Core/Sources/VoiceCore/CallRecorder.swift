@@ -272,31 +272,49 @@ public final class CallRecorder: @unchecked Sendable {
     /// already holds the same bytes, makes the row at once so the history shows it while it
     /// waits. Once this returns the original can be moved or deleted. The row's time is when it
     /// was imported, and its end is set once the file's length is known.
+    ///
+    /// The copy is a `.partial` until its row exists, and the row names the final path before
+    /// the rename. A quit in between leaves a row whose file is missing, which the next launch
+    /// fails with a message, and a `.partial` that is swept; a quit before the row leaves only
+    /// the `.partial`.
     public func beginImport(_ source: URL, at: Date = Date()) async throws -> ImportStart {
         let id = UUID().uuidString
         let ext = source.pathExtension.lowercased()
         let stored = directory.appending(path: "\(Int(at.timeIntervalSince1970 * 1000))-\(id.prefix(8)).\(ext)")
+        let partial = stored.appendingPathExtension("partial")
         let hash = try await Task.detached(priority: .utility) { () -> String in
-            try AudioImport.requireRegularFile(source)
+            let descriptor = try AudioImport.openRegularFile(source)
+            defer { close(descriptor) }
             try FileManager.default.createDirectory(at: self.directory, withIntermediateDirectories: true)
-            try AudioImport.copyAtomically(source, to: stored)
+            try AudioImport.copy(descriptor: descriptor, to: partial)
             do {
-                return try AudioImport.sha256(of: stored)
+                return try AudioImport.sha256(of: partial)
             } catch {
-                try? FileManager.default.removeItem(at: stored)
+                try? FileManager.default.removeItem(at: partial)
                 throw error
             }
         }.value
+        let made: (call: Call, duplicate: Bool)
         do {
-            let made = try store.createImport(NewCall(id: id, startedAt: at, split: false, audioPath: stored.path,
-                                                      fileName: source.lastPathComponent, fileHash: hash,
-                                                      endedAt: at, status: .transcribing))
-            if made.duplicate { try? FileManager.default.removeItem(at: stored) }
-            return ImportStart(call: made.call, duplicate: made.duplicate)
+            made = try store.createImport(NewCall(id: id, startedAt: at, split: false, audioPath: stored.path,
+                                                  fileName: source.lastPathComponent, fileHash: hash,
+                                                  endedAt: at, status: .transcribing))
         } catch {
-            try? FileManager.default.removeItem(at: stored)
+            try? FileManager.default.removeItem(at: partial)
             throw error
         }
+        if made.duplicate {
+            try? FileManager.default.removeItem(at: partial)
+        } else {
+            do {
+                try FileManager.default.moveItem(at: partial, to: stored)
+            } catch {
+                try? FileManager.default.removeItem(at: partial)
+                try? store.deleteCall(id)
+                throw error
+            }
+        }
+        return ImportStart(call: made.call, duplicate: made.duplicate)
     }
 
     /// Removes the half-written copies a quit mid-import left in the calls folder. The app runs
@@ -337,6 +355,9 @@ public final class CallRecorder: @unchecked Sendable {
         let stored: AudioImport.Prepared
         do {
             stored = try await AudioImport.prepare(copy: copy)
+        } catch is CancellationError {
+            // Quitting cancels too: the row keeps its copy, and the next launch reads it again.
+            return try? store.call(callID)
         } catch {
             return fail((error as? AudioImportError)?.description ?? AudioImport.unreadable, removing: copy)
         }
@@ -346,8 +367,10 @@ public final class CallRecorder: @unchecked Sendable {
             try store.setImportedAudio(callID, path: stored.url.path,
                                        endedAt: call.startedAt.addingTimeInterval(stored.duration))
         } catch {
+            if let raw = stored.superseded { try? FileManager.default.removeItem(at: raw) }
             return fail(AudioImport.unreadable, removing: stored.url)
         }
+        if let raw = stored.superseded { try? FileManager.default.removeItem(at: raw) }
         let format = audio.processingFormat
         let duration = stored.duration
         let session: CallSession
@@ -368,7 +391,7 @@ public final class CallRecorder: @unchecked Sendable {
                 return try? store.call(callID)
             }
         } catch {
-            session.close()
+            await session.closeAndWait()
             return fail(AudioImport.unreadable)
         }
         let ended = await finish(session)

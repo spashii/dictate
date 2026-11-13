@@ -82,33 +82,47 @@ public enum AudioImport {
         // path is compared both as written and with its symlinks resolved.
         let paths = [url.standardizedFileURL.path, url.resolvingSymlinksInPath().path]
         let roots = folders.flatMap { [$0.standardizedFileURL.path, $0.standardizedFileURL.resolvingSymlinksInPath().path] }
-        return paths.contains { path in roots.contains { path == $0 || path.hasPrefix($0 + "/") } }
+        // APFS ignores case by default, so /users/x/Library/... names the same folder.
+        return paths.contains { path in
+            roots.contains { root in
+                let (a, b) = (path.lowercased(), root.lowercased())
+                return a == b || a.hasPrefix(b + "/")
+            }
+        }
     }
 
-    /// Fails unless `url` is a regular file, judged on an open handle so a path swapped for a
-    /// pipe or a device after validation can't make the copy or the hash wait for ever.
-    static func requireRegularFile(_ url: URL) throws {
+    /// Opens `url` and fails unless it is a regular file of a size Dictate takes, judged on the open
+    /// descriptor so a path swapped for a pipe or a device after validation can't make the copy or
+    /// the hash wait for ever. The descriptor stays non-blocking until it is copied from, so the
+    /// path is opened once and what was checked is what is copied. The caller closes it.
+    static func openRegularFile(_ url: URL) throws -> Int32 {
         let descriptor = open(url.path, O_RDONLY | O_NONBLOCK)
         guard descriptor >= 0 else { throw AudioImportError("Dictate can't read \(url.path).") }
-        defer { close(descriptor) }
         var info = stat()
         guard fstat(descriptor, &info) == 0, info.st_mode & S_IFMT == S_IFREG else {
+            close(descriptor)
             throw AudioImportError("\(url.path) is not a file.")
         }
-        guard Int64(info.st_size) <= maxBytes else { throw AudioImportError("Files over 2 GB can't be imported.") }
+        guard Int64(info.st_size) <= maxBytes else {
+            close(descriptor)
+            throw AudioImportError("Files over 2 GB can't be imported.")
+        }
+        return descriptor
     }
 
-    /// Copies the file to `destination` through a `.partial` file that is renamed once whole, so
-    /// a quit mid-copy never leaves something that looks like audio. On APFS the copy is a clone.
-    static func copyAtomically(_ source: URL, to destination: URL) throws {
-        let partial = destination.appendingPathExtension("partial")
+    /// Writes the open file to `partial`, which the caller renames once the row exists, so a quit
+    /// mid-copy never leaves something that looks like audio. On APFS the copy is a clone.
+    static func copy(descriptor: Int32, to partial: URL) throws {
         try? FileManager.default.removeItem(at: partial)
-        do {
-            try FileManager.default.copyItem(at: source, to: partial)
-            try FileManager.default.moveItem(at: partial, to: destination)
-        } catch {
+        if fclonefileat(descriptor, AT_FDCWD, partial.path, 0) == 0 { return }
+        let flags = fcntl(descriptor, F_GETFL)
+        if flags >= 0 { _ = fcntl(descriptor, F_SETFL, flags & ~O_NONBLOCK) }
+        let output = open(partial.path, O_WRONLY | O_CREAT | O_EXCL, 0o600)
+        guard output >= 0 else { throw AudioImportError("Dictate couldn't copy this file.") }
+        defer { close(output) }
+        guard fcopyfile(descriptor, output, nil, copyfile_flags_t(COPYFILE_DATA)) == 0 else {
             try? FileManager.default.removeItem(at: partial)
-            throw error
+            throw AudioImportError("Dictate couldn't copy this file.")
         }
     }
 
@@ -116,11 +130,14 @@ public enum AudioImport {
     struct Prepared {
         var url: URL
         var duration: Double
+        /// The raw copy an export replaced. The caller removes it once the call's path names `url`,
+        /// so a quit before that still finds a copy the row points at.
+        var superseded: URL?
     }
 
     /// Makes sure the stored copy can be read as audio. A copy AVAudioFile opens and that has no
     /// video stays as it is; anything else is reduced to its audio track as AAC in an .m4a beside
-    /// it, and the unreadable copy goes. Nothing is left behind when this throws.
+    /// it. Nothing is left behind when this throws, and a cancellation is rethrown as it is.
     static func prepare(copy: URL) async throws -> Prepared {
         do {
             if let opened = try? AVAudioFile(forReading: copy), !(await hasVideo(copy)) {
@@ -132,22 +149,23 @@ public enum AudioImport {
             try? FileManager.default.removeItem(at: partial)
             do {
                 try await exportAudio(of: copy, to: partial)
+                try Task.checkCancellation()
                 let exported = try AVAudioFile(forReading: partial)
                 guard exported.length > 0 else { throw AudioImportError(noAudio) }
                 let duration = Double(exported.length) / exported.processingFormat.sampleRate
                 if m4a == copy {
                     _ = try FileManager.default.replaceItemAt(m4a, withItemAt: partial)
-                } else {
-                    try FileManager.default.moveItem(at: partial, to: m4a)
-                    try? FileManager.default.removeItem(at: copy)
+                    return Prepared(url: m4a, duration: duration)
                 }
-                return Prepared(url: m4a, duration: duration)
+                try FileManager.default.moveItem(at: partial, to: m4a)
+                return Prepared(url: m4a, duration: duration, superseded: copy)
             } catch {
                 try? FileManager.default.removeItem(at: partial)
                 throw error
             }
         } catch {
-            throw error is AudioImportError ? error : AudioImportError("Dictate couldn't read this file's audio.")
+            if error is CancellationError || Task.isCancelled { throw CancellationError() }
+            throw error is AudioImportError ? error : AudioImportError(unreadable)
         }
     }
 
