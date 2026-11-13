@@ -200,16 +200,39 @@ struct ModelPane: View {
 struct LocalModelRow: View {
     @Environment(AppModel.self) private var model
 
+    /// What the picker lists: Apple's model first, then the Ollama ones, with a divider between
+    /// the two groups. Nil when there is nothing to pick and the row only says Ollama is not running.
+    struct Options {
+        struct Entry: Hashable {
+            var title: String
+            var model: LocalModel
+        }
+        var apple: Entry?
+        var ollama: [Entry]
+    }
+
+    static func options(appleAvailable: Bool, current: LocalModel, ollamaModels: [String]?, ollamaModel: String) -> Options? {
+        let appleListed = appleAvailable || current == .apple
+        if ollamaModels == nil && !appleListed { return nil }
+        var options = Options(
+            apple: appleListed ? .init(title: appleAvailable ? "Apple Intelligence" : "Apple Intelligence (unavailable)", model: .apple) : nil,
+            ollama: [])
+        if let models = ollamaModels {
+            options.ollama = models.map { .init(title: $0, model: .ollama($0)) }
+            if !AppModel.contains(models, ollamaModel) {
+                options.ollama.append(.init(title: "\(ollamaModel) (not installed)", model: .ollama(ollamaModel)))
+            }
+        } else if case .ollama(let name) = current {
+            options.ollama = [.init(title: "\(name) (Ollama is not running)", model: current)]
+        }
+        return options
+    }
+
     var body: some View {
         let preferences = model.preferences
         let current = model.effectiveModel
-        let apple = model.appleModelAvailable
-        let appleListed = apple || current == .apple
-        if model.ollamaModels == nil && !appleListed {
-            LabeledContent("Model") {
-                Text("Ollama is not running").foregroundStyle(.secondary)
-            }
-        } else {
+        if let options = Self.options(appleAvailable: model.appleModelAvailable, current: current,
+                                      ollamaModels: model.ollamaModels, ollamaModel: preferences.ollamaModel) {
             let selection = Binding<String>(
                 get: { LocalModelChoice.tag(model.effectiveModel) },
                 set: { tag in
@@ -218,22 +241,17 @@ struct LocalModelRow: View {
                     preferences.localModel = choice
                 })
             Picker("Model", selection: selection) {
-                if appleListed {
-                    Text(apple ? "Apple Intelligence" : "Apple Intelligence (unavailable)").tag(LocalModelChoice.tag(.apple))
+                if let apple = options.apple {
+                    Text(apple.title).tag(LocalModelChoice.tag(apple.model))
                 }
-                if let models = model.ollamaModels {
-                    if appleListed { Divider() }
-                    ForEach(models, id: \.self) { name in
-                        Text(name).tag(LocalModelChoice.tag(.ollama(name)))
-                    }
-                    if !AppModel.contains(models, preferences.ollamaModel) {
-                        Text("\(preferences.ollamaModel) (not installed)")
-                            .tag(LocalModelChoice.tag(.ollama(preferences.ollamaModel)))
-                    }
-                } else if case .ollama(let name) = current {
-                    Divider()
-                    Text("\(name) (Ollama is not running)").tag(LocalModelChoice.tag(current))
+                if options.apple != nil && !options.ollama.isEmpty { Divider() }
+                ForEach(options.ollama, id: \.self) { entry in
+                    Text(entry.title).tag(LocalModelChoice.tag(entry.model))
                 }
+            }
+        } else {
+            LabeledContent("Model") {
+                Text("Ollama is not running").foregroundStyle(.secondary)
             }
         }
     }

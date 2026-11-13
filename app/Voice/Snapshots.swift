@@ -23,30 +23,37 @@ enum Snapshots {
         let work = FileManager.default.temporaryDirectory.appending(path: "dictate-app-shots-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: work) }
         do {
+            try FileManager.default.createDirectory(at: folder.appending(path: "site-tile"), withIntermediateDirectories: true)
             let (store, dictationStore) = try Seed.make(in: work)
             let model = AppModel(activation: Self.activated())
             model.snapshotSetupComplete = true
             model.unlockForSnapshots()
-            let locked = AppModel(activation: Activation(store: MemoryActivationStore()))
 
             for dark in [false, true] {
                 let suffix = dark ? "dark" : "light"
                 let history = HistoryModel(store: store)
-                await write(folder, "history-\(suffix)", try await historyWindow(model, history, dark: dark))
-                await write(folder, "welcome-\(suffix)", try await welcomeWindow(locked, dark: dark))
-                await write(folder, "dictation-pill-\(suffix)", await dictationPill(model, dark: dark))
-                await write(folder, "call-pill-\(suffix)", await callPill(dark: dark))
-                await write(folder, "record-call-nudge-\(suffix)", await nudge(model, dark: dark))
+                let window = try await historyWindow(model, history, dark: dark)
+                await write(folder, "history-\(suffix)", window)
+                // The site shows the list and the detail without the sidebar and the title bar.
+                await write(folder.appending(path: "site-tile"), "history-\(suffix)",
+                            crop(window, x: 208, top: 52, width: 852, height: 300))
                 await write(folder, "recent-menu-\(suffix)", await recentMenu(model, store: store, dictations: dictationStore, dark: dark))
-            }
-            for dark in [false, true] {
-                let suffix = dark ? "dark" : "light"
                 let apple = LocalModel.apple
+                let both = ["qwen3.5:9b", "gemma3:4b"]
                 await write(folder, "model-settings-apple-\(suffix)",
-                            try await modelSettings(model, appleAvailable: true, choice: apple, dark: dark))
+                            try await modelSettings(model, appleAvailable: true, ollama: both, choice: apple, dark: dark))
+                await write(folder, "model-picker-\(suffix)",
+                            await modelPicker(model, appleAvailable: true, ollama: both, choice: apple, dark: dark))
                 await write(folder, "model-settings-no-apple-\(suffix)",
-                            try await modelSettings(model, appleAvailable: false, choice: .ollama("gemma3:4b"), dark: dark))
-                await write(folder, "model-picker-\(suffix)", await modelPicker(dark: dark))
+                            try await modelSettings(model, appleAvailable: false, ollama: both, choice: .ollama("gemma3:4b"), dark: dark))
+                await write(folder, "model-settings-ollama-stopped-\(suffix)",
+                            try await modelSettings(model, appleAvailable: false, ollama: nil, choice: .ollama("qwen3.5:9b"), dark: dark))
+                let missing = ["gemma3:4b"]
+                await write(folder, "model-settings-not-installed-\(suffix)",
+                            try await modelSettings(model, appleAvailable: false, ollama: missing, choice: .ollama("qwen3.5:9b"), dark: dark))
+                await write(folder, "model-picker-not-installed-\(suffix)",
+                            await modelPicker(model, appleAvailable: false, ollama: missing, choice: .ollama("qwen3.5:9b"), dark: dark))
+                await write(folder, "agents-tools-\(suffix)", try await agentsSettings(model, dark: dark))
             }
         } catch {
             DevLog.write("app-shots failed: \(error)")
@@ -56,7 +63,7 @@ enum Snapshots {
 
     // MARK: Views
 
-    private static func historyWindow(_ model: AppModel, _ history: HistoryModel, dark: Bool) async throws -> NSBitmapImageRep? {
+    static func historyWindow(_ model: AppModel, _ history: HistoryModel, dark: Bool) async throws -> NSBitmapImageRep? {
         let navigation = MainNavigation()
         navigation.selection = .history
         let size = NSSize(width: 1060, height: 680)
@@ -64,22 +71,13 @@ enum Snapshots {
             .environment(CallsModel()), size: size, dark: dark, titled: true)
         history.reload()
         for _ in 0..<40 where history.visible.isEmpty { try await Task.sleep(for: .milliseconds(100)) }
-        guard let call = history.visible.first(where: { $0.id == "call:zoom" }) else {
+        guard let call = history.visible.first(where: { $0.id == "call:rollout" }) else {
             throw VoiceError.store("The seeded call is missing.")
         }
         history.selection = call.id
         history.select(call.id)
         for _ in 0..<40 where history.detail == nil || history.waveform.isEmpty { try await Task.sleep(for: .milliseconds(100)) }
         return await withSidebar(await capture(window, size: size, titled: true), model, .history, size: size, dark: dark)
-    }
-
-    private static func welcomeWindow(_ model: AppModel, dark: Bool) async throws -> NSBitmapImageRep? {
-        let navigation = MainNavigation()
-        navigation.selection = .welcome
-        let size = NSSize(width: 1060, height: 680)
-        let window = makeWindow(MainView(navigation: navigation, history: HistoryModel()).environment(model)
-            .environment(CallsModel()), size: size, dark: dark, titled: true)
-        return await withSidebar(await capture(window, size: size, titled: true), model, .welcome, size: size, dark: dark)
     }
 
     /// A bitmap draw of the window leaves the sidebar blank, so the real sidebar is drawn on
@@ -91,7 +89,7 @@ enum Snapshots {
         let navigation = MainNavigation()
         navigation.selection = pane
         let sidebarSize = NSSize(width: width, height: size.height - bar)
-        let host = makeWindow(MainSidebar(navigation: navigation).environment(model), size: sidebarSize, dark: dark, titled: false)
+        let host = makeWindow(MainSidebar(navigation: navigation).environment(model), size: sidebarSize, dark: dark, titled: false, active: true)
         guard let sidebar = await capture(host, size: sidebarSize, titled: false),
               let out = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: window.pixelsWide, pixelsHigh: window.pixelsHigh,
                                          bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
@@ -125,46 +123,6 @@ enum Snapshots {
         return out
     }
 
-    private static func dictationPill(_ model: AppModel, dark: Bool) async -> NSBitmapImageRep? {
-        model.phase = .recording(.fix, Date().addingTimeInterval(-7))
-        model.level = 0.55
-        model.liveText = "Send Alex the Northwind proposal before Friday, and ask whether the pilot numbers are in."
-        let size = NSSize(width: 480, height: 96)
-        let view = Backdrop(dark: dark) {
-            IndicatorView().environment(model).environment(PillHoverState())
-        }
-        let window = makeWindow(view, size: size, dark: dark, titled: false)
-        let data = await capture(window, size: size, titled: false)
-        model.phase = .idle
-        return data
-    }
-
-    private static func callPill(dark: Bool) async -> NSBitmapImageRep? {
-        let lines = [
-            LiveCallLines.Line(id: 1, channel: .call, label: "Call", text: "Did the pilot numbers come through?"),
-            LiveCallLines.Line(id: 2, channel: .me, label: "Me", text: "They did. Retention is up twelve percent."),
-            LiveCallLines.Line(id: 3, channel: .call, label: "Call", text: "That is better than we expected."),
-        ]
-        let size = NSSize(width: 480, height: 116)
-        let view = Backdrop(dark: dark) {
-            CallPill(startedAt: Date().addingTimeInterval(-134), stopHint: "\u{2325}\u{21E7}` stops", lines: lines)
-                .font(.system(size: 12, weight: .medium))
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .padding(.top, 4)
-        }
-        return await capture(makeWindow(view, size: size, dark: dark, titled: false), size: size, titled: false)
-    }
-
-    private static func nudge(_ model: AppModel, dark: Bool) async -> NSBitmapImageRep? {
-        let calls = CallsModel()
-        calls.promptForSnapshots(DetectedCall(bundleID: "us.zoom.xos", name: "Zoom"), model: model)
-        let size = NSSize(width: 420, height: 92)
-        let view = Backdrop(dark: dark) {
-            CallPromptView().environment(calls).frame(width: 340, height: 44)
-        }
-        return await capture(makeWindow(view, size: size, dark: dark, titled: false), size: size, titled: false)
-    }
-
     /// Stands in for the desktop behind a pill, which floats over other apps.
     struct Backdrop<Content: View>: View {
         let dark: Bool
@@ -182,7 +140,10 @@ enum Snapshots {
 
     // MARK: Drawing
 
-    static func makeWindow<V: View>(_ view: V, size: NSSize, dark: Bool, titled: Bool) -> NSWindow {
+    static func makeWindow<V: View>(_ view: V, size: NSSize, dark: Bool, titled: Bool, active: Bool = false) -> NSWindow {
+        // A window that is never key draws its controls grey. The environment value fixes the
+        // text of a list, but not AppKit switches, and it makes a History row hover.
+        let view = view.environment(\.controlActiveState, active ? .key : .inactive)
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
                               styleMask: titled ? [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView] : [.borderless],
                               backing: .buffered, defer: true)
@@ -226,6 +187,22 @@ enum Snapshots {
         return rep
     }
 
+    /// A region of a drawn window, in points from its top left, as its own 2x bitmap.
+    static func crop(_ rep: NSBitmapImageRep?, x: CGFloat, top: CGFloat, width: CGFloat, height: CGFloat) -> NSBitmapImageRep? {
+        guard let rep,
+              let out = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(width * 2), pixelsHigh: Int(height * 2),
+                                         bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                         colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0),
+              let context = NSGraphicsContext(bitmapImageRep: out) else { return nil }
+        out.size = NSSize(width: width, height: height)
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        context.cgContext.scaleBy(x: 2, y: 2)
+        rep.draw(in: NSRect(x: -x, y: -(rep.size.height - top - height), width: rep.size.width, height: rep.size.height))
+        NSGraphicsContext.restoreGraphicsState()
+        return out
+    }
+
     static func write(_ folder: URL, _ name: String, _ rep: NSBitmapImageRep?) async {
         guard let data = rep?.representation(using: .png, properties: [:]) else { DevLog.write("app-shots: nothing drawn for \(name)"); return }
         try? data.write(to: folder.appending(path: "\(name).png"))
@@ -258,10 +235,10 @@ enum Seed {
             calendar.date(byAdding: .minute, value: hour * 60 + minute, to: calendar.date(byAdding: .day, value: -daysAgo, to: today)!)!
         }
 
-        let zoomAudio = folder.appending(path: "zoom.wav")
-        let zoomSeconds = 155
-        let zoomStart = at(daysAgo: 1, 16, 30)
-        let zoomLines: [(CallSegment.Channel, String)] = [
+        let rolloutAudio = folder.appending(path: "rollout.wav")
+        let rolloutSeconds = 155
+        let rolloutStart = at(daysAgo: 1, 16, 30)
+        let rolloutLines: [(CallSegment.Channel, String)] = [
             (.me, "Thanks for joining, Alex. I wanted to walk through the North wind rollout plan before Friday."),
             (.call, "Sounds good. Before we start, did the pilot numbers come through from the team?"),
             (.me, "They did. Retention is up twelve percent, and support tickets are down by a third."),
@@ -271,19 +248,19 @@ enum Seed {
             (.call, "I can review the emails tonight. Send them over and I will reply by tomorrow morning."),
             (.me, "Perfect. I will also share the pilot summary so everyone has the same numbers."),
         ]
-        try tone(zoomAudio, seconds: zoomSeconds, speech: zoomLines.indices.map { (Double($0) * 19 + 1, 16) })
-        let zoom = try calls.createCall(NewCall(id: "zoom", startedAt: zoomStart, appBundleID: "us.zoom.xos", appName: "Zoom",
-                                                split: true, audioPath: zoomAudio.path))
-        let segments = try calls.appendSegments("zoom", zoomLines.enumerated().map { index, line in
+        try tone(rolloutAudio, seconds: rolloutSeconds, speech: rolloutLines.indices.map { (Double($0) * 19 + 1, 16) })
+        let rollout = try calls.createCall(NewCall(id: "rollout", startedAt: rolloutStart, appBundleID: "com.example.meeting", appName: "Meeting",
+                                                split: true, audioPath: rolloutAudio.path))
+        let segments = try calls.appendSegments("rollout", rolloutLines.enumerated().map { index, line in
             NewCallSegment(channel: line.0, startMs: index * 19_000 + 1_000, endMs: index * 19_000 + 17_000, text: line.1,
                            avgLogprob: -0.2, noSpeechProb: 0.01, compressionRatio: 1.2)
         })
-        try calls.correctSegment("zoom", segments[0].id,
+        try calls.correctSegment("rollout", segments[0].id,
                                  text: "Thanks for joining, Alex. I wanted to walk through the Northwind rollout plan before Friday.",
                                  client: Edit.personClient)
-        try calls.finishCall("zoom", endedAt: zoomStart.addingTimeInterval(Double(zoomSeconds)))
-        _ = zoom
-        _ = try calls.setAutoTitle("zoom", "Northwind rollout with Alex")
+        try calls.finishCall("rollout", endedAt: rolloutStart.addingTimeInterval(Double(rolloutSeconds)))
+        _ = rollout
+        _ = try calls.setAutoTitle("rollout", "Northwind rollout with Alex")
 
         func finished(_ id: String, _ app: String, _ bundle: String, _ start: Date, minutes: Int, _ title: String?,
                       _ lines: [(CallSegment.Channel, String)]) throws {
@@ -295,17 +272,17 @@ enum Seed {
             try calls.finishCall(id, endedAt: start.addingTimeInterval(Double(minutes * 60)))
             if let title { try calls.rename(.call, id, to: title) }
         }
-        try finished("meet", "Google Meet", "com.google.Chrome", at(daysAgo: 1, 9, 30), minutes: 32, "Northwind weekly sync", [
+        try finished("weekly", "Meeting", "com.example.meeting", at(daysAgo: 1, 9, 30), minutes: 32, "Northwind weekly sync", [
             (.call, "Let's start with the numbers from last week."),
             (.me, "Signups are steady, and the new onboarding flow is working."),
         ])
-        try finished("teams", "Microsoft Teams", "com.microsoft.teams2", at(daysAgo: 1, 13, 0), minutes: 47, nil, [
+        try finished("long", "Meeting", "com.example.meeting", at(daysAgo: 1, 13, 0), minutes: 47, nil, [
             (.call, "Let's go through the quarterly plan for Lakeside, starting with the budget."),
             (.me, "Priya and the finance team have the numbers, so I will share my screen now."),
             (.call, "Great, and then we can talk about hiring for the next two quarters."),
         ])
-        _ = try calls.setAutoTitle("teams", "Lakeside quarterly planning review with Priya and the finance team on budget")
-        try finished("slack", "Slack", "com.tinyspeck.slackmacgap", at(daysAgo: 1, 8, 10), minutes: 12, nil, [
+        _ = try calls.setAutoTitle("long", "Lakeside quarterly budget review with Priya and the finance leads")
+        try finished("short", "Meeting", "com.example.meeting", at(daysAgo: 1, 8, 10), minutes: 4, nil, [
             (.me, "Can you hear me now? I switched to the other headset."),
             (.call, "Yes, loud and clear."),
         ])

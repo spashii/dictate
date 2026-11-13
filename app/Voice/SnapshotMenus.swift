@@ -17,22 +17,33 @@ extension Snapshots {
         model.setModelsForSnapshots(appleAvailable: true, ollama: ["qwen3.5:9b", "gemma3:4b"], choice: .apple)
         let menu = NSHostingMenu(rootView: MenuContent().environment(model).environment(calls))
         menu.update()
-        return await drawMenu(ReplicaRow.rows(of: menu), width: 330, dark: dark)
+        return await drawMenu(ReplicaRow.rows(of: menu), dark: dark)
     }
 
     // MARK: Model settings
 
-    static func modelSettings(_ model: AppModel, appleAvailable: Bool, choice: LocalModel, dark: Bool) async throws -> NSBitmapImageRep? {
-        model.setModelsForSnapshots(appleAvailable: appleAvailable, ollama: ["qwen3.5:9b", "gemma3:4b"], choice: choice)
+    static func modelSettings(_ model: AppModel, appleAvailable: Bool, ollama: [String]?, choice: LocalModel, dark: Bool) async throws -> NSBitmapImageRep? {
+        model.setModelsForSnapshots(appleAvailable: appleAvailable, ollama: ollama, choice: choice)
+        return try await settingsPane(model, .model, ModelPane(), size: NSSize(width: 1060, height: 760), dark: dark)
+    }
+
+    /// Settings, Agents with the server on and a fresh install's tool switches, tall enough to
+    /// show the whole tool list.
+    static func agentsSettings(_ model: AppModel, dark: Bool) async throws -> NSBitmapImageRep? {
+        model.agents.holdForSnapshots()
+        return try await settingsPane(model, .agents, AgentsPane(), size: NSSize(width: 1060, height: 1000), dark: dark)
+    }
+
+    private static func settingsPane<Pane: View>(_ model: AppModel, _ selection: MainPane, _ content: Pane,
+                                                 size: NSSize, dark: Bool) async throws -> NSBitmapImageRep? {
         let navigation = MainNavigation()
-        navigation.selection = .model
-        let size = NSSize(width: 1060, height: 760)
+        navigation.selection = selection
         let window = makeWindow(MainView(navigation: navigation, history: HistoryModel()).environment(model)
             .environment(CallsModel()), size: size, dark: dark, titled: true)
         // A bitmap draw of the window leaves the grouped form blank, like the sidebar, so the pane
         // is drawn on its own and laid over the window's detail area.
         let paneSize = NSSize(width: size.width - 196, height: size.height - 52)
-        let pane = makeWindow(ModelPane().environment(model).background(Color(nsColor: .windowBackgroundColor)),
+        let pane = makeWindow(content.environment(model).background(Color(nsColor: .windowBackgroundColor)),
                               size: paneSize, dark: dark, titled: false)
         try await Task.sleep(for: .seconds(2))
         guard let base = await capture(window, size: size, titled: true),
@@ -54,25 +65,31 @@ extension Snapshots {
             NSRect(x: 196, y: size.height - 52, width: size.width - 196, height: 52).fill()
             NSColor.separatorColor.setFill()
             NSRect(x: 196, y: size.height - 52, width: size.width - 196, height: 0.5).fill()
-            "Model".draw(at: NSPoint(x: 227, y: size.height - 33), withAttributes: [
+            selection.title.draw(at: NSPoint(x: 227, y: size.height - 33), withAttributes: [
                 .font: NSFont.systemFont(ofSize: 14, weight: .semibold), .foregroundColor: NSColor.secondaryLabelColor])
         }
         NSGraphicsContext.restoreGraphicsState()
-        return await withSidebar(out, model, .model, size: size, dark: dark)
+        return await withSidebar(out, model, selection, size: size, dark: dark)
     }
 
-    /// The options the picker lists when Apple's model is there and Ollama has two.
-    static func modelPicker(dark: Bool) async -> NSBitmapImageRep? {
-        let rows: [ReplicaRow] = [
-            .item(title: "Apple on-device", subtitle: nil, image: nil, enabled: true, key: nil, checked: true),
-            .separator,
-            .item(title: "qwen3.5:9b", subtitle: nil, image: nil, enabled: true, key: nil, checked: false),
-            .item(title: "gemma3:4b", subtitle: nil, image: nil, enabled: true, key: nil, checked: false),
-        ]
-        return await drawMenu(rows, width: 220, dark: dark)
+    /// The picker's popup for the state the model was last given, from the same option list the
+    /// real row builds.
+    static func modelPicker(_ model: AppModel, appleAvailable: Bool, ollama: [String]?, choice: LocalModel, dark: Bool) async -> NSBitmapImageRep? {
+        model.setModelsForSnapshots(appleAvailable: appleAvailable, ollama: ollama, choice: choice)
+        guard let options = LocalModelRow.options(appleAvailable: appleAvailable, current: model.effectiveModel,
+                                                  ollamaModels: ollama, ollamaModel: model.preferences.ollamaModel) else { return nil }
+        func row(_ entry: LocalModelRow.Options.Entry) -> ReplicaRow {
+            .item(title: entry.title, subtitle: nil, image: nil, enabled: true, key: nil, checked: entry.model == model.effectiveModel)
+        }
+        var rows: [ReplicaRow] = []
+        if let apple = options.apple { rows.append(row(apple)) }
+        if options.apple != nil && !options.ollama.isEmpty { rows.append(.separator) }
+        rows += options.ollama.map(row)
+        return await drawMenu(rows, dark: dark)
     }
 
-    private static func drawMenu(_ rows: [ReplicaRow], width: CGFloat, dark: Bool) async -> NSBitmapImageRep? {
+    private static func drawMenu(_ rows: [ReplicaRow], dark: Bool) async -> NSBitmapImageRep? {
+        let width = ReplicaRow.width(of: rows)
         let margin: CGFloat = 36
         let size = NSSize(width: width + margin * 2, height: ReplicaRow.height(of: rows) + margin * 2)
         let view = Backdrop(dark: dark) { MenuReplica(rows: rows, dark: dark).frame(width: width) }
@@ -95,6 +112,23 @@ enum ReplicaRow {
     }
 
     static func height(of rows: [ReplicaRow]) -> CGFloat { rows.reduce(10) { $0 + $1.height } }
+
+    /// The panel is as wide as its widest item, as an NSMenu is: image column, title, a gap and
+    /// the shortcut, with 10 points either side and 5 of padding.
+    static func width(of rows: [ReplicaRow]) -> CGFloat {
+        let menuFont = NSFont.menuFont(ofSize: 0), small = NSFont.systemFont(ofSize: 11)
+        func measure(_ text: String, _ font: NSFont) -> CGFloat { ceil((text as NSString).size(withAttributes: [.font: font]).width) }
+        let widest = rows.map { row -> CGFloat in
+            switch row {
+            case .item(let title, let subtitle, _, _, let key, _):
+                let text = max(measure(title, menuFont), subtitle.map { measure($0, small) } ?? 0)
+                return 16 + 6 + text + (key.map { 12 + measure($0, menuFont) } ?? 0)
+            case .header(let title): return measure(title, .systemFont(ofSize: 11, weight: .semibold))
+            case .separator: return 0
+            }
+        }.max() ?? 0
+        return widest + 20 + 10 + 12 + 24
+    }
 
     /// AppKit drops a separator that opens, closes or follows another one.
     static func rows(of menu: NSMenu) -> [ReplicaRow] {
@@ -137,9 +171,6 @@ private struct MenuReplica: View {
     let dark: Bool
 
     private var font: Font { Font(NSFont.menuFont(ofSize: 0)) }
-    private var hasImages: Bool {
-        rows.contains { if case .item(_, _, let image, _, _, let checked) = $0 { image != nil || checked } else { false } }
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -154,16 +185,16 @@ private struct MenuReplica: View {
                         .frame(maxWidth: .infinity, maxHeight: row.height, alignment: .leading)
                 case .item(let title, let subtitle, let image, let enabled, let key, let checked):
                     HStack(spacing: 6) {
-                        if hasImages {
-                            Group {
-                                if let image {
-                                    Image(nsImage: image).renderingMode(.template).resizable().scaledToFit()
-                                } else if checked {
-                                    Image(systemName: "checkmark").font(.system(size: 11, weight: .semibold))
-                                }
+                        // Every item keeps the image column, as in an NSMenu, so titles line up.
+                        ZStack {
+                            Color.clear
+                            if let image {
+                                Image(nsImage: image).renderingMode(.template).resizable().scaledToFit()
+                            } else if checked {
+                                Image(systemName: "checkmark").font(.system(size: 11, weight: .semibold))
                             }
-                            .frame(width: 16, height: 16)
                         }
+                        .frame(width: 16, height: 16)
                         VStack(alignment: .leading, spacing: 0) {
                             Text(title).font(font).lineLimit(1).truncationMode(.tail)
                             if let subtitle {
