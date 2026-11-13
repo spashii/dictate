@@ -27,6 +27,8 @@ extension Snapshots {
     /// or against the window edge when it would run past it.
     static func plusMenu(_ model: AppModel, store: CallStore, dark: Bool) async throws -> NSBitmapImageRep? {
         let calls = CallsModel()
+        // A call app is open, so the menu offers "Record This Call".
+        calls.promptForSnapshots(DetectedCall(bundleID: "com.example.meeting", name: "Meeting"), model: model)
         let window = try await historyWindow(model, HistoryModel(store: store), calls: calls, dark: dark)
         let menu = NSHostingMenu(rootView: HistoryNewMenu(chooseFiles: {}).environment(model).environment(calls))
         menu.update()
