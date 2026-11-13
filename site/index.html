@@ -4,58 +4,148 @@
 <meta name="google-site-verification" content="yIswHnPtZ-nIXyURs0nLVeaXR0_zyeNWoyeVSVrAD-U">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dictate: local dictation for Mac</title>
-<meta name="description" content="Dictation in any Mac app, and recordings of your online calls with your side and theirs kept apart. Free during the beta.">
+<title>Dictate: dictation and call recording for Mac</title>
+<meta name="description" content="Dictation and call recording for Mac. Dictate types into any app and records your online calls with your side and theirs kept apart. Free during the beta, then $49 once.">
 <link rel="canonical" href="https://spashii.github.io/dictate/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Dictate">
 <meta property="og:url" content="https://spashii.github.io/dictate/">
-<meta property="og:title" content="Dictate: local dictation for Mac">
-<meta property="og:description" content="Dictation in any Mac app, and recordings of your online calls with your side and theirs kept apart. Free during the beta.">
+<meta property="og:title" content="Dictate: dictation and call recording for Mac">
+<meta property="og:description" content="Dictation and call recording for Mac. Dictate types into any app and records your online calls with your side and theirs kept apart. Free during the beta, then $49 once.">
 <meta property="og:image" content="https://spashii.github.io/dictate/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Dictate: local dictation and call transcripts for Mac">
+<meta property="og:image:alt" content="Dictate: dictation and call recording for Mac">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Dictate: local dictation for Mac">
-<meta name="twitter:description" content="Dictation in any Mac app, and recordings of your online calls with your side and theirs kept apart. Free during the beta.">
+<meta name="twitter:title" content="Dictate: dictation and call recording for Mac">
+<meta name="twitter:description" content="Dictation and call recording for Mac. Dictate types into any app and records your online calls with your side and theirs kept apart. Free during the beta, then $49 once.">
 <meta name="twitter:image" content="https://spashii.github.io/dictate/og.png">
-<meta name="theme-color" content="#f7f7f8" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#111113" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <script type="application/ld+json">
-{
- "@context": "https://schema.org",
- "@type": "SoftwareApplication",
- "name": "Dictate",
- "description": "Local dictation and call transcripts for Mac. Dictation in any app, and recordings of your online calls with your side and theirs kept apart.",
- "applicationCategory": "ProductivityApplication",
- "operatingSystem": "macOS",
- "softwareVersion": "0.12.1",
- "url": "https://spashii.github.io/dictate/",
- "image": "https://spashii.github.io/dictate/og.png",
- "offers": {
-  "@type": "Offer",
-  "price": "0",
-  "priceCurrency": "USD"
+[
+ {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Dictate",
+  "description": "Dictation and call recording for Mac. Dictate types into any app and records your online calls with your side and theirs kept apart.",
+  "applicationCategory": "ProductivityApplication",
+  "operatingSystem": "macOS",
+  "softwareVersion": "0.12.1",
+  "url": "https://spashii.github.io/dictate/",
+  "image": "https://spashii.github.io/dictate/og.png",
+  "offers": {
+   "@type": "Offer",
+   "price": "0",
+   "priceCurrency": "USD",
+   "description": "Free during the beta, then $49 once. The first 50 to activate keep it free for good."
+  },
+  "author": {
+   "@type": "Person",
+   "name": "Sameer",
+   "url": "https://github.com/spashii"
+  }
  },
- "author": {
-  "@type": "Person",
-  "name": "Sameer",
-  "url": "https://github.com/spashii"
+ {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+   {
+    "@type": "Question",
+    "name": "How is it different from Handy and OpenSuperWhisper?",
+    "acceptedAnswer": {
+     "@type": "Answer",
+     "text": "At the core they are close: all three run on your Mac with no sign-in. Handy also runs Parakeet and works on Windows and Linux. What Dictate adds is retries, online calls with both sides apart, and a local MCP server for your agents."
+    }
+   },
+   {
+    "@type": "Question",
+    "name": "What will it cost?",
+    "acceptedAnswer": {
+     "@type": "Answer",
+     "text": "Free during the beta, then $49 once. The first 50 to activate keep it free for good."
+    }
+   },
+   {
+    "@type": "Question",
+    "name": "Why Whisper and not Parakeet?",
+    "acceptedAnswer": {
+     "@type": "Answer",
+     "text": "Retries use the confidence Whisper gives each part it writes, and key terms go into Whisper's prompt. Parakeet is faster, and I have not measured it against this pipeline."
+    }
+   },
+   {
+    "@type": "Question",
+    "name": "Is it open source?",
+    "acceptedAnswer": {
+     "@type": "Answer",
+     "text": "No. It is source available under FSL-1.1-MIT: you can read, change and run the code, but not offer it in a commercial product that competes with it. Each version becomes MIT two years after release, and versions up to 0.11.0 already are. The code and licence are on GitHub."
+    }
+   },
+   {
+    "@type": "Question",
+    "name": "Does anything leave my Mac?",
+    "acceptedAnswer": {
+     "@type": "Answer",
+     "text": "Your audio and transcripts stay on your Mac, in one folder, kept forever or for 30 days. Dictate goes online for its speech models (1.6 GB, once) and for updates, which count checks by app, version and country and never store your IP address. If you connect an agent, it can read your transcripts, and where it sends them depends on that agent. Where everything is kept"
+    }
+   },
+   {
+    "@type": "Question",
+    "name": "What does it ask permission for?",
+    "acceptedAnswer": {
+     "@type": "Answer",
+     "text": "Microphone, to hear you. Accessibility, to paste into the app you are in; without it your text waits on the clipboard. Call audio, to hear the other side of an online call; it records only the call app's sound, and you can skip it and still dictate."
+    }
+   },
+   {
+    "@type": "Question",
+    "name": "What can my agent see?",
+    "acceptedAnswer": {
+     "@type": "Answer",
+     "text": "Your dictations and call transcripts, through the tools you leave on. The server listens only on your Mac and needs the token in Settings, Agents. Tools that record or change anything start off, because your agent reads what the other side of a call says, and that could steer it."
+    }
+   },
+   {
+    "@type": "Question",
+    "name": "I use OpenSuperWhisper. Will they clash?",
+    "acceptedAnswer": {
+     "@type": "Answer",
+     "text": "Both start on Option+`. Change one in Settings, Shortcuts. If OpenSuperWhisper already has the speech model, Dictate reuses it instead of downloading 1.6 GB again."
+    }
+   },
+   {
+    "@type": "Question",
+    "name": "Which call apps work, and should I tell people?",
+    "acceptedAnswer": {
+     "@type": "Answer",
+     "text": "Zoom, Teams, Slack, Discord, FaceTime, WhatsApp, Signal, Telegram, Webex, Skype and Element, and calls in a browser tab such as Meet. Dictate does not tell the people on the other side apart. Tell them you are recording, because the law differs by country."
+    }
+   },
+   {
+    "@type": "Question",
+    "name": "Which languages?",
+    "acceptedAnswer": {
+     "@type": "Answer",
+     "text": "Whisper detects the language. Large v3 (3.1 GB) is there for languages where turbo does worse."
+    }
+   }
+  ]
  }
-}
+]
 </script>
+<link rel="stylesheet" href="https://spashii.github.io/ds/v1.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <nav class="nav" aria-label="Main">
-  <a class="brand" href="./"><img src="icon.svg" alt="" width="24" height="24">Dictate</a>
+  <a class="brand" href="./"><img src="icon.svg" alt="" width="24" height="24"><span class="name">Dictate</span></a>
   <div class="links">
     <a href="#questions">Questions</a>
     <a href="https://github.com/spashii/dictate">GitHub</a>
-    <a class="button primary small" href="#get">Get Dictate</a>
+    <a class="button primary small" href="#get">Download</a>
   </div>
 </nav>
 
@@ -64,68 +154,120 @@
     <div>
       <h1>Dictation and call recording for Mac.</h1>
       <p class="lede">Dictate types what you say into any app, and records your online calls with your side and theirs kept apart. It runs on your Mac, and no bot joins the call.</p>
-      <p class="cta"><a class="button primary" href="https://dictate.firstversion.in/download/0.12.1">Download for Mac</a></p>
-      <p class="meta">Free during the beta. Apple silicon, macOS 15 or later.</p>
+      <div class="get">
+        <div class="actions"><a class="button primary" href="https://dictate.firstversion.in/download/0.12.1">Download for Mac</a></div>
+        <p class="meta"><span>Free during the beta, then $49 once.</span> <span>The first 50 to activate keep it free for good.</span></p>
+        <p class="meta"><span>Apple silicon, macOS 15 or later</span></p>
+      </div>
     </div>
 
     <div class="demo-wrap">
-      <div class="demo mac" id="demo" role="img" aria-label="Animation of the whole flow. A call with Alex is under way, and Dictate's pill offers to record it. You press Record and Me and Call lines fill the pill. The call ends and the pill shows the stopped call. A chat window titled Agent opens. You press Option and backtick, the dictation pill shows your words as you speak: Summarise my call with Alex and draft a follow-up email, check earlier calls, and add misheard names to my key terms. The text is pasted and sent. The agent calls get_transcript, list_calls, search_transcripts and add_key_terms with Northwind and Q3 deck, then answers with a short summary and a draft email to Alex.">
-        <div class="dpill" id="pill" aria-hidden="true"><div class="prow" id="prow"></div><div class="lines" id="lines"></div><div class="dtext" id="dtext"></div></div>
-        <div class="win" id="callwin" aria-hidden="true">
-          <div class="wtitle"><span class="lights"><i></i><i></i><i></i></span>Alex</div>
-          <div class="callbody"><div class="avatar">A</div><div class="ctime">04:12</div></div>
-        </div>
-        <div class="keys" id="keys" aria-hidden="true"><kbd>Option</kbd><kbd>`</kbd></div>
-        <div class="win chat" id="chat" aria-hidden="true">
-          <div class="wtitle"><span class="lights"><i></i><i></i><i></i></span>Agent</div>
-          <div class="msgs">
-            <div class="m me" id="m-user"></div>
-            <div class="m tr" id="m-t1"><span class="ok"></span>get_transcript</div>
-            <div class="m tr" id="m-t2"><span class="ok"></span>list_calls</div>
-            <div class="m tr" id="m-t3"><span class="ok"></span>search_transcripts</div>
-            <div class="m tr" id="m-t4"><span class="ok"></span>add_key_terms<span class="arg">Northwind, Q3 deck</span></div>
-            <div class="m ans" id="m-sum">Alex will send the Northwind slides today. Your earlier call set the Q3 deck for Friday. Added two key terms.</div>
-            <div class="m mail" id="m-mail">Hi Alex, thanks for joining today. I will look out for the Northwind slides. As you asked on our earlier call, the Q3 deck will be with you by Friday.</div>
+      <div class="stage frame mac" id="demo" role="img" aria-label="Animation of the whole flow, in three steps. One, record the call: a call with Alex is under way, Dictate asks Record this call?, Record is pressed, and the pill at the top of the screen fills with Me and Call lines until the call ends and the pill shows the stopped call. Two, ask your agent: a chat window titled Agent opens, you press Option and backtick, and the dictation pill shows your words as you speak: Summarize my call with Alex and draft a follow-up email. Check our earlier calls too, and add any names you misheard to my key terms. The text is pasted and sent. Three, use it with your own agent: the agent calls get_transcript, list_calls, search_transcripts and add_key_terms with Northwind and Q3 deck, then answers with a short summary and a draft email to Alex.">
+        <div class="scene" id="scene" aria-hidden="true">
+          <div class="menubar"><span id="mb-app">Zoom</span><span class="mbicon" id="mbicon" data-state="idle"><svg viewBox="0 0 22 18" fill="currentColor"><g class="i-idle"><path fill-rule="evenodd" d="M0.5 7A2.5 2.5 0 0 1 5.5 7V11A2.5 2.5 0 0 1 0.5 11ZM1.9 7A1.1 1.1 0 0 1 4.1 7V11A1.1 1.1 0 0 1 1.9 11ZM7.5 3.5A2.5 2.5 0 0 1 12.5 3.5V14.5A2.5 2.5 0 0 1 7.5 14.5ZM8.9 3.5A1.1 1.1 0 0 1 11.1 3.5V14.5A1.1 1.1 0 0 1 8.9 14.5ZM14.5 7A2.5 2.5 0 0 1 19.5 7V11A2.5 2.5 0 0 1 14.5 11ZM15.9 7A1.1 1.1 0 0 1 18.1 7V11A1.1 1.1 0 0 1 15.9 11Z"/></g><g class="i-call"><path fill-rule="evenodd" d="M0.5 7A2.5 2.5 0 0 1 5.5 7V11A2.5 2.5 0 0 1 0.5 11ZM7.5 3.5A2.5 2.5 0 0 1 12.5 3.5V14.5A2.5 2.5 0 0 1 7.5 14.5ZM14.5 7A2.5 2.5 0 0 1 19.5 7V11A2.5 2.5 0 0 1 14.5 11Z"/><circle cx="20" cy="2.1" r="1.9"/></g><g class="i-dict"><path fill-rule="evenodd" d="M0.5 7A2.5 2.5 0 0 1 5.5 7V11A2.5 2.5 0 0 1 0.5 11ZM1.9 7A1.1 1.1 0 0 1 4.1 7V11A1.1 1.1 0 0 1 1.9 11ZM7.5 3.5A2.5 2.5 0 0 1 12.5 3.5V14.5A2.5 2.5 0 0 1 7.5 14.5ZM14.5 7A2.5 2.5 0 0 1 19.5 7V11A2.5 2.5 0 0 1 14.5 11ZM15.9 7A1.1 1.1 0 0 1 18.1 7V11A1.1 1.1 0 0 1 15.9 11Z"/></g></svg></span><span class="clock">Thu 12 Nov&nbsp;&nbsp;16:30</span></div>
+          <div class="cam" id="cam">
+            <div class="win callwin" id="callwin">
+              <div class="wtitle"><span class="lights"><i></i><i></i><i></i></span>Alex</div>
+              <div class="tile"><div class="avatar">A</div><div class="who">Alex</div><div class="ctime" id="ctime">14:02</div></div>
+              <div class="ctrls">
+                <span class="cb"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="5.5" y="1.5" width="5" height="8.5" rx="2.5"/><path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2"/></svg></span>
+                <span class="cb"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="1.5" y="4" width="9" height="8" rx="2"/><path d="m10.5 7 4-2.5v7l-4-2.5"/></svg></span>
+                <span class="cb end"><svg viewBox="0 0 16 16" fill="currentColor"><path transform="rotate(135 8 8)" d="M4.2 1.6c.5-.3 1.1-.2 1.4.3l1.3 2.2c.3.5.2 1.1-.2 1.4l-.9.7c.6 1.5 1.8 2.8 3.3 3.5l.8-.9c.4-.4 1-.5 1.4-.2l2.2 1.3c.5.3.6.9.3 1.4l-.7 1.2c-.5.8-1.4 1.2-2.3 1C6.4 12.6 3.4 9.6 2.5 5.4c-.2-.9.2-1.8 1-2.3z"/></svg></span>
+              </div>
+            </div>
+
+            <div class="win chat" id="chat">
+              <div class="wtitle"><span class="lights"><i></i><i></i><i></i></span>Agent</div>
+              <div class="msgs">
+                <div class="mw" id="m-user"><div><div class="m me">Summarize my call with Alex and draft a follow-up email. Check our earlier calls too, and add any names you misheard to my key terms.</div></div></div>
+                <div class="mw" id="m-tools"><div><div class="m tools">
+                  <div class="mw tw"><div><div class="tr"><i class="st"></i>get_transcript</div></div></div>
+                  <div class="mw tw"><div><div class="tr"><i class="st"></i>list_calls</div></div></div>
+                  <div class="mw tw"><div><div class="tr"><i class="st"></i>search_transcripts</div></div></div>
+                  <div class="mw tw"><div><div class="tr"><i class="st"></i>add_key_terms<span class="arg">Northwind, Q3 deck</span></div></div></div>
+                </div></div></div>
+                <div class="mw" id="m-sum"><div><div class="m" id="sum">Alex will send the Northwind slides today. On your call last week, you promised the Q3 deck by Friday. I added Northwind and Q3 deck to your key terms.</div></div></div>
+                <div class="mw" id="m-mail"><div><div class="m mail"><span class="to">Draft to Alex</span><span id="mail">Hi Alex, thanks for today. I will look out for the Northwind slides, and the Q3 deck will be with you by Friday, as promised.</span></div></div></div>
+              </div>
+              <div class="inp">
+                <div class="field" id="field"><span class="ph">Message</span><span class="txt">Summarize my call with Alex and draft a follow-up email. Check our earlier calls too, and add any names you misheard to my key terms.</span></div>
+                <span class="send" id="send"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg></span>
+              </div>
+            </div>
+
+            <div class="pill nudge" id="nudge">
+              <svg class="phone" viewBox="0 0 16 16" fill="currentColor"><path d="M4.2 1.6c.5-.3 1.1-.2 1.4.3l1.3 2.2c.3.5.2 1.1-.2 1.4l-.9.7c.6 1.5 1.8 2.8 3.3 3.5l.8-.9c.4-.4 1-.5 1.4-.2l2.2 1.3c.5.3.6.9.3 1.4l-.7 1.2c-.5.8-1.4 1.2-2.3 1C6.4 12.6 3.4 9.6 2.5 5.4c-.2-.9.2-1.8 1-2.3z"/></svg>
+              <span>Record this call?</span><span class="s">Zoom</span><span class="sp"></span><span class="bt">Not now</span><span class="bt" id="recbtn">Record</span>
+            </div>
+            <div class="pill callpill" id="callpill">
+              <div class="row"><i class="dot"></i><span>Recording call</span><span class="s tn" id="ptime">12:37</span><span class="s">&#x2325;&#x21E7;` stops</span></div>
+              <div class="ln"><div><span><b class="me">Me</b>Thanks for joining, Alex.</span></div></div>
+              <div class="ln"><div><span><b class="them">Call</b>I will send the Northwind slides today.</span></div></div>
+              <div class="ln"><div><span><b class="me">Me</b>Great, and the Q3 deck is on track.</span></div></div>
+            </div>
+            <div class="pill stopped" id="stopped"><i class="sq"></i><span>Zoom call</span><span class="s tn" id="stime">12:41</span><span class="copy">Copy Transcript</span></div>
+            <div class="pill dpill" id="dpill">
+              <div class="row rec"><i class="dot"></i><span class="lv"><i id="lvl"></i></span><span class="s tn" id="dtime">0:00</span></div>
+              <div class="row busy"><i class="spin"></i><span>Transcribing</span></div>
+              <div class="dtext" id="dtext"></div>
+            </div>
+
+            <div class="hud" id="hud"><span class="key opt"><b class="sym">&#x2325;</b><b class="lab">option</b></span><span class="plus">+</span><span class="key tick"><b class="sym">~</b><b class="lab">`</b></span></div>
+            <div class="cursor" id="cursor"><svg viewBox="0 0 20 24"><path d="M3 2v17.6l4.5-4.3 2.8 6.6 3-1.3-2.8-6.5h6.3z" fill="#000" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg></div>
           </div>
-          <div class="inp"><span class="field2" id="inp"><span class="ph">Message</span></span><span class="send"></span></div>
         </div>
       </div>
-      <div class="demo-foot"><button type="button" class="replay" id="replay">Replay</button></div>
+      <div class="beats" id="beats">
+        <div class="bars" aria-hidden="true"><i><b></b></i><i><b></b></i><i><b></b></i></div>
+        <div class="row">
+          <ol>
+            <li><span class="n">1</span>Record the call</li>
+            <li><span class="n">2</span>Ask your agent</li>
+            <li><span class="n">3</span>Use it with your own agent</li>
+          </ol>
+          <button type="button" class="button small" id="pause">Pause</button>
+        </div>
+      </div>
     </div>
   </section>
 
-  <section class="why">
+  <section class="why measure">
     <h2 class="sr">Why I made it</h2>
-    <p>I wanted really fast transcription and my own Whisper pipeline, with segment level retries. <a href="https://handy.computer">Handy</a> and <a href="https://github.com/Starmel/OpenSuperWhisper">OpenSuperWhisper</a> are my all time favorites, and I've learned heavily from them. I wanted something lightweight, hackable and customizable, that could also handle my online calls and let my agents read them.</p>
+    <p>I wanted fast dictation that runs on my own Mac. <a href="https://handy.computer">Handy</a> and <a href="https://github.com/Starmel/OpenSuperWhisper">OpenSuperWhisper</a> are my all-time favorites, and I've learned a lot from them. I also wanted it to record my online calls and let my agents read them. Along the way I found that Whisper knows which parts of a recording it was unsure of, and giving only those parts a second pass catches words it got wrong, at almost no extra time. That became Dictate.</p>
   </section>
 
   <section>
     <h2>What it does</h2>
-    <div class="points">
-      <div class="point">
-        <div class="art mac" aria-hidden="true"><div class="pillc col"><span style="display:flex;align-items:center;gap:8px"><span class="rd"></span><span class="levelbar"><i style="width:62%"></i></span><span class="time">0:04</span></span><span>Can you send me the slides</span></div></div>
+    <div class="cards">
+      <div class="card">
+        <div class="art well mac" aria-hidden="true"><div class="pillc col"><span style="display:flex;align-items:center;gap:8px"><span class="rd"></span><span class="levelbar"><i style="width:62%"></i></span><span class="time">0:04</span></span><span>Can you send me the slides</span></div></div>
         <h3>Dictation in any app</h3>
-        <p>Press <kbd>Option</kbd> <kbd>`</kbd> and talk, and Dictate transcribes as you go. Press it again and the text lands where you were writing. If the app quits mid dictation, the next launch recovers it into your history.</p>
+        <p>Press <span class="nowrap"><kbd>Option</kbd> <kbd>`</kbd></span> and talk, and Dictate transcribes as you go. Press it again and the text lands where you were writing. If the app quits mid dictation, the next launch recovers it into your history.</p>
       </div>
-      <div class="point">
-        <div class="art mac" aria-hidden="true"><div class="ask"><span class="g">Record this call?</span><span class="bt">Not now</span><span class="bt main">Record</span></div><div class="ml"><span class="w">Me</span><span>Thanks for joining, Alex.</span></div><div class="ml"><span class="w">Call</span><span>Sure. Let's start with the budget.</span></div></div>
+      <div class="card">
+        <div class="art well mac" aria-hidden="true"><div class="pill nudge"><svg class="phone" viewBox="0 0 16 16" fill="currentColor"><path d="M4.2 1.6c.5-.3 1.1-.2 1.4.3l1.3 2.2c.3.5.2 1.1-.2 1.4l-.9.7c.6 1.5 1.8 2.8 3.3 3.5l.8-.9c.4-.4 1-.5 1.4-.2l2.2 1.3c.5.3.6.9.3 1.4l-.7 1.2c-.5.8-1.4 1.2-2.3 1C6.4 12.6 3.4 9.6 2.5 5.4c-.2-.9.2-1.8 1-2.3z"/></svg><span>Record this call?</span><span class="s">Zoom</span><span class="sp"></span><span class="bt">Not now</span><span class="bt">Record</span></div><div class="ml"><span class="w">Me</span><span>Thanks for joining, Alex.</span></div><div class="ml"><span class="w">Call</span><span>Sure. Let's start with the budget.</span></div></div>
         <h3>You and the call, kept apart</h3>
         <p>Dictate asks before it records, and no bot joins. It records your microphone and the call's audio separately, so every line is labelled Me or Call.</p>
       </div>
-      <div class="point">
-        <div class="art mac" aria-hidden="true"><div class="toggle-row"><span>Retry unsure segments</span><span class="switch on"></span></div><div class="toggle-row"><span>Fix the text before pasting</span><span class="switch"></span></div></div>
+      <div class="card">
+        <div class="art well mac" aria-hidden="true"><div class="toggle-row"><span>Retry unsure segments</span><span class="switch on"></span></div><div class="toggle-row"><span>Fix the text before pasting</span><span class="switch"></span></div></div>
         <h3>A better transcription pipeline</h3>
-        <p>Whisper scores how sure it is of each part. Parts below a confidence threshold are decoded again automatically, and Dictate keeps the better version. A model in Ollama on your Mac can also clean up the transcript, and it is off until you turn it on.</p>
+        <p>Whisper scores how sure it is of each part. Parts below a confidence threshold are decoded again automatically, and Dictate keeps the better version. Fix the text before pasting lets a model in Ollama on your Mac correct the transcript. It is off until you turn it on.</p>
       </div>
-      <div class="point">
-        <div class="art mac" aria-hidden="true"><div class="sug"><span class="g">Qdrant</span><span class="bt main">Add</span><span class="bt">Dismiss</span></div><div class="sug"><span class="g">OAuth</span><span class="bt main">Add</span><span class="bt">Dismiss</span></div></div>
+      <div class="card">
+        <div class="art well mac" aria-hidden="true"><div class="sug"><span class="g">Qdrant</span><span class="bt main">Add</span><span class="bt">Dismiss</span></div><div class="sug"><span class="g">OAuth</span><span class="bt main">Add</span><span class="bt">Dismiss</span></div></div>
         <h3>Key terms</h3>
         <p>Add the names Whisper gets wrong, spelled your way. Dictate suggests more from your corrections and adds nothing until you press Add.</p>
       </div>
-      <div class="point">
-        <div class="art mac" aria-hidden="true"><div class="tool"><span>search_transcripts</span><span class="switch on"></span></div><div class="tool"><span>wait_for_transcript</span><span class="switch on"></span></div><div class="tool"><span>start_recording</span><span class="switch"></span></div></div>
+      <div class="card">
+        <div class="art well mac" aria-hidden="true"><div class="tool"><span>search_transcripts</span><span class="switch on"></span></div><div class="tool"><span>wait_for_transcript</span><span class="switch on"></span></div><div class="tool"><span>start_recording</span><span class="switch"></span></div></div>
         <h3>Your agents can read it</h3>
         <p>Claude Code or any MCP client can search your dictations and calls. Tools that record or change anything start off.</p>
+      </div>
+      <div class="card">
+        <div class="well shot" aria-hidden="true"><picture><source srcset="history-dark.png" media="(prefers-color-scheme: dark)"><img src="history-light.png" alt="" width="1704" height="600" loading="lazy" decoding="async"></picture></div>
+        <h3>History</h3>
+        <p>Every dictation and call in one place, searchable. Rename, correct a word, or play from any line.</p>
       </div>
     </div>
   </section>
@@ -138,6 +280,10 @@
         <p>At the core they are close: all three run on your Mac with no sign-in. <a href="https://handy.computer">Handy</a> also runs Parakeet and works on Windows and Linux. What Dictate adds is retries, online calls with both sides apart, and a local MCP server for your agents.</p>
       </details>
       <details>
+        <summary><h3>What will it cost?</h3></summary>
+        <p>Free during the beta, then $49 once. The first 50 to activate keep it free for good.</p>
+      </details>
+      <details>
         <summary><h3>Why Whisper and not Parakeet?</h3></summary>
         <p>Retries use the confidence Whisper gives each part it writes, and key terms go into Whisper's prompt. Parakeet is faster, and I have not measured it against this pipeline.</p>
       </details>
@@ -147,7 +293,7 @@
       </details>
       <details>
         <summary><h3>Does anything leave my Mac?</h3></summary>
-        <p>Not your audio. Dictate goes online for its speech models (1.6 GB, once) and for updates, which count checks by app, version and country and never store your IP address. If you connect an agent, it can read your transcripts, and where it sends them depends on that agent. Audio and transcripts stay in one folder on your Mac, kept forever or for 30 days. <a href="https://github.com/spashii/dictate/blob/main/docs/user/data.md">Where everything is kept</a></p>
+        <p>Your audio and transcripts stay on your Mac, in one folder, kept forever or for 30 days. Dictate goes online for its speech models (1.6 GB, once) and for updates, which count checks by app, version and country and never store your IP address. If you connect an agent, it can read your transcripts, and where it sends them depends on that agent. <a href="https://github.com/spashii/dictate/blob/main/docs/user/data.md">Where everything is kept</a></p>
       </details>
       <details>
         <summary><h3>What does it ask permission for?</h3></summary>
@@ -174,14 +320,22 @@
 
   <section class="bottom" id="get">
     <h2>Get Dictate</h2>
-    <p class="cta"><a class="button primary" href="https://dictate.firstversion.in/download/0.12.1">Download for Mac</a></p>
-    <p class="meta">Free during the beta. Apple silicon, macOS 15 or later.</p>
+    <div class="get">
+      <div class="actions"><a class="button primary" href="https://dictate.firstversion.in/download/0.12.1">Download for Mac</a></div>
+      <p class="meta"><span>Free during the beta, then $49 once.</span> <span>The first 50 to activate keep it free for good.</span></p>
+        <p class="meta"><span>Apple silicon, macOS 15 or later</span></p>
+    </div>
   </section>
 
-  <section class="recommend">
+  <section class="other">
     <h2>My other work</h2>
     <div class="work">
-      <a class="point" href="https://spashii.github.io/blend/">
+      <a class="work-item" href="https://dembrane.com">
+        <img src="dembrane.png" alt="" width="52" height="52">
+        <div><h3>dembrane</h3>
+        <p>Makes sense of big, messy conversations, so everyone can shape what happens next.</p></div>
+      </a>
+      <a class="work-item" href="https://spashii.github.io/blend/">
         <img src="blend.svg" alt="" width="52" height="52">
         <div><h3>Blend Mic</h3>
         <p>A free, open source virtual microphone for Mac that mixes your voice with any app's sound.</p></div>
@@ -189,7 +343,7 @@
     </div>
   </section>
 </main>
-<footer class="site">Made by <a href="https://github.com/spashii">Sameer</a>. Source available (FSL-1.1-MIT). <a href="https://github.com/spashii/dictate">GitHub</a>. <a href="privacy.html">Privacy</a>.</footer>
+<footer class="site">Made by <a href="https://github.com/spashii">Sameer</a>. Source available <span class="nowrap">(FSL-1.1-MIT)</span>. <a href="https://github.com/spashii/dictate">GitHub</a>. <a href="privacy.html">Privacy</a>.</footer>
 
 <script>
 if (location.hostname === "spashii.github.io") {
@@ -200,73 +354,163 @@ if (location.hostname === "spashii.github.io") {
 }
 </script>
 <script>
-/* Hero demo, about 11 seconds. Everything is a function of the clock. It plays once, holds on the
-   last frame, and replays with Replay. Reduced motion shows the last frame. */
+/* Hero demo, a 25.5 second loop in three steps. Every frame is a function of the clock t, so the
+   loop can pause, resume and reset without drift; CSS transitions carry the motion between states.
+   It runs only while the stage is on screen and the tab is visible, holds four seconds on the
+   answer, fades, and starts again. Reduced motion shows the last frame and all three steps. */
 (() => {
   const $ = id => document.getElementById(id);
-  const demo = $("demo"), pill = $("pill"), prow = $("prow"), lines = $("lines"), dtext = $("dtext");
-  const callwin = $("callwin"), chat = $("chat"), keys = $("keys"), inp = $("inp"), replay = $("replay");
-  const ids = ["m-user", "m-t1", "m-t2", "m-t3", "m-t4", "m-sum", "m-mail"].map($);
-  const T = { nudge: 300, press: 800, rec: 950, l1: 1300, l2: 1900, stop: 2700, chat: 3300, pillOff: 3500,
-    keys: 3900, dict: 4700, words: 4800, wordsEnd: 6700, paste: 6900, send: 7300,
-    t1: 7700, t2: 8150, t3: 8600, t4: 9050, sum: 9650, mail: 10300, end: 11000 };
-  const L1 = "Thanks for joining, Alex.", L2 = "Sure. I will send the Northwind slides today.";
-  const SAY = "Summarise my call with Alex and draft a follow-up email. Check our earlier calls too, and add any names you misheard to my key terms.".split(" ");
-  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  demo.classList.add("js");
-  const show = (el, on) => el.classList.toggle("show", on);
-  let sig = "";
+  const stage = $("demo");
+  if (!stage) return;
+  const scene = $("scene"), cam = $("cam"), beats = $("beats"), pause = $("pause");
+  const mbicon = $("mbicon"), callwin = $("callwin"), ctime = $("ctime"), mbApp = $("mb-app");
+  const nudge = $("nudge"), recbtn = $("recbtn"), cursor = $("cursor");
+  const callpill = $("callpill"), ptime = $("ptime"), lines = [...callpill.querySelectorAll(".ln")];
+  const stopped = $("stopped"), stime = $("stime");
+  const dpill = $("dpill"), dtext = $("dtext"), dtime = $("dtime"), lvl = $("lvl"), hud = $("hud");
+  const chat = $("chat"), field = $("field"), send = $("send");
+  const mUser = $("m-user"), mTools = $("m-tools"), mSum = $("m-sum"), mMail = $("m-mail");
+  const tools = [...chat.querySelectorAll(".tw")];
+  const captions = [...beats.querySelectorAll("li")], bars = [...beats.querySelectorAll(".bars b")];
+
+  const T = {
+    nudge: 600, cursorIn: 1300, click: 2200, rec: 2500, lines: [3200, 4400, 5600], end: 6800,
+    step2: 7900, keys1: 8500, press1: 8700, dict: 8900, chunks: [9400, 10500, 11600, 12700],
+    keys2: 13600, press2: 13800, busy: 13900, paste: 14500, send: 15200,
+    step3: 15500, tools: [15600, 16100, 16600, 17100], sum: [17800, 18900], mail: [19300, 20700],
+    fade: 24900, loop: 25500
+  };
+  // Displayed clocks start mid call so the stopped pill reads 12:41, not a few seconds.
+  const REC = 757, CALL = 842;
+  const STEPS = [0, T.step2, T.step3, T.fade];
+  const SAID = ["Summarize my call with Alex", "and draft a follow-up email.", "Check our earlier calls too,", "and add any names you misheard to my key terms."];
+
+  // The scene is drawn at 420 by 500 (360 on a narrow column) and scaled to the column.
+  // On a narrow column the scene is drawn 360 wide with no camera lean, so the type stays near its real size.
+  const fit = () => { const narrow = stage.clientWidth < 400; stage.classList.toggle("narrow", narrow); scene.style.transform = "scale(" + stage.clientWidth / (narrow ? 360 : 420) + ")"; };
+  fit();
+  new ResizeObserver(fit).observe(stage);
+
+  const cls = (el, c, on) => el.classList.toggle(c, !!on);
+  const txt = (el, s) => { if (el.textContent !== s) el.textContent = s; };
+  const clock = s => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+  const clamp = x => Math.max(0, Math.min(1, x));
+  const split = el => {
+    const ws = el.textContent.trim().split(/\s+/);
+    el.textContent = "";
+    return ws.map((w, i) => { const s = document.createElement("span"); s.className = "w"; s.textContent = w + (i < ws.length - 1 ? " " : ""); el.append(s); return s; });
+  };
+  const sumW = split($("sum")), mailW = split($("mail"));
+  const reveal = (ws, t, [a, b]) => { const n = Math.ceil(clamp((t - a) / (b - a)) * ws.length); ws.forEach((w, i) => cls(w, "on", i < n)); };
+  // Where the pointer clicks, in scene units: offsets ignore the camera and the entrance motion.
+  const centre = el => {
+    let x = el.offsetWidth / 2, y = el.offsetHeight / 2;
+    for (let n = el; n && n !== cam; n = n.offsetParent) { x += n.offsetLeft; y += n.offsetTop; }
+    return [x, y];
+  };
+  // The app keeps the end of the live text: two lines, older words dropped from the front.
+  let said = null;
+  const setSaid = s => {
+    if (s === said) return;
+    said = s;
+    dtext.textContent = s;
+    const words = s.split(" ");
+    while (dtext.offsetHeight > 34 && words.length > 1) { words.shift(); dtext.textContent = "…" + words.join(" "); }
+  };
+
   const render = t => {
-    const secs = Math.max(0, Math.floor((t - T.rec) / 125));
-    const nw = t < T.words ? 0 : Math.min(SAY.length, Math.ceil((t - T.words) / (T.wordsEnd - T.words) * SAY.length));
-    const s = {
-      call: t < T.stop,
-      phase: t < T.rec ? "ask" : t < T.stop ? "rec" : t < T.dict ? "stopped" : "dict",
-      press: t >= T.press && t < T.rec,
-      pillOn: (t >= T.nudge && t < T.pillOff) || (t >= T.dict && t < T.paste),
-      l1: t >= T.l1 && t < T.stop, l2: t >= T.l2 && t < T.stop,
-      sec: t < T.stop ? secs : 0, chat: t >= T.chat, keys: t >= T.keys && t < T.dict,
-      nw, pasted: t >= T.paste && t < T.send, sent: t >= T.send,
-      m: [t >= T.send, t >= T.t1, t >= T.t2, t >= T.t3, t >= T.t4, t >= T.sum, t >= T.mail]
-    };
-    const key = JSON.stringify(s);
-    if (key === sig) return;
-    sig = key;
-    const fmt = n => "0:" + String(Math.min(n, 59)).padStart(2, "0");
-    pill.classList.toggle("on", s.pillOn);
-    pill.classList.toggle("open", s.l1 || s.nw > 0);
-    callwin.classList.toggle("gone", !s.call);
-    show(chat, s.chat); show(keys, s.keys);
-    if (s.phase === "ask") {
-      prow.innerHTML = '<span>Record this call?</span><span class="bt">Not now</span><span class="bt main' + (s.press ? ' press' : '') + '">Record</span>';
-    } else if (s.phase === "rec") {
-      prow.innerHTML = '<span class="rd"></span><span>Recording call</span><span class="time">' + fmt(s.sec) + '</span><span class="hint">\u21e7\u2325` stops</span>';
-    } else if (s.phase === "stopped") {
-      prow.innerHTML = '<span class="sq"></span><span>Alex</span><span class="time">' + fmt(secs0()) + '</span><span class="bt main">Copy Transcript</span>';
-    } else {
-      prow.innerHTML = '<span class="rd"></span><span class="levelbar"><i style="width:62%"></i></span><span class="time">' + fmt(Math.floor((s.nw) / 8)) + '</span>';
-    }
-    lines.innerHTML = (s.l1 ? '<div class="cl" style="opacity:' + (s.l2 ? .6 : 1) + '"><span class="me">Me</span><span>' + L1 + '</span></div>' : "")
-      + (s.l2 ? '<div class="cl"><span class="them">Call</span><span>' + L2 + '</span></div>' : "");
-    dtext.textContent = s.phase === "dict" ? SAY.slice(0, s.nw).join(" ") : "";
-    $("m-user").textContent = SAY.join(" ");
-    inp.innerHTML = s.pasted ? '<span class="pasted">' + SAY.join(" ") + '</span>' : '<span class="ph">Message</span>';
-    ids.forEach((el, i) => show(el, s.m[i]));
+    const on = (a, b = Infinity) => t >= a && t < b;
+    const step = t < T.step2 ? 0 : t < T.step3 ? 1 : 2;
+
+    // Step 1: the call, the nudge, Record, the call pill, the stopped call.
+    cls(cam, "top", on(T.nudge, T.step2) || on(T.dict, T.paste));
+    txt(mbApp, step ? "Agent" : "Zoom");
+    // Same glyphs as the app: dictating wins over the call, as in menuBarImage.
+    mbicon.dataset.state = on(T.dict, T.busy) ? "dict" : on(T.rec, T.end) ? "call" : "idle";
+    cls(callwin, "on", t < T.end + 700);
+    cls(callwin, "dim", on(T.nudge));
+    txt(ctime, t >= T.end ? "Call ended" : clock(CALL + Math.floor(t / 1000)));
+    cls(nudge, "on", on(T.nudge, T.rec));
+    const click = on(T.click, T.click + 200);
+    cls(recbtn, "down", click);
+    cls(cursor, "on", on(T.cursorIn, T.rec + 300));
+    cls(cursor, "down", click);
+    const [x, y] = t < T.cursorIn + 80 ? [330, 330] : centre(recbtn);
+    cursor.style.transform = "translate(" + (x - 5) + "px," + (y - 4) + "px)";
+    cls(callpill, "on", on(T.rec, T.end));
+    const n = T.lines.filter(a => t >= a).length;
+    cls(callpill, "open", n);
+    lines.forEach((el, i) => { cls(el, "on", i < n); el.style.opacity = i < n ? [1, .6, .35][Math.min(n - 1 - i, 2)] : ""; });
+    txt(ptime, clock(REC + Math.max(0, Math.floor((Math.min(t, T.end) - T.rec) / 1000))));
+    cls(stopped, "on", on(T.end, T.step2 + 200));
+    txt(stime, clock(REC + Math.floor((T.end - T.rec) / 1000)));
+
+    // Step 2: the agent's window, the shortcut, the dictation pill, the paste and send.
+    cls(chat, "on", on(T.step2));
+    cls(chat, "dim", on(T.dict, T.paste));
+    cls(hud, "on", on(T.keys1, T.keys1 + 900) || on(T.keys2, T.keys2 + 800));
+    cls(hud, "down", on(T.press1, T.press1 + 240) || on(T.press2, T.press2 + 240));
+    cls(dpill, "on", on(T.dict, T.paste));
+    cls(dpill, "is-busy", on(T.busy));
+    setSaid(SAID.slice(0, T.chunks.filter(a => t >= a).length).join(" "));
+    txt(dtime, clock(Math.max(0, Math.floor((Math.min(t, T.busy) - T.dict) / 1000))));
+    const talking = on(T.dict + 300, T.keys2);
+    lvl.style.width = (talking ? 16 + 70 * Math.abs(Math.sin(t / 170) * Math.sin(t / 410 + 1)) : 6).toFixed(0) + "%";
+    const pasted = on(T.paste, T.send);
+    cls(field, "has", pasted);
+    cls(field, "hot", pasted);
+    cls(send, "ready", pasted);
+    cls(send, "down", on(T.send - 180, T.send));
+
+    // Step 3: the tool calls, then the answer. What came before steps back.
+    cls(mUser, "on", on(T.send));
+    cls(mUser, "dim", on(T.tools[0]));
+    cls(mTools, "on", on(T.tools[0]));
+    cls(mTools, "dim", on(T.sum[0]));
+    tools.forEach((el, i) => { cls(el, "on", on(T.tools[i])); cls(el, "done", on(T.tools[i] + 450)); });
+    cls(mSum, "on", on(T.sum[0]));
+    reveal(sumW, t, T.sum);
+    cls(mMail, "on", on(T.mail[0]));
+    reveal(mailW, t, T.mail);
+
+    captions.forEach((li, i) => cls(li, "on", i === step));
+    bars.forEach((b, i) => { b.style.transform = "scaleX(" + clamp((t - STEPS[i]) / (STEPS[i + 1] - STEPS[i])).toFixed(4) + ")"; });
   };
-  const secs0 = () => Math.floor((T.stop - T.rec) / 125);
-  if (still) { render(T.end); replay.hidden = true; return; }
-  let raf = 0, base = 0;
-  const frame = now => {
-    const t = now - base;
-    if (t >= T.end) { render(T.end); return; }
-    render(t); raf = requestAnimationFrame(frame);
+
+  // Jump to a moment with no transitions, then let the next change animate again.
+  const snap = t0 => { scene.classList.add("instant"); beats.classList.add("instant"); render(t0); void scene.offsetHeight; scene.classList.remove("instant"); beats.classList.remove("instant"); };
+
+  const still = matchMedia("(prefers-reduced-motion: reduce)");
+  let t = 0, last = 0, raf = 0, paused = false, seen = false, faded = false;
+  const running = () => !paused && seen && !document.hidden && !still.matches;
+  const tick = now => {
+    raf = 0;
+    if (!running()) return;
+    t += Math.min(now - last, 100);
+    last = now;
+    if (t >= T.fade && !faded) { faded = true; scene.classList.add("out"); }
+    if (t >= T.loop) { t -= T.loop; faded = false; snap(t); scene.classList.remove("out"); }
+    else render(t);
+    raf = requestAnimationFrame(tick);
   };
-  const play = () => { cancelAnimationFrame(raf); sig = ""; base = performance.now(); raf = requestAnimationFrame(frame); };
-  replay.addEventListener("click", play);
-  render(0);
-  const io = new IntersectionObserver(([e], o) => { if (e.isIntersecting) { o.disconnect(); play(); } }, { threshold: .5 });
-  io.observe(demo);
-  window.__seek = t => { io.disconnect(); cancelAnimationFrame(raf); sig = ""; render(t); };
+  const go = () => { if (!raf && running()) { last = performance.now(); raf = requestAnimationFrame(tick); } };
+  const motion = () => {
+    cls(beats, "still", still.matches);
+    if (still.matches) { scene.classList.remove("out"); snap(T.mail[1]); } else { snap(t); go(); }
+  };
+
+  pause.addEventListener("click", () => {
+    paused = !paused;
+    pause.textContent = paused ? "Play" : "Pause";
+    go();
+  });
+  document.addEventListener("visibilitychange", go);
+  new IntersectionObserver(([e]) => { seen = e.isIntersecting; go(); }, { threshold: .25 }).observe(stage);
+  still.addEventListener("change", motion);
+  motion();
+
+  // For screenshots: hold the demo at a moment.
+  window.__seek = t0 => { paused = true; t = t0; scene.classList.remove("out"); snap(t0); };
 })();
 </script>
 </body>

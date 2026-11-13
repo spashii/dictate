@@ -1,0 +1,22 @@
+# Dictate
+
+> Dictate is dictation and call recording for Mac. It types what you say into any app, and records your online calls with your side and theirs kept apart. It runs on your Mac, and no bot joins the call. Apple silicon, macOS 15 or later.
+
+- Price: free during the beta, then $49 once. The first 50 to activate keep it free for good.
+- Dictation: press Option and backtick, talk, press again, and the text lands in the app you were writing in.
+- Calls: it asks before it records, and records your microphone and the call's audio separately, so every line is labelled Me or Call. Works with Zoom, Teams, Slack, Discord, FaceTime, WhatsApp, Signal, Telegram, Webex, Skype, Element and calls in a browser tab.
+- Fix the text before pasting: a model in Ollama on your Mac corrects the transcript. Off until you turn it on.
+- Retries: Whisper scores each part, and parts below a confidence threshold are decoded again. Dictate keeps the better version.
+- Key terms: names Whisper gets wrong, spelled your way. Suggestions are added only when you press Add.
+- Agents: Claude Code or any MCP client can search your dictations and calls through a local MCP server. Tools that record or change anything start off.
+- Licence: source available under FSL-1.1-MIT. Each version becomes MIT two years after release.
+- Alternatives: Handy and OpenSuperWhisper, which are close at the core. Dictate adds retries, online calls with both sides apart, and the MCP server.
+- Privacy: your audio and transcripts stay on your Mac. Dictate goes online for its speech models (once) and for updates, which count checks by app, version and country and never store your IP address.
+
+## Links
+
+- [Website](https://spashii.github.io/dictate/)
+- [Download for Mac](https://dictate.firstversion.in/download/0.12.1)
+- [Source on GitHub](https://github.com/spashii/dictate)
+- [Where everything is kept](https://github.com/spashii/dictate/blob/main/docs/user/data.md)
+- [Privacy](https://spashii.github.io/dictate/privacy.html)

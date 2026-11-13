@@ -4,32 +4,33 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Privacy | Dictate</title>
-<meta name="description" content="What Dictate stores, what goes online, and what never leaves your Mac. Local dictation and call transcripts for Mac, with no accounts.">
+<meta name="description" content="What Dictate stores, what goes online, and what stays on your Mac. Dictation and call recording for Mac.">
 <link rel="canonical" href="https://spashii.github.io/dictate/privacy.html">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Dictate">
 <meta property="og:url" content="https://spashii.github.io/dictate/privacy.html">
 <meta property="og:title" content="Privacy | Dictate">
-<meta property="og:description" content="What Dictate stores, what goes online, and what never leaves your Mac. Local dictation and call transcripts for Mac, with no accounts.">
+<meta property="og:description" content="What Dictate stores, what goes online, and what stays on your Mac. Dictation and call recording for Mac.">
 <meta property="og:image" content="https://spashii.github.io/dictate/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Dictate: local dictation and call transcripts for Mac">
+<meta property="og:image:alt" content="Dictate: dictation and call recording for Mac">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Privacy | Dictate">
-<meta name="twitter:description" content="What Dictate stores, what goes online, and what never leaves your Mac. Local dictation and call transcripts for Mac, with no accounts.">
+<meta name="twitter:description" content="What Dictate stores, what goes online, and what stays on your Mac. Dictation and call recording for Mac.">
 <meta name="twitter:image" content="https://spashii.github.io/dictate/og.png">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://spashii.github.io/ds/v1.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <nav class="nav" aria-label="Main">
-  <a class="brand" href="./"><img src="icon.svg" alt="" width="24" height="24">Dictate</a>
+  <a class="brand" href="./"><img src="icon.svg" alt="" width="24" height="24"><span class="name">Dictate</span></a>
   <div class="links">
     <a href="./#questions">Questions</a>
     <a href="https://github.com/spashii/dictate">GitHub</a>
-    <a class="button primary small" href="./#get">Get Dictate</a>
+    <a class="button primary small" href="./#get">Download</a>
   </div>
 </nav>
 <main id="main" class="doc">
@@ -48,14 +49,14 @@
 <h2>Contact</h2>
 <p>Reply to any email I sent you.</p>
 <h2>How long I keep it</h2>
-<p>Until the beta ends or you ask me to delete it, whichever comes first.</p>
+<p>Until you ask me to delete it.</p>
 <h2>The app itself</h2>
-<p>Your audio stays on your Mac. The app goes online only to fetch its speech models and to check for updates. It reaches three hosts:</p>
+<p>Your audio and transcripts stay on your Mac. The app goes online only to fetch its speech models and to check for updates. It reaches three hosts:</p>
 <ul><li>huggingface.co, for the speech and voice activity models.</li><li>apps.firstversion.in, for update checks.</li><li>dictate.firstversion.in, for update downloads.</li></ul>
 <p>The update server counts checks by app, version and country and never stores your IP address. If you connect an agent, it can read your transcripts, and where it sends them depends on that agent.</p>
 <p><a href="./">Back to Dictate</a></p>
 </main>
-<footer class="site">Made by <a href="https://github.com/spashii">Sameer</a>. Source available (FSL-1.1-MIT). <a href="https://github.com/spashii/dictate">GitHub</a>. <a href="privacy.html">Privacy</a>.</footer>
+<footer class="site">Made by <a href="https://github.com/spashii">Sameer</a>. Source available <span class="nowrap">(FSL-1.1-MIT)</span>. <a href="https://github.com/spashii/dictate">GitHub</a>. <a href="privacy.html">Privacy</a>.</footer>
 <script>
 if (location.hostname === "spashii.github.io") {
   const s = document.createElement("script");
