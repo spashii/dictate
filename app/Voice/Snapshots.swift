@@ -147,9 +147,9 @@ enum Snapshots {
     private static func nudge(_ model: AppModel, dark: Bool) async -> NSBitmapImageRep? {
         let calls = CallsModel()
         calls.promptForSnapshots(DetectedCall(bundleID: "com.example.meeting", name: "Meeting"), model: model)
-        let size = NSSize(width: 420, height: 92)
+        let size = NSSize(width: 420, height: 104)
         let view = Backdrop(dark: dark) {
-            CallPromptView().environment(calls).frame(width: 340, height: 44)
+            CallPromptView().environment(calls).frame(width: 340, height: 56)
         }
         return await capture(makeWindow(view, size: size, dark: dark, titled: false), size: size, titled: false)
     }

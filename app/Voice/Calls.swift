@@ -791,7 +791,7 @@ extension CallsModel {
 final class CallPrompt {
     private unowned let calls: CallsModel
     private var panel: NSPanel?
-    private static let size = NSSize(width: 340, height: 44)
+    private static let size = NSSize(width: 340, height: 56)
 
     init(calls: CallsModel) {
         self.calls = calls
@@ -827,12 +827,23 @@ final class CallPrompt {
 struct CallPromptView: View {
     @Environment(CallsModel.self) private var calls
 
+    /// Under the question, so the person knows nothing is recorded unless they say so.
+    static let note = "Ask before you record."
+
     var body: some View {
         HStack(spacing: 8) {
             if let app = calls.promptApp {
                 Image(systemName: "phone.fill").foregroundStyle(.green)
-                Text("Record this call?")
-                Text(app.name).foregroundStyle(.secondary).lineLimit(1)
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 8) {
+                        Text("Record this call?")
+                        Text(app.name).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    .font(.system(size: 12, weight: .medium))
+                    Text(Self.note)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
                 Spacer(minLength: 4)
                 Button("Not now") { calls.notNow(app) }
                     .controlSize(.small)
@@ -842,10 +853,9 @@ struct CallPromptView: View {
                     .controlSize(.small)
             }
         }
-        .font(.system(size: 12, weight: .medium))
         .padding(.horizontal, 14)
-        .frame(height: 32)
-        .background(.regularMaterial, in: Capsule())
+        .frame(height: 48)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
