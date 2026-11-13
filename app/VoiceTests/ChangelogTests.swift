@@ -56,7 +56,13 @@ final class ChangelogTests: XCTestCase {
         let text = try String(contentsOf: Self.root.appending(path: "CHANGELOG.md"), encoding: .utf8)
         let version = try String(contentsOf: Self.root.appending(path: "VERSION"), encoding: .utf8)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let entries = Changelog.parse(text)
+        var entries = Changelog.parse(text)
+        // The next release's entry is written with its change and stays undated until the
+        // release sets VERSION and the date.
+        if let next = entries.first, next.version != version, next.date == nil {
+            XCTAssertFalse(next.items.isEmpty, next.version)
+            entries.removeFirst()
+        }
         XCTAssertGreaterThanOrEqual(entries.count, 6)
         XCTAssertEqual(entries.first?.version, version)
         for entry in entries {
