@@ -10,7 +10,7 @@ struct WelcomePane: View {
             Image(nsImage: NSApp.applicationIconImage)
                 .resizable()
                 .frame(width: 72, height: 72)
-            Text("Dictate is free during the beta.")
+            Text("Dictate is free during early access.")
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             Text("Activate once with your email. It opens in your browser.")
