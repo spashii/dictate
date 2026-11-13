@@ -142,6 +142,8 @@ targets:
       - path: Voice/MainPane.swift
       - path: Voice/HistoryDisplay.swift
       - path: Voice/SecureInput.swift
+      - path: Voice/LocalModelChoice.swift
+      - path: Voice/RecentCallLabel.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.spashii.voice.tests
