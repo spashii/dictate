@@ -895,6 +895,9 @@ private struct TranscriptBlockView: View, @MainActor Equatable {
     let draft: (DisplayBlock, Range<Int>) -> HandCorrection?
     let save: (HandCorrection, String) async -> CorrectionOutcome
     @State private var hovered = false
+    #if DEBUG
+    @Environment(\.snapshotHover) private var snapshotHover
+    #endif
     /// The words a drag selected, in the block's text; a right click or a key corrects the
     /// words under the pointer or the line when nothing is selected.
     @State private var selection: Range<Int>?
@@ -910,21 +913,31 @@ private struct TranscriptBlockView: View, @MainActor Equatable {
             && a.showCorrections == b.showCorrections
     }
 
+    private var showsPlay: Bool {
+        #if DEBUG
+        return hovered || snapshotHover == block.id
+        #else
+        return hovered
+        #endif
+    }
+
     var body: some View {
         let time = times == .clock ? block.clock : block.elapsed
         HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Text(time)
-                .font(.system(size: 12).monospacedDigit())
-                .foregroundStyle(.tertiary)
-                .frame(width: 64, alignment: .trailing)
-                .overlay(alignment: .leading) {
-                    if hovered {
-                        Image(systemName: "play.circle.fill")
-                            .font(.system(size: 14))
-                            .foregroundStyle(.tint)
-                            .offset(y: -1)
-                    }
-                }
+            // The play mark has a slot of its own before the time, always reserved, so a long
+            // clock time never runs under it and nothing moves on hover.
+            HStack(alignment: .firstTextBaseline, spacing: 0) {
+                Image(systemName: "play.circle.fill")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.tint)
+                    .frame(width: 16, alignment: .leading)
+                    .opacity(showsPlay ? 1 : 0)
+                    .accessibilityHidden(true)
+                Text(time)
+                    .font(.system(size: 12).monospacedDigit())
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 56, alignment: .trailing)
+            }
             if isCall {
                 Text(block.showsSpeaker ? block.speaker ?? "" : "")
                     .fontWeight(.semibold)
@@ -969,7 +982,7 @@ private struct TranscriptBlockView: View, @MainActor Equatable {
         .padding(.horizontal, 12)
         .padding(.vertical, 3)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(hovered ? Color.primary.opacity(0.05) : .clear, in: RoundedRectangle(cornerRadius: 6))
+        .background(showsPlay ? Color.primary.opacity(0.05) : .clear, in: RoundedRectangle(cornerRadius: 6))
         .contentShape(Rectangle())
         .onHover { hovered = $0 }
         .onTapGesture {
