@@ -166,7 +166,7 @@ public enum CallPlanner {
             if let found = input.mixes.first(where: { $0.deviceUID == uid }) {
                 mix = found
             } else {
-                notices.append("The Blend Mic mix chosen for calls isn't connected. Is Blend running?")
+                notices.append("The Blend Mic mix chosen for calls isn't connected. Is Blend Mic running?")
             }
         case .app(let id):
             if let found = input.running.first(where: { $0.bundleID == id }) {

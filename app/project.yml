@@ -54,9 +54,9 @@ targets:
         LSUIElement: true
         LSApplicationCategoryType: public.app-category.productivity
         NSHumanReadableCopyright: "© 2026 The Dictate authors. FSL-1.1-MIT."
-        NSMicrophoneUsageDescription: Dictate records your microphone while you dictate.
-        # Shown when Dictate first records the sound of the app you are on a call in.
-        NSAudioCaptureUsageDescription: Dictate records the sound of the app you are on a call in, so the other side of the call is transcribed. It records nothing else.
+        NSMicrophoneUsageDescription: Dictate records your microphone while you dictate or record a call.
+        # Shown when Dictate first records the call app's sound.
+        NSAudioCaptureUsageDescription: Dictate records the call app's sound, so the other side of the call is transcribed. It records nothing else.
         # The private download site serves the feed and counts update checks.
         SUFeedURL: $(SU_FEED_URL)
         # Updates must be signed with the matching private key, kept with the Developer ID.

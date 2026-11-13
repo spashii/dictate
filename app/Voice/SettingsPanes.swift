@@ -16,7 +16,7 @@ struct SetupPane: View {
                 CallAudioStep()
                 SpeechModelStep(whisperModel: preferences.whisperModel)
             } footer: {
-                Text("Press \(KeyboardShortcuts.getShortcut(for: .dictate)?.description ?? "the shortcut") in any text field, speak, press it again.")
+                Text("Press \(KeyboardShortcuts.getShortcut(for: .dictate)?.description ?? "the shortcut") in any text field and speak. Press it again to paste.")
             }
             Section {
                 Toggle("Open at login", isOn: Binding(get: { model.openAtLogin }, set: { model.setOpenAtLogin($0) }))
@@ -59,7 +59,7 @@ struct ShortcutsPane: View {
             }
             Section("Record call") {
                 KeyboardShortcuts.Recorder("Shortcut", name: .recordCall)
-                Toggle("Ask automatically to record calls", isOn: $calls.askToRecord)
+                Toggle("Ask to record when a call starts", isOn: $calls.askToRecord)
             }
         }
         .formStyle(.grouped)
@@ -149,9 +149,9 @@ struct CallAudioPermissionRow: View {
                 }
             } label: {
                 Label("Dictate can\u{2019}t record call audio yet", systemImage: "exclamationmark.circle")
-                Text(calls.capturePermission == .denied
-                     ? "Turn on Dictate under System Audio Recording."
-                     : "macOS asks once.")
+                if calls.capturePermission == .denied {
+                    Text("Turn on Dictate under System Audio Recording.")
+                }
             }
         }
     }
@@ -177,13 +177,13 @@ struct ModelPane: View {
                 }
                 SpeechModelStatus(whisperModel: preferences.whisperModel)
                 Toggle(isOn: $preferences.retrySegments) {
-                    Text("Retry unsure segments")
+                    Text("Retry unsure words")
                     Text("Words Whisper was unsure of are transcribed again, more carefully. This can add a moment before the paste.")
                 }
                 RetryStatsView()
                 TextField(text: $preferences.keyTerms, axis: .vertical) {
                     Text("Key terms")
-                    Text("Names, product names and jargon Whisper gets wrong, as they should be spelled.")
+                    Text("Words Whisper gets wrong, spelled your way.")
                 }
                 SuggestedTermsView()
             }
@@ -196,7 +196,6 @@ struct ModelPane: View {
                 .disabled(noModel)
                 Toggle(isOn: $preferences.titleCalls) {
                     Text("Add a title to each call automatically")
-                    Text("Names each call from its transcript when it ends.")
                 }
                 .disabled(noModel)
             }
@@ -290,7 +289,7 @@ struct AgentsPane: View {
             Section {
                 Toggle(isOn: $agents.enabled) {
                     Text("Agents can read transcripts")
-                    Text("Claude Code and other agents read your dictations and call transcripts over MCP, with the token.")
+                    Text("Over MCP, with the token below.")
                 }
             }
             if agents.enabled {
@@ -349,10 +348,9 @@ struct AgentsPane: View {
     private func connect() -> some View {
         Section {
             LabeledContent {
-                Button("Show") { showingSetup = true }
+                Button("Show Config") { showingSetup = true }
             } label: {
                 Text("Connect an agent app")
-                Text("The config for an agent app, with your token.")
             }
         }
     }

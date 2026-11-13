@@ -198,7 +198,7 @@ private struct DistributionSection: View {
         var result: [Bin] = []
         for index in 0..<count {
             let low = Double(index) * step, high = low + step
-            let label = "\(number(low))\u{2013}\(number(high)) s"
+            let label = "\(number(low)) to \(number(high)) s"
             for work in ModelTimings.Work.allCases {
                 let n = points.filter { $0.work == work && $0.seconds >= low && ($0.seconds < high || (index == count - 1 && $0.seconds <= high)) }.count
                 result.append(Bin(id: result.count, label: label, work: work, count: n))

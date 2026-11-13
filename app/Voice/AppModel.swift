@@ -149,12 +149,6 @@ final class AppModel {
         return preferences.effectiveModel
     }
 
-    /// Whether the prompt will run: it is on, and the chosen model can answer.
-    var fixesText: Bool {
-        preferences.runPrompt
-            && LocalModelChoice.canRun(effectiveModel, appleAvailable: appleModelAvailable, ollamaModels: ollamaModels)
-    }
-
     var setupComplete: Bool {
         #if DEBUG
         if snapshotSetupComplete { return true }
@@ -176,7 +170,7 @@ final class AppModel {
     /// The first line of the menu.
     var statusText: String {
         switch phase {
-        case .idle, .notice, .edits: fixesText ? "Ready" : "Ready, Whisper only"
+        case .idle, .notice, .edits: "Ready"
         case .recording(_, let began): "Listening " + Self.clock(now.timeIntervalSince(began))
         case .transcribing: "Transcribing"
         case .cleaningUp: "Fixing the text"
@@ -206,7 +200,7 @@ final class AppModel {
             }
         }
         // Ollama can start or stop at any time; a localhost check every half minute keeps
-        // the menu's "Whisper only" honest without asking on every keypress.
+        // the model status honest without asking on every keypress.
         Task {
             while !Task.isCancelled {
                 await refreshOllama()
@@ -491,7 +485,7 @@ final class AppModel {
         live = session
         startTask = Task {
             guard await AVCaptureDevice.requestAccess(for: .audio) else {
-                show("Dictate needs the microphone: System Settings, Privacy & Security, Microphone.")
+                show("Allow the microphone for Dictate in System Settings.")
                 return false
             }
             do {

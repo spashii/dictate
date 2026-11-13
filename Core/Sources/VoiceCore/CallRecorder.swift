@@ -517,7 +517,7 @@ public final class CallRecorder: @unchecked Sendable {
             guard var device = InputDevices.id(forUID: uid), let unit = input.audioUnit,
                   AudioUnitSetProperty(unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0,
                                        &device, UInt32(MemoryLayout<AudioDeviceID>.size)) == noErr else {
-                throw VoiceError.audio("\(source.name) isn't available. Is Blend running?")
+                throw VoiceError.audio("\(source.name) isn't available. Is Blend Mic running?")
             }
         }
         guard let format = input.deviceFormat else {

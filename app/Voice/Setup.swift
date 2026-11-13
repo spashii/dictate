@@ -5,7 +5,7 @@ struct ActivationStep: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        StepRow(title: "Activated", done: model.activation.isActivated) {
+        StepRow(title: "Activation", done: model.activation.isActivated) {
             Button("Activate in Browser") { model.beginActivation() }
         }
     }
@@ -39,7 +39,7 @@ struct CallAudioStep: View {
 
     var body: some View {
         StepRow(title: "Call audio", done: calls.capturePermission == .authorized,
-                detail: "Lets Dictate record the sound of the app you are on a call in, so the other side is transcribed. Skip it to record only your microphone.") {
+                detail: "Lets Dictate record the call app's sound, so the other side is transcribed. Skip it to record only your microphone.") {
             Button(calls.capturePermission == .denied ? "Open System Settings\u{2026}" : "Allow\u{2026}") {
                 calls.askForCaptureAccess()
             }

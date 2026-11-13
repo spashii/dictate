@@ -934,7 +934,7 @@ struct CallMenuItems: View {
         if let call = calls.recording {
             Text("Recording call " + AppModel.clock(Date().timeIntervalSince(call.startedAt)))
             if model.preferences.runPrompt {
-                Text("Whisper only during calls")
+                Text("Fix the text is paused during calls")
             }
             Button("Stop Recording" + keys) { Task { await calls.stop() } }
         } else {
@@ -943,7 +943,7 @@ struct CallMenuItems: View {
                 .disabled(calls.starting)
         }
         if calls.recording == nil, calls.isImporting, model.preferences.runPrompt {
-            Text("Whisper only while importing")
+            Text("Fix the text is paused while importing")
         }
         if let warning = calls.warning {
             Text(warning)
