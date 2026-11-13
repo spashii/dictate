@@ -5,20 +5,20 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dictate: fast local dictation and call transcription for Mac</title>
-<meta name="description" content="Fast local dictation and call transcription for Mac. Dictate types into any app and records your online calls with your side and theirs kept apart. Free forever for the first 50 early access users.">
+<meta name="description" content="Fast local dictation and call transcription for Mac. Dictate types what you say into any app and transcribes your online calls with your side and theirs kept apart. Free forever for the first 50 early access users.">
 <link rel="canonical" href="https://spashii.github.io/dictate/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Dictate">
 <meta property="og:url" content="https://spashii.github.io/dictate/">
 <meta property="og:title" content="Dictate: fast local dictation and call transcription for Mac">
-<meta property="og:description" content="Fast local dictation and call transcription for Mac. Dictate types into any app and records your online calls with your side and theirs kept apart. Free forever for the first 50 early access users.">
+<meta property="og:description" content="Fast local dictation and call transcription for Mac. Dictate types what you say into any app and transcribes your online calls with your side and theirs kept apart. Free forever for the first 50 early access users.">
 <meta property="og:image" content="https://spashii.github.io/dictate/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Dictate: fast local dictation and call transcription for Mac">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Dictate: fast local dictation and call transcription for Mac">
-<meta name="twitter:description" content="Fast local dictation and call transcription for Mac. Dictate types into any app and records your online calls with your side and theirs kept apart. Free forever for the first 50 early access users.">
+<meta name="twitter:description" content="Fast local dictation and call transcription for Mac. Dictate types what you say into any app and transcribes your online calls with your side and theirs kept apart. Free forever for the first 50 early access users.">
 <meta name="twitter:image" content="https://spashii.github.io/dictate/og.png">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
@@ -29,17 +29,17 @@
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "Dictate",
-  "description": "Fast local dictation and call transcription for Mac. Dictate types into any app and records your online calls with your side and theirs kept apart.",
+  "description": "Fast local dictation and call transcription for Mac. Dictate types what you say into any app and transcribes your online calls with your side and theirs kept apart.",
   "applicationCategory": "ProductivityApplication",
   "operatingSystem": "macOS",
-  "softwareVersion": "0.13.0",
+  "softwareVersion": "0.15.1",
   "url": "https://spashii.github.io/dictate/",
   "image": "https://spashii.github.io/dictate/og.png",
   "offers": {
    "@type": "Offer",
    "price": "0",
    "priceCurrency": "USD",
-   "description": "Free forever for the first 50 early access users."
+   "description": "Free forever for the first 50 early access users. After early access, a regular lifetime license is $49 (€49 by region)."
   },
   "author": {
    "@type": "Person",
@@ -53,10 +53,18 @@
   "mainEntity": [
    {
     "@type": "Question",
+    "name": "Should I ask before I transcribe a call?",
+    "acceptedAnswer": {
+     "@type": "Answer",
+     "text": "Yes. Ask before you press Record, and don't record if they say no. People do mind, and with no bot in the call they only know if you tell them. You could say: \"Can I transcribe this for my notes? The audio stays on my Mac. The audio is deleted within a week.\" For me it's personal. I'm not a native English speaker, and recording lets me stay present in the call instead of scrambling for notes. I take my notes afterwards. By default the audio is deleted after 7 days and the transcript after 30. In the Data retention settings you can delete the audio as soon as it's transcribed, or after 1 day."
+    }
+   },
+   {
+    "@type": "Question",
     "name": "Does anything leave my Mac?",
     "acceptedAnswer": {
      "@type": "Answer",
-     "text": "Your audio and transcripts stay on your Mac, in one folder, kept forever or for 30 days. Dictate goes online for its speech models (1.6 GB, once) and for updates, which count checks by app, version and country and never store your IP address. If you connect an agent, it can read your transcripts, and where it sends them depends on that agent. Where everything is kept"
+     "text": "Your audio and transcripts stay on your Mac in one folder. By default the audio is deleted after 7 days and the transcript after 30. You can delete the audio once it's transcribed or after 1 day, or keep it forever in developer mode. History can be kept for 7 days, 30 days or forever. Dictate goes online once for its speech models (1.6 GB) and later for updates. The update server counts checks by app, version and country. It never stores your IP address. If you connect an agent it can read your transcripts. Where it sends them depends on that agent."
     }
    },
    {
@@ -64,15 +72,7 @@
     "name": "What will it cost?",
     "acceptedAnswer": {
      "@type": "Answer",
-     "text": "Free forever for the first 50 early access users. After early access, a lifetime license costs $49."
-    }
-   },
-   {
-    "@type": "Question",
-    "name": "Should I tell people I'm transcribing a call?",
-    "acceptedAnswer": {
-     "@type": "Answer",
-     "text": "Yes. Dictate does not tell the other side, and the rules differ by country."
+     "text": "Free forever for the first 50 early access users. After early access, a regular lifetime license is $49 (€49 by region)."
     }
    },
    {
@@ -88,12 +88,12 @@
     "name": "Is it open source?",
     "acceptedAnswer": {
      "@type": "Answer",
-     "text": "No. It is source available under FSL-1.1-MIT: you can read, change and run the code, but not offer it in a commercial product that competes with it. Each version becomes MIT two years after release, and versions up to 0.11.0 already are. The code and licence are on GitHub."
+     "text": "No. It is source available under FSL-1.1-MIT. You can read, change and run the code. You cannot offer it in a commercial product that competes with it. Each version becomes MIT two years after release, and versions up to 0.11.0 already are. The code and license are on GitHub."
     }
    },
    {
     "@type": "Question",
-    "name": "Why do I need to activate it as an early access user?",
+    "name": "Why do I need to activate it?",
     "acceptedAnswer": {
      "@type": "Answer",
      "text": "Dictate is free, and I want to know who uses it. Your email gets the code, and I might write to hear how you use Dictate and what's missing. Tell me to stop and I will. The app does not sign in and does not report what you do."
@@ -104,7 +104,7 @@
     "name": "What does it ask permission for?",
     "acceptedAnswer": {
      "@type": "Answer",
-     "text": "Microphone, to hear you. Accessibility, to paste into the app you are in; without it your text waits on the clipboard. Call audio, to hear the other side of an online call; it records only the call app's sound, and you can skip it and still dictate."
+     "text": "Microphone, to hear you. Accessibility, to paste into the app you are in. Without it your text waits on the clipboard. Call audio, to hear the other side of an online call. It records only the call app's sound. You can skip it and still dictate."
     }
    },
    {
@@ -112,7 +112,7 @@
     "name": "What can my agent see?",
     "acceptedAnswer": {
      "@type": "Answer",
-     "text": "Your dictations and call transcripts, through the tools you leave on. The server listens only on your Mac and needs the token in Settings, Agents. Tools that record or change anything start off, because your agent reads what the other side of a call says, and that could steer it."
+     "text": "Your dictations and call transcripts, through the tools you leave on. The server listens only on your Mac and needs the token from the Agents settings. Tools that record or change anything start off. Your agent reads what the other side of a call says, and that could steer it."
     }
    },
    {
@@ -120,7 +120,7 @@
     "name": "I use OpenSuperWhisper, which also uses Option+`. Will they clash?",
     "acceptedAnswer": {
      "@type": "Answer",
-     "text": "Change the shortcut in one of them, in Dictate under Settings, Shortcuts. If OpenSuperWhisper already has the speech model, Dictate reuses it instead of downloading 1.6 GB again."
+     "text": "Yes. Change the shortcut in one of them. In Dictate it is in the Shortcuts settings. If OpenSuperWhisper already has the speech model, Dictate reuses it instead of downloading 1.6 GB again."
     }
    },
    {
@@ -128,7 +128,7 @@
     "name": "Which call apps work?",
     "acceptedAnswer": {
      "@type": "Answer",
-     "text": "Zoom, Teams, Slack, Discord, FaceTime, WhatsApp, Signal, Telegram, Webex, Skype and Element. Calls in a browser tab such as Meet work too. How to transcribe calls on a Mac."
+     "text": "Zoom, Teams, Slack, Discord, FaceTime, WhatsApp, Signal, Telegram, Webex, Skype and Element. Calls in a browser tab such as Meet work too."
     }
    },
    {
@@ -136,7 +136,7 @@
     "name": "Can I use it on my phone?",
     "acceptedAnswer": {
      "@type": "Answer",
-     "text": "Not yet. If you have an Apple Watch, record the call as a voice memo. That's what I do. File import into Dictate is coming next."
+     "text": "Not yet. I record the call as a voice memo on my Apple Watch. Then I import the file into Dictate on my Mac."
     }
    },
    {
@@ -144,7 +144,7 @@
     "name": "Which languages are supported?",
     "acceptedAnswer": {
      "@type": "Answer",
-     "text": "English works best. Whisper also does well in Spanish, French, German, Italian, Portuguese, Dutch, Japanese, Chinese and Korean. Other languages work too, with more mistakes. For those, pick Large v3 in Settings, Model."
+     "text": "English works best. Whisper also does well in Spanish, French, German, Italian, Portuguese, Dutch, Japanese, Chinese and Korean. Other languages work too, with more mistakes. For those, pick Large v3 in the Model settings."
     }
    },
    {
@@ -181,17 +181,19 @@
       <div class="get">
         <div class="actions"><a class="button primary" data-get href="https://dictate.firstversion.in/get">Download for Mac (Apple silicon)</a></div>
         <p class="meta" data-founding><span data-left>Free forever for the first 50 early&nbsp;access&nbsp;users.</span></p>
+        <p class="meta"><span>Needs an Apple silicon Mac with macOS 15 or later.</span></p>
       </div>
     </div>
 
     <div class="demo-wrap">
-      <div class="stage frame mac" id="demo" role="img" aria-label="Animation in three steps. Record your calls: a call with Alex is recorded. Dictate in any app: a request to an agent is dictated and sent. Ask your agent about your calls: the agent reads the call and answers with a summary and a draft email to Alex.">
+      <div class="stage frame mac" id="demo" role="img" aria-label="Animation in three steps. Record your calls: you ask Alex if you can transcribe the call, Alex agrees, and the call is recorded. Dictate in any app: a request to an agent is dictated and sent. Ask your agent about your calls: the agent reads the call and answers with a summary and a draft email to Alex.">
         <div class="scene" id="scene" aria-hidden="true">
           <div class="menubar"><span id="mb-app">Meeting</span><span class="mbicon" id="mbicon" data-state="idle"><svg viewBox="0 0 22 18" fill="currentColor"><g class="i-idle"><path fill-rule="evenodd" d="M0.5 7A2.5 2.5 0 0 1 5.5 7V11A2.5 2.5 0 0 1 0.5 11ZM1.9 7A1.1 1.1 0 0 1 4.1 7V11A1.1 1.1 0 0 1 1.9 11ZM7.5 3.5A2.5 2.5 0 0 1 12.5 3.5V14.5A2.5 2.5 0 0 1 7.5 14.5ZM8.9 3.5A1.1 1.1 0 0 1 11.1 3.5V14.5A1.1 1.1 0 0 1 8.9 14.5ZM14.5 7A2.5 2.5 0 0 1 19.5 7V11A2.5 2.5 0 0 1 14.5 11ZM15.9 7A1.1 1.1 0 0 1 18.1 7V11A1.1 1.1 0 0 1 15.9 11Z"/></g><g class="i-call"><path fill-rule="evenodd" d="M0.5 7A2.5 2.5 0 0 1 5.5 7V11A2.5 2.5 0 0 1 0.5 11ZM7.5 3.5A2.5 2.5 0 0 1 12.5 3.5V14.5A2.5 2.5 0 0 1 7.5 14.5ZM14.5 7A2.5 2.5 0 0 1 19.5 7V11A2.5 2.5 0 0 1 14.5 11Z"/><circle cx="20" cy="2.1" r="1.9"/></g><g class="i-dict"><path fill-rule="evenodd" d="M0.5 7A2.5 2.5 0 0 1 5.5 7V11A2.5 2.5 0 0 1 0.5 11ZM1.9 7A1.1 1.1 0 0 1 4.1 7V11A1.1 1.1 0 0 1 1.9 11ZM7.5 3.5A2.5 2.5 0 0 1 12.5 3.5V14.5A2.5 2.5 0 0 1 7.5 14.5ZM14.5 7A2.5 2.5 0 0 1 19.5 7V11A2.5 2.5 0 0 1 14.5 11ZM15.9 7A1.1 1.1 0 0 1 18.1 7V11A1.1 1.1 0 0 1 15.9 11Z"/></g></svg></span><span class="clock">Thu 12 Nov&nbsp;&nbsp;16:30</span></div>
           <div class="cam" id="cam">
             <div class="win callwin" id="callwin">
               <div class="wtitle"><span class="lights"><i></i><i></i><i></i></span>Meeting</div>
               <div class="tile"><div class="avatar">A</div><div class="who">Alex</div><div class="slot"><span class="join" id="join">Join</span><div class="ctime" id="ctime">0:00</div></div></div>
+              <div class="caps"><p class="cap" id="cap1"><b>You</b> Mind if I transcribe this for my notes? It stays on my Mac.</p><p class="cap" id="cap2"><b>Alex</b> Sure, go ahead.</p></div>
               <div class="ctrls">
                 <span class="cb"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="5.5" y="1.5" width="5" height="8.5" rx="2.5"/><path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2"/></svg></span>
                 <span class="cb"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="1.5" y="4" width="9" height="8" rx="2"/><path d="m10.5 7 4-2.5v7l-4-2.5"/></svg></span>
@@ -202,30 +204,29 @@
             <div class="win chat" id="chat">
               <div class="wtitle"><span class="lights"><i></i><i></i><i></i></span>Agent</div>
               <div class="msgs">
-                <div class="mw" id="m-user"><div><div class="m me">Summarize my call with Alex and draft a follow-up email. Check our earlier calls too, and add any names you misheard to my key terms.</div></div></div>
+                <div class="mw" id="m-user"><div><div class="m me">Summarize my call with Alex and draft a follow-up email. Check our earlier calls too.</div></div></div>
                 <div class="mw" id="m-tools"><div><div class="m tools">
                   <div class="mw tw"><div><div class="tr"><i class="st"></i><img class="src" src="icon.svg" alt="" width="12" height="12"><span class="by">Dictate MCP</span><span class="nm">get_transcript</span></div></div></div>
                   <div class="mw tw"><div><div class="tr"><i class="st"></i><img class="src" src="icon.svg" alt="" width="12" height="12"><span class="by">Dictate MCP</span><span class="nm">list_calls</span></div></div></div>
                   <div class="mw tw"><div><div class="tr"><i class="st"></i><img class="src" src="icon.svg" alt="" width="12" height="12"><span class="by">Dictate MCP</span><span class="nm">search_transcripts</span></div></div></div>
-                  <div class="mw tw"><div><div class="tr"><i class="st"></i><img class="src" src="icon.svg" alt="" width="12" height="12"><span class="by">Dictate MCP</span><span class="nm">add_key_terms</span><span class="arg">Northwind, Q3 deck</span></div></div></div>
                 </div></div></div>
-                <div class="mw" id="m-sum"><div><div class="m" id="sum">Alex will chase legal today, so Friday holds if they sign off by Wednesday. Last week you also promised the Q3 deck by Friday. I added Northwind and Q3 deck to your key terms.</div></div></div>
+                <div class="mw" id="m-sum"><div><div class="m" id="sum">Alex will chase legal today, so Friday holds if they sign off by Wednesday. Last week you also promised the Q3 deck by Friday.</div></div></div>
                 <div class="mw" id="m-mail"><div><div class="m mail"><span class="to">Draft to Alex</span><span id="mail">Hi Alex, thanks for today. Here is the deck I promised. Let me know once legal signs off.</span></div></div></div>
               </div>
               <div class="inp">
-                <div class="field" id="field"><span class="caret c0"></span><span class="ph">Message</span><span class="txt">Summarize my call with Alex and draft a follow-up email. Check our earlier calls too, and add any names you misheard to my key terms.</span></div>
+                <div class="field" id="field"><span class="caret c0"></span><span class="ph">Message</span><span class="txt">Summarize my call with Alex and draft a follow-up email. Check our earlier calls too.</span></div>
                 <span class="send" id="send"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg></span>
               </div>
             </div>
 
             <div class="pill nudge" id="nudge">
               <img class="dic" src="icon.svg" alt="" width="14" height="14">
-              <span>Record this call?</span><span class="s">Meeting</span><span class="sp"></span><span class="bt">Not now</span><span class="bt" id="recbtn">Record</span>
+              <span class="q"><span class="r"><span>Record this call?</span><span class="s">Meeting</span></span><span class="ask">Ask before you record.</span></span><span class="sp"></span><span class="bt">Not now</span><span class="bt" id="recbtn">Record</span>
             </div>
             <div class="pill callpill" id="callpill">
               <div class="row"><img class="dic" src="icon.svg" alt="" width="14" height="14"><i class="dot"></i><span>Recording call</span><span class="s tn" id="ptime">0:00</span><span class="s">&#x2325;&#x21E7;` stops</span></div>
-              <div class="ln"><div><span><b class="me">Me</b>Thanks for joining, Alex.</span></div></div>
-              <div class="ln"><div><span><b class="them">Call</b>Happy to. Shall we start with the budget?</span></div></div>
+              <div class="ln"><div><span><b class="me">Me</b>Thanks, Alex. I've started it now.</span></div></div>
+              <div class="ln"><div><span><b class="them">Call</b>Great. Shall we start with the budget?</span></div></div>
               <div class="ln"><div><span><b class="me">Me</b>Yes. The Northwind numbers came in this morning.</span></div></div>
               <div class="ln"><div><span><b class="them">Call</b>Good. Are we still on track for Friday?</span></div></div>
               <div class="ln"><div><span><b class="me">Me</b>We are, if legal signs off by Wednesday.</span></div></div>
@@ -264,19 +265,19 @@
         <p>Press <span class="nowrap"><kbd>Option</kbd> <kbd>`</kbd></span> and talk, and Dictate transcribes as you go. Press it again and the text lands where you were writing.</p>
       </div>
       <div class="card">
-        <div class="art well mac" aria-hidden="true"><div class="pill nudge"><img class="dic" src="icon.svg" alt="" width="14" height="14"><span>Record this call?</span><span class="s">Meeting</span><span class="sp"></span><span class="bt">Not now</span><span class="bt">Record</span></div><div class="ml"><span class="w">Me</span><span>Thanks for joining, Alex.</span></div><div class="ml"><span class="w">Call</span><span>Sure. Let's start with the budget.</span></div></div>
+        <div class="art well mac" aria-hidden="true"><div class="pill nudge"><img class="dic" src="icon.svg" alt="" width="14" height="14"><span class="q"><span class="r"><span>Record this call?</span><span class="s">Meeting</span></span><span class="ask">Ask before you record.</span></span><span class="sp"></span><span class="bt">Not now</span><span class="bt">Record</span></div><div class="ml"><span class="w">Me</span><span>Thanks, Alex. I've started it now.</span></div><div class="ml"><span class="w">Call</span><span>Great. Shall we start with the budget?</span></div></div>
         <h3>Calls are transcribed</h3>
-        <p>Dictate notices when you're on a call and offers to transcribe it. It uses <a href="https://spashii.github.io/blend/">Blend Mic</a> to record your voice apart from the call.</p>
+        <p>Dictate notices when you're on a call and offers to transcribe it. It records your voice apart from the call with BlendKit, the audio engine from <a href="https://spashii.github.io/blend/">Blend Mic</a>.</p>
       </div>
       <div class="card">
         <div class="art well mac" aria-hidden="true"><div class="toggle-row"><span>Retry unsure segments</span><span class="switch on"></span></div><div class="toggle-row"><span>Fix the text before pasting</span><span class="switch"></span></div></div>
-        <h3>A better transcription pipeline</h3>
-        <p>Whisper scores how sure it is of each part. Parts below a confidence threshold are decoded again automatically, and Dictate keeps the better version. Fix the text before pasting lets a model in Ollama on your Mac correct the transcript.</p>
+        <h3>Unsure words get a second try</h3>
+        <p>Whisper scores how sure it is of each part. Dictate transcribes the unsure parts again and keeps the better version. Fix the text before pasting lets a model on your Mac (Apple Intelligence or Ollama) correct misheard words.</p>
       </div>
       <div class="card">
-        <div class="art well mac" aria-hidden="true"><div class="sug"><span class="g">Qdrant</span><span class="bt main">Add</span><span class="bt">Dismiss</span></div><div class="sug"><span class="g">OAuth</span><span class="bt main">Add</span><span class="bt">Dismiss</span></div></div>
-        <h3>Key terms</h3>
-        <p>Add the names Whisper gets wrong, spelled your way. Dictate suggests more from your corrections.</p>
+        <div class="art well mac ret" aria-hidden="true"><div class="toggle-row"><span>Keep audio recordings</span><span class="popup open">7 days<svg viewBox="0 0 8 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 4.5 4 2l2.5 2.5M1.5 7.5 4 10l2.5-2.5"/></svg></span><span class="menu"><span>Until transcribed</span><span>1 day</span><span class="sel">7 days</span></span></div><div class="toggle-row"><span>Keep history</span><span class="popup">30 days<svg viewBox="0 0 8 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 4.5 4 2l2.5 2.5M1.5 7.5 4 10l2.5-2.5"/></svg></span></div></div>
+        <h3>Recordings delete themselves</h3>
+        <p>By default Dictate deletes the audio after 7 days and the transcript after 30. You choose how long each is kept.</p>
       </div>
       <div class="card">
         <div class="art well mac" aria-hidden="true"><div class="tool"><span>search_transcripts</span><span class="switch on"></span></div><div class="tool"><span>wait_for_transcript</span><span class="switch on"></span></div><div class="tool"><span>start_recording</span><span class="switch"></span></div></div>
@@ -286,7 +287,7 @@
       <div class="card">
         <div class="well shot" aria-hidden="true"><picture><source srcset="history-dark.png" media="(prefers-color-scheme: dark)"><img src="history-light.png" alt="" width="1303" height="600" loading="lazy" decoding="async"></picture></div>
         <h3>History</h3>
-        <p>Every dictation and call in one place, searchable. Rename, correct a word, or play from any line.</p>
+        <p>Every dictation, call and imported file in one place. Search it, correct a word or <span class="note"><button type="button" class="note-mark" aria-describedby="note-play" aria-expanded="false">play from any line</button><span class="note-pop" id="note-play" role="tooltip" hidden>While the audio is kept. You choose how long in Data retention.</span></span>.</p>
       </div>
     </div>
   </section>
@@ -294,12 +295,12 @@
   <section class="more measure">
     <h2>And more</h2>
     <ul class="more-list">
-      <li>A level meter in the pill, so you can see the mic hears you.</li>
-      <li>Your words appear as you talk.</li>
+      <li>Add the names Whisper gets wrong as key terms, spelled your way.</li>
+      <li>A level meter shows that the mic hears you.</li>
       <li>The text is ready almost as soon as you stop, because Dictate transcribes while you talk.</li>
       <li>Only the shortcut stops a recording, so a stray key never loses what you said.</li>
       <li>Your clipboard comes back after Dictate pastes.</li>
-      <li>Your last five dictations and three calls are a click away in the menu.</li>
+      <li>Your five newest recordings are a click away in the menu.</li>
     </ul>
   </section>
 
@@ -309,13 +310,13 @@
       <div class="tier tier-dictate">
         <h3 class="name"><img src="icon.svg" alt="" width="40" height="40">Dictate</h3>
         <p class="fig">Free</p>
-        <p class="terms">Free forever for early access users. A regular lifetime license is <span data-price>$49</span>. All processing happens on your Mac. Nothing is sent.</p>
+        <p class="terms">Free forever for the first 50 early access users. After early access, a regular lifetime license is <span data-price>$49</span>. All processing happens on your Mac.</p>
         <div class="get"><div class="actions"><a class="button primary" data-get href="https://dictate.firstversion.in/get">Download for Mac</a></div></div>
       </div>
       <div class="tier">
         <h3>Cloud apps</h3>
         <p class="apps">Wispr Flow and Granola</p>
-        <p class="fig"><span data-eur="€140">$150</span><span class="per"> a year</span></p>
+        <p class="fig"><span class="per">About </span><span data-eur="€140">$150</span><span class="per"> a year</span></p>
         <p class="terms">Processing happens in the cloud.</p>
       </div>
       <div class="tier">
@@ -329,7 +330,7 @@
 
   <section class="why measure">
     <h2 class="sr">Why I made it</h2>
-    <p>I wanted fast, simple and robust local dictation and transcription for calls, running on my Mac. Local transcription on Apple silicon is so good now that <span class="note"><button type="button" class="note-mark" aria-describedby="note-local" aria-expanded="false">there's simply no need to</button><span class="note-pop" id="note-local" role="tooltip" hidden>Mostly. Local models still slip when you switch languages mid-sentence. They also do worse in languages Whisper knows less well. A noisy room trips up every model, cloud ones included.</span></span> process your data in the cloud. <a href="https://handy.computer">Handy</a> and <a href="https://github.com/Starmel/OpenSuperWhisper">OpenSuperWhisper</a> are my all-time favorites for local dictation, and I've learned a lot from them.</p>
+    <p>I wanted local dictation and call transcription on my Mac that is fast, simple and robust. Local transcription on Apple silicon is so good now that <span class="note"><button type="button" class="note-mark" aria-describedby="note-local" aria-expanded="false">there's simply no need to</button><span class="note-pop" id="note-local" role="tooltip" hidden>Mostly. Local models still slip when you switch languages mid-sentence. They also do worse in languages Whisper knows less well. A noisy room trips up every model, cloud ones included.</span></span> process your data in the cloud. <a href="https://handy.computer">Handy</a> and <a href="https://github.com/Starmel/OpenSuperWhisper">OpenSuperWhisper</a> are my all-time favorites for local dictation, and I've learned a lot from them.</p>
     <p>I spent a lot of time using those tools and ran into a few problems. Sometimes I'd talk and the mic was off, so Dictate shows a level meter and your words as you talk. Sometimes I'd hit Escape by accident and lose what I'd said, so only Dictate's own shortcut stops a recording.</p>
     <p>So I made Dictate lightweight, hackable and customizable. It transcribes your online calls with the same local setup, and no bot joins the call the way it does with Fireflies. Your agents can read all of it.</p>
   </section>
@@ -338,16 +339,22 @@
     <h2>Questions</h2>
     <div class="faq-list">
       <details open>
+        <summary><h3>Should I ask before I transcribe a call?</h3></summary>
+        <p>Yes. Ask before you press Record, and don't record if they say no. People do mind, and with no bot in the call they only know if you tell them. You could say: "Can I transcribe this for my notes? The audio stays on my Mac. The audio is deleted within a week."</p>
+        <p>For me it's personal. I'm not a native English speaker, and recording lets me stay present in the call instead of scrambling for notes. I take my notes afterwards.</p>
+        <p>By default the audio is deleted after 7 days and the transcript after 30. In the Data retention settings you can delete the audio as soon as it's transcribed, or after 1 day.</p>
+        <figure class="bots">
+          <div class="botwin mac" aria-hidden="true"><div class="bt-title">Meeting, 8 participants</div><div class="grid8"><span class="t"><span class="av">A</span><span class="nm">Alex</span></span><span class="t"><span class="av">Y</span><span class="nm">You</span></span><span class="t b"><span class="bot"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><rect x="3" y="5" width="10" height="8" rx="2.5"/><path d="M8 5V2.5" stroke-linecap="round"/><circle cx="8" cy="2" r=".8" fill="currentColor" stroke="none"/><circle cx="6" cy="9" r=".9" fill="currentColor" stroke="none"/><circle cx="10" cy="9" r=".9" fill="currentColor" stroke="none"/></svg></span><span class="nm">Notetaker</span></span><span class="t b"><span class="bot"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><rect x="3" y="5" width="10" height="8" rx="2.5"/><path d="M8 5V2.5" stroke-linecap="round"/><circle cx="8" cy="2" r=".8" fill="currentColor" stroke="none"/><circle cx="6" cy="9" r=".9" fill="currentColor" stroke="none"/><circle cx="10" cy="9" r=".9" fill="currentColor" stroke="none"/></svg></span><span class="nm">Notetaker</span></span><span class="t b"><span class="bot"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><rect x="3" y="5" width="10" height="8" rx="2.5"/><path d="M8 5V2.5" stroke-linecap="round"/><circle cx="8" cy="2" r=".8" fill="currentColor" stroke="none"/><circle cx="6" cy="9" r=".9" fill="currentColor" stroke="none"/><circle cx="10" cy="9" r=".9" fill="currentColor" stroke="none"/></svg></span><span class="nm">Notetaker</span></span><span class="t b"><span class="bot"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><rect x="3" y="5" width="10" height="8" rx="2.5"/><path d="M8 5V2.5" stroke-linecap="round"/><circle cx="8" cy="2" r=".8" fill="currentColor" stroke="none"/><circle cx="6" cy="9" r=".9" fill="currentColor" stroke="none"/><circle cx="10" cy="9" r=".9" fill="currentColor" stroke="none"/></svg></span><span class="nm">Notetaker</span></span><span class="t b"><span class="bot"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><rect x="3" y="5" width="10" height="8" rx="2.5"/><path d="M8 5V2.5" stroke-linecap="round"/><circle cx="8" cy="2" r=".8" fill="currentColor" stroke="none"/><circle cx="6" cy="9" r=".9" fill="currentColor" stroke="none"/><circle cx="10" cy="9" r=".9" fill="currentColor" stroke="none"/></svg></span><span class="nm">Notetaker</span></span><span class="t b"><span class="bot"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><rect x="3" y="5" width="10" height="8" rx="2.5"/><path d="M8 5V2.5" stroke-linecap="round"/><circle cx="8" cy="2" r=".8" fill="currentColor" stroke="none"/><circle cx="6" cy="9" r=".9" fill="currentColor" stroke="none"/><circle cx="10" cy="9" r=".9" fill="currentColor" stroke="none"/></svg></span><span class="nm">Notetaker</span></span></div></div>
+          <figcaption>Two people, eight participants.</figcaption>
+        </figure>
+      </details>
+      <details open>
         <summary><h3>Does anything leave my Mac?</h3></summary>
-        <p>Your audio and transcripts stay on your Mac, in one folder, kept forever or for 30 days. Dictate goes online for its speech models (1.6 GB, once) and for updates, which count checks by app, version and country and never store your IP address. If you connect an agent, it can read your transcripts, and where it sends them depends on that agent. <a href="https://github.com/spashii/dictate/blob/main/docs/user/data.md">Where everything is kept</a></p>
+        <p>Your audio and transcripts stay on your Mac in one folder. By default the audio is deleted after 7 days and the transcript after 30. You can delete the audio once it's transcribed or after 1 day, or keep it forever in developer mode. History can be kept for 7 days, 30 days or forever. Dictate goes online once for its speech models (1.6 GB) and later for updates. The update server counts checks by app, version and country. It never stores your IP address. If you connect an agent it can read your transcripts. Where it sends them depends on that agent. <a href="https://github.com/spashii/dictate/blob/main/docs/user/data.md">Where everything is kept</a></p>
       </details>
       <details>
         <summary><h3>What will it cost?</h3></summary>
-        <p>Free forever for the first 50 early access users. After early access, a lifetime license costs <span data-price>$49</span>.</p>
-      </details>
-      <details>
-        <summary><h3>Should I tell people I'm transcribing a call?</h3></summary>
-        <p>Yes. Dictate does not tell the other side, and the rules differ by country.</p>
+        <p>Free forever for the first 50 early access users. After early access, a regular lifetime license is <span data-price>$49</span>.</p>
       </details>
       <details>
         <summary><h3>How is it different from Handy and OpenSuperWhisper?</h3></summary>
@@ -355,23 +362,23 @@
       </details>
       <details>
         <summary><h3>Is it open source?</h3></summary>
-        <p>No. It is source available under FSL-1.1-MIT: you can read, change and run the code, but not offer it in a commercial product that competes with it. Each version becomes MIT two years after release, and versions up to 0.11.0 already are. The code and licence are on <a href="https://github.com/spashii/dictate">GitHub</a>.</p>
+        <p>No. It is source available under FSL-1.1-MIT. You can read, change and run the code. You cannot offer it in a commercial product that competes with it. Each version becomes MIT two years after release, and versions up to 0.11.0 already are. The code and license are on <a href="https://github.com/spashii/dictate">GitHub</a>.</p>
       </details>
       <details>
-        <summary><h3>Why do I need to activate it as an early access user?</h3></summary>
+        <summary><h3>Why do I need to activate it?</h3></summary>
         <p>Dictate is free, and I want to know who uses it. Your email gets the code, and I might write to hear how you use Dictate and what's missing. Tell me to stop and I will. The app does not sign in and does not report what you do.</p>
       </details>
       <details>
         <summary><h3>What does it ask permission for?</h3></summary>
-        <p>Microphone, to hear you. Accessibility, to paste into the app you are in; without it your text waits on the clipboard. Call audio, to hear the other side of an online call; it records only the call app's sound, and you can skip it and still dictate.</p>
+        <p>Microphone, to hear you. Accessibility, to paste into the app you are in. Without it your text waits on the clipboard. Call audio, to hear the other side of an online call. It records only the call app's sound. You can skip it and still dictate.</p>
       </details>
       <details>
         <summary><h3>What can my agent see?</h3></summary>
-        <p>Your dictations and call transcripts, through the tools you leave on. The server listens only on your Mac and needs the token in Settings, Agents. Tools that record or change anything start off, because your agent reads what the other side of a call says, and that could steer it.</p>
+        <p>Your dictations and call transcripts, through the tools you leave on. The server listens only on your Mac and needs the token from the Agents settings. Tools that record or change anything start off. Your agent reads what the other side of a call says, and that could steer it.</p>
       </details>
       <details>
         <summary><h3>I use OpenSuperWhisper, which also uses Option+`. Will they clash?</h3></summary>
-        <p>Change the shortcut in one of them, in Dictate under Settings, Shortcuts. If OpenSuperWhisper already has the speech model, Dictate reuses it instead of downloading 1.6 GB again.</p>
+        <p>Yes. Change the shortcut in one of them. In Dictate it is in the Shortcuts settings. If OpenSuperWhisper already has the speech model, Dictate reuses it instead of downloading 1.6 GB again.</p>
       </details>
       <details>
         <summary><h3>Which call apps work?</h3></summary>
@@ -379,11 +386,11 @@
       </details>
       <details>
         <summary><h3>Can I use it on my phone?</h3></summary>
-        <p>Not yet. If you have an Apple Watch, record the call as a voice memo. That's what I do. File import into Dictate is coming next.</p>
+        <p>Not yet. I record the call as a voice memo on my Apple Watch. Then I import the file into Dictate on my Mac.</p>
       </details>
       <details>
         <summary><h3>Which languages are supported?</h3></summary>
-        <p>English works best. Whisper also does well in Spanish, French, German, Italian, Portuguese, Dutch, Japanese, Chinese and Korean. Other languages work too, with more mistakes. For those, pick Large v3 in Settings, Model.</p>
+        <p>English works best. Whisper also does well in Spanish, French, German, Italian, Portuguese, Dutch, Japanese, Chinese and Korean. Other languages work too, with more mistakes. For those, pick Large v3 in the Model settings.</p>
       </details>
       <details>
         <summary><h3>Why Whisper and not Parakeet?</h3></summary>
@@ -397,6 +404,7 @@
     <div class="get">
       <div class="actions"><a class="button primary" data-get href="https://dictate.firstversion.in/get">Download for Mac (Apple silicon)</a></div>
       <p class="meta" data-founding><span data-left>Free forever for the first 50 early&nbsp;access&nbsp;users.</span></p>
+      <p class="meta"><span>Needs an Apple silicon Mac with macOS 15 or later.</span></p>
     </div>
   </section>
 
@@ -406,7 +414,7 @@
       <a class="work-item" href="https://dembrane.com">
         <img src="dembrane.png" alt="" width="52" height="52">
         <div><h3>dembrane</h3>
-        <p>Makes sense of big, messy conversations, so everyone can shape what happens next.</p></div>
+        <p>Makes sense of big and messy conversations, so everyone can shape what happens next.</p></div>
       </a>
       <a class="work-item" href="https://spashii.github.io/blend/">
         <img src="blend.svg" alt="" width="52" height="52">
@@ -459,11 +467,13 @@ document.querySelectorAll(".note").forEach(note => {
 });
 </script>
 <script>
-/* Hero demo, a 26.3 second loop in three steps: record your calls (about 13 seconds), dictate in any
+/* Hero demo, a 29.2 second loop in three steps: record your calls (about 16 seconds), dictate in any
    app and ask your agent about your calls (about six seconds each). It opens on the meeting window with a Join button, so the
    first frame shows where a call starts before Dictate does anything. The pointer clicks Join and
    the call starts at 0:00 a beat after the press, so the press shows, and the Record this call?
-   nudge appears with it, one sequence, because Dictate notices the call the moment it begins. The
+   nudge appears with it, one sequence, because Dictate notices the call the moment it begins. Before
+   Record is pressed the meeting's captions show you asking Alex and Alex agreeing. The page tells
+   people to ask first, so the demo does it too. The
    call clock ticks in real time, one second per second, from 0:00 at the call start to the end of
    the drawn call, and the stopped pill shows that same elapsed time. One function of
    t feeds the call window, the recording pill and the stopped pill, so they always agree. Then the
@@ -487,6 +497,7 @@ document.querySelectorAll(".note").forEach(note => {
   const scene = $("scene"), cam = $("cam"), beats = $("beats"), pause = $("pause");
   const mbicon = $("mbicon"), callwin = $("callwin"), ctime = $("ctime"), mbApp = $("mb-app");
   const join = $("join"), nudge = $("nudge"), recbtn = $("recbtn"), cursor = $("cursor");
+  const cap1 = $("cap1"), cap2 = $("cap2");
   const callpill = $("callpill"), ptime = $("ptime"), lines = [...callpill.querySelectorAll(".ln")];
   const stopped = $("stopped"), stime = $("stime");
   const dpill = $("dpill"), dtext = $("dtext"), dtime = $("dtime"), lvl = $("lvl"), hud = $("hud");
@@ -495,20 +506,20 @@ document.querySelectorAll(".note").forEach(note => {
   const tools = [...chat.querySelectorAll(".tw")];
   const phases = [...beats.querySelectorAll(".phase")], bars = phases.map(b => b.querySelector(".prog b"));
 
-  // The call's lines arrive a second apart from 3.1 s, one per line in the markup; the call ends three
+  // The call's lines arrive a second apart from 6 s, one per line in the markup; the call ends three
   // seconds after the last, and step 2 starts a second later.
-  const LINES = lines.map((_, i) => 3100 + 1000 * i), END = LINES[LINES.length - 1] + 3000, S = END + 1000;
+  const LINES = lines.map((_, i) => 6000 + 1000 * i), END = LINES[LINES.length - 1] + 3000, S = END + 1000;
   const T = {
-    cursorIn: 300, joinClick: 1000, join: 1150, toRec: 1300, click: 2400, rec: 2600, lines: LINES, end: END,
+    cursorIn: 300, joinClick: 1000, join: 1150, cap1: 1650, cap2: 3900, toRec: 4400, click: 5300, rec: 5500, lines: LINES, end: END,
     step2: S, keys1: S + 400, press1: S + 550, dict: S + 650, chunks: [S + 1000, S + 1650, S + 2300, S + 2950],
     keys2: S + 3300, press2: S + 3450, busy: S + 3500, type: [S + 3800, S + 4600], send: S + 5800,
-    step3: S + 5800, tools: [S + 6000, S + 6450, S + 6900, S + 7350], sum: [S + 7900, S + 8900], mail: [S + 9100, S + 10100],
+    step3: S + 5800, tools: [S + 6000, S + 6600, S + 7200], sum: [S + 7900, S + 8900], mail: [S + 9100, S + 10100],
     fade: S + 12600, loop: S + 13200
   };
   const STEPS = [0, T.step2, T.step3, T.fade];
   // One still frame per phase for reduced motion: the call with its last three lines, two chunks of words, the answer.
   const STILL = [LINES[LINES.length - 1] + 1500, T.chunks[1] + 200, T.mail[1]];
-  const SAID = ["Summarize my call with Alex", "and draft a follow-up email.", "Check our earlier calls too,", "and add any names you misheard to my key terms."];
+  const SAID = ["Summarize my call", "with Alex and draft", "a follow-up email.", "Check our earlier calls too."];
 
   // The scene is drawn at 420 by 500 (360 on a narrow column) and scaled to the column.
   // On a narrow column the scene is drawn 360 wide with no camera lean, so the type stays near its real size.
@@ -564,6 +575,9 @@ document.querySelectorAll(".note").forEach(note => {
     const sec = t0 => Math.max(0, Math.floor((t0 - T.join) / 1000));
     txt(ctime, t >= T.end ? "Call ended" : clock(sec(t)));
     cls(nudge, "on", on(T.join, T.rec));
+    // Before Record, you ask and Alex agrees, as the meeting app's captions.
+    cls(cap1, "on", on(T.cap1, T.cap2 - 150));
+    cls(cap2, "on", on(T.cap2, T.rec + 600));
     const joinDown = on(T.joinClick, T.joinClick + 200), click = on(T.click, T.click + 200);
     cls(join, "down", joinDown);
     cls(recbtn, "down", click);

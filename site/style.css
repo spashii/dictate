@@ -131,8 +131,8 @@
 .stage .lights i:nth-child(3) { background: #28c840; }
 
 .callwin { left: 60px; top: 136px; width: 300px; height: 288px; }
-.callwin .tile { margin: 10px; height: 186px; border-radius: 10px; background: var(--tile); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
-.callwin .avatar { width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center; background: var(--fill2); color: var(--text2); font: 600 28px/1 var(--sans); margin-bottom: 4px; }
+.callwin .tile { margin: 10px 10px 0; height: 156px; border-radius: 10px; background: var(--tile); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+.callwin .avatar { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: var(--fill2); color: var(--text2); font: 600 28px/1 var(--sans); margin-bottom: 4px; }
 .callwin .who { font: 600 15px/1.2 var(--sans); }
 .callwin .slot { position: relative; display: grid; place-items: center; width: 100%; height: 24px; }
 .callwin .slot > * { grid-area: 1 / 1; transition: opacity .25s ease, transform .12s; }
@@ -145,6 +145,11 @@
 .callwin .ctime { color: var(--text2); font: 500 12px/16px var(--sans); font-variant-numeric: tabular-nums; }
 .callwin .ctrls { display: flex; justify-content: center; gap: 14px; }
 .callwin .cb { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--fill2); color: var(--text); }
+/* The meeting app's captions, between the video and the controls: one line said at a time. */
+.callwin .caps { display: grid; height: 40px; margin: 6px 14px; align-items: center; text-align: center; font: 400 12px/16px var(--sans); }
+.callwin .cap { grid-area: 1 / 1; margin: 0; text-wrap: balance; opacity: 0; transition: opacity .3s ease; }
+.callwin .cap.on { opacity: 1; }
+.callwin .cap b { font-weight: 600; color: var(--text2); margin-right: 4px; }
 .callwin .cb.end { background: var(--endcall); color: #fff; }
 .callwin .cb svg { width: 16px; height: 16px; }
 
@@ -205,7 +210,11 @@
 .pill .s { color: var(--p2); }
 .pill .tn { font-variant-numeric: tabular-nums; }
 .pill .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--rec); }
-.nudge { top: 74px; width: 340px; height: 32px; padding: 0 14px; border-radius: 16px; display: flex; align-items: center; gap: 8px; }
+/* As in 0.15.1: the question and the call app on one line, Ask before you record. under them. */
+.nudge { top: 74px; width: 340px; height: 48px; padding: 0 14px; border-radius: 16px; display: flex; align-items: center; gap: 8px; }
+.nudge .q { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.nudge .q .r { display: flex; gap: 8px; min-width: 0; }
+.nudge .ask { font: 400 11px/14px var(--sans); color: var(--p2); }
 .pill .dic { flex: none; width: 14px; height: 14px; border-radius: 3.5px; display: block; }
 .nudge .sp { flex: 1; }
 .nudge > span { white-space: nowrap; }
@@ -392,3 +401,28 @@
 .note-mark:hover, .note-mark[aria-expanded="true"] { text-decoration-color: currentColor; }
 .note-pop { position: absolute; z-index: 30; top: calc(100% + var(--sp-2)); left: 0; width: min(420px, calc(100vw - 32px)); padding: var(--sp-4) var(--sp-5); hyphens: manual; border-radius: var(--radius-card); background: var(--surface); box-shadow: 0 0 0 1px var(--hairline), var(--float); color: var(--text); text-align: left; white-space: normal; }
 .note-pop:not([hidden]) { display: block; }
+
+/* Data retention card: the two pickers of Settings, Data retention in 0.15.1 at their defaults. The audio
+   picker is drawn open so the shorter choices show. Its menu lies over the button the way macOS opens
+   a pop-up, with the checked item on the button. The rows sit low in the well to leave the menu room. */
+.art.ret { justify-content: flex-end; }
+.art.ret .toggle-row { position: relative; }
+.art .popup { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; white-space: nowrap; }
+.art .popup.open { visibility: hidden; }
+.art .popup svg { width: 7px; height: 11px; color: var(--text2); }
+.art .menu { position: absolute; right: 4px; bottom: 3px; z-index: 1; display: flex; flex-direction: column; padding: 5px; border-radius: 8px; background: var(--pill); box-shadow: 0 0 0 .5px var(--pill-edge), var(--pill-shadow); font-size: 13px; line-height: 22px; white-space: nowrap; }
+.art .menu > span { position: relative; padding: 0 22px 0 22px; border-radius: 4px; }
+.art .menu .sel::before { content: ""; position: absolute; left: 8px; top: 6px; width: 4px; height: 8px; border: solid var(--text); border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); }
+
+/* Under the consent answer: a meeting where six of eight participants are notetaker bots. Smaller and in
+   softer tones than the cards, so the answer stays the main thing. */
+.faq-list details > .bots { max-width: 360px; margin: var(--sp-2) 0 0; }
+.botwin { border-radius: 12px; background: var(--win); box-shadow: 0 0 0 .5px var(--winedge); overflow: hidden; color: var(--text2); font: 500 11px/14px var(--sans); }
+.botwin .bt-title { padding: 7px 10px; border-bottom: 1px solid var(--sep); text-align: center; font-weight: 600; color: var(--text); }
+.botwin .grid8 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 8px; }
+.botwin .t { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; aspect-ratio: 4 / 3; border-radius: 6px; background: var(--tile); }
+.botwin .av { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--fill2); color: var(--text); font-weight: 600; }
+.botwin .bot { display: grid; place-items: center; width: 24px; height: 24px; }
+.botwin .bot svg { width: 18px; height: 18px; }
+.botwin .b { opacity: .8; }
+.bots figcaption { margin-top: var(--sp-2); }

@@ -157,7 +157,7 @@
   function founding(json) {
     // The group the activation put this Mac in, named once on the done step.
     const n = json.founding_no;
-    $("ent").textContent = json.ent === "founding" && Number.isInteger(n) ? `You're early\u00a0access\u00a0user ${n} of 50, so Dictate is free for you forever.` : "Dictate is free for you for now.";
+    $("ent").textContent = json.ent === "founding" && Number.isInteger(n) ? `You're early\u00a0access\u00a0user ${n} of 50, so Dictate is free for you forever.` : "Dictate is free for you during early access.";
   }
 
   $("open-app").addEventListener("click", () => {

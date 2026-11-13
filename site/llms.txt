@@ -1,18 +1,20 @@
 # Dictate
 
-> Dictate is fast local dictation and call transcription for Mac. It types what you say into any app, and records your online calls with your side and theirs kept apart. It runs on your Mac, and no bot joins the call. Apple silicon, macOS 15 or later.
+> Dictate is fast local dictation and call transcription for Mac. It types what you say into any app and transcribes your online calls with your side and theirs kept apart. It runs on your Mac, and no bot joins the call. Apple silicon, macOS 15 or later.
 
-- Price: free forever for the first 50 early access users.
+- Price: free forever for the first 50 early access users. After early access, a regular lifetime license is $49 (€49 by region).
 - Activation: you activate each Mac once in your browser with your email and a code. The app does not sign in and does not report what you do.
-- Dictation: press Option and backtick, talk, press again, and the text lands in the app you were writing in.
-- Calls: it asks before it records, and records your microphone and the call's audio separately, so every line is labelled Me or Call. Works with Zoom, Teams, Slack, Discord, FaceTime, WhatsApp, Signal, Telegram, Webex, Skype, Element and calls in a browser tab.
-- Fix the text before pasting: a model in Ollama on your Mac corrects the transcript. Off until you turn it on.
+- Dictation: press Option and backtick and talk. Press again and the text lands in the app you were writing in.
+- Calls: Dictate asks you before it records. It records your microphone and the call's audio separately, so every line is labeled Me or Call. Works with Zoom, Teams, Slack, Discord, FaceTime, WhatsApp, Signal, Telegram, Webex, Skype, Element and calls in a browser tab.
+- Fix the text before pasting: a model on your Mac (Apple Intelligence or Ollama) corrects misheard words. Off until you turn it on.
 - Retries: Whisper scores each part, and parts below a confidence threshold are decoded again. Dictate keeps the better version.
-- Key terms: names Whisper gets wrong, spelled your way. Suggestions are added only when you press Add.
+- Key terms: names Whisper gets wrong, spelled your way. Correct a name in History and it becomes a key term.
+- History: every dictation, call and imported file in one searchable place. Calls get a short title.
+- Import: drop an audio or video file on History and it is transcribed on your Mac.
 - Agents: Claude Code or any MCP client can search your dictations and calls through a local MCP server. Tools that record or change anything start off.
-- Licence: source available under FSL-1.1-MIT. Each version becomes MIT two years after release.
-- Alternatives: Handy and OpenSuperWhisper, which are close at the core. Dictate adds retries, online calls with both sides apart, and the MCP server.
-- Privacy: your audio and transcripts stay on your Mac. Dictate goes online for its speech models (once) and for updates, which count checks by app, version and country and never store your IP address.
+- License: source available under FSL-1.1-MIT. Each version becomes MIT two years after release.
+- Alternatives: Handy and OpenSuperWhisper, which are close at the core. Dictate adds three things: retries, online calls with both sides apart and the MCP server.
+- Privacy: your audio and transcripts stay on your Mac. Dictate goes online once for its speech models and later for updates. The update server counts checks by app, version and country. It never stores your IP address.
 
 ## Links
 

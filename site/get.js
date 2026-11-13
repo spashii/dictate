@@ -7,9 +7,9 @@
    time zone, then the language region. [data-price] is Dictate's own price, where only the sign changes.
    [data-eur] holds the euro text for a price that is not the same number in both, such as another app's.
    The founding spots count is fetched once and appends "N spots left." to the founding sentence in every [data-left]; if the
-   request fails the sentence stands alone. At zero the sentence says the spots are taken and each
-   Download block that holds a [data-left] gets, under it, the price line ("Free until launch, then a
-   one-time $49.", in euros where the rest switch) and an email form collecting an address for the launch email, so
+   request fails the sentence stands alone. At zero the sentence says the spots are taken. Each
+   Download block that holds a [data-left] then gets the price line under it ("After early access, a regular
+   lifetime license is $49." in euros where the rest switch) and a form for the one email sent when licenses go on sale, so
    every page with the block gets them without markup. The price appears only in that state. Preview hosts
    (localhost and the tailnet) can add ?spots=0 to show that sold-out state without the fetch. */
 (function () {
@@ -145,7 +145,7 @@
     var id = "notify-" + i;
     var form = el("form", "notify");
     form.setAttribute("novalidate", "");
-    var label = el("label", "", "Get the launch-week price by email.");
+    var label = el("label", "", "Get an email when licenses go on sale.");
     label.htmlFor = id;
     var row = el("div", "notify-row");
     var input = el("input");
@@ -169,7 +169,7 @@
     var ts = el("div", "notify-ts");
     var consent = el("p", "meta");
     consent.id = id + "-consent";
-    consent.appendChild(el("span", "", "I'll email you once, when Dictate launches."));
+    consent.appendChild(el("span", "", "I'll email you once, when licenses go on sale."));
     [label, row, done, err, ts, consent].forEach(function (n) { form.appendChild(n); });
     group.appendChild(form);
     return form;
@@ -182,8 +182,8 @@
     var after = spot.closest ? spot.closest("p") : spot.parentNode;
     var p = el("p", "meta");
     p.setAttribute("data-install-hide", "");
-    var outer = el("span", "", "Free until launch, then ");
-    var nowrap = el("span", "nowrap", "a one-time ");
+    var outer = el("span", "", "After early access, a regular ");
+    var nowrap = el("span", "nowrap", "lifetime license is ");
     var price = el("span", "", "$49");
     price.setAttribute("data-price", "");
     nowrap.appendChild(price);
