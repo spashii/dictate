@@ -54,7 +54,16 @@ final class HistoryModel {
         filter == .all ? entries : entries.filter(filter.includes)
     }
 
-    var selected: HistoryEntry? { visible.first { $0.id == selection } }
+    var selected: HistoryEntry? { entry(selection) }
+
+    /// The recording that was open when the list last held it. While a search is set it stays
+    /// open even if the search drops it from the list, and the list shows it again when the search clears.
+    @ObservationIgnored private var held: HistoryEntry?
+
+    private func entry(_ id: HistoryEntry.ID?) -> HistoryEntry? {
+        if let row = visible.first(where: { $0.id == id }) { return row }
+        return search.isEmpty || held?.id != id ? nil : held
+    }
 
     var activeMatch: FindMatch? { matches.indices.contains(currentMatch) ? matches[currentMatch] : nil }
 
@@ -112,7 +121,8 @@ final class HistoryModel {
             return
         }
         entries = read
-        if detail == nil || !visible.contains(where: { $0.id == selection }) {
+        if let now = visible.first(where: { $0.id == selection }) { held = now }
+        if detail == nil || (selected == nil) {
             keepSelection()
         } else if let before, let now = selected, before != now || (now.isLive && now.fileName != nil) {
             refreshDetail()
@@ -155,7 +165,7 @@ final class HistoryModel {
     func select(_ id: HistoryEntry.ID?) {
         loading?.cancel()
         player.stop()
-        guard let entry = visible.first(where: { $0.id == id }) else {
+        guard let entry = entry(id) else {
             detail = nil
             blocks = []
             rebuildMatches(restart: true)
@@ -163,6 +173,7 @@ final class HistoryModel {
             waveform = []
             return
         }
+        held = entry
         loads += 1
         generations += 1
         let generation = generations
@@ -543,19 +554,25 @@ private struct FilterSegments: NSViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     /// AppKit's own distribution leaves the segments at the width of the first layout when the
-    /// column is dragged, so each is sized from its label whenever the control's width changes.
+    /// column is dragged, so they are sized whenever the control's width changes: equal, as in
+    /// Finder, unless the longest label doesn't fit an equal share, then in proportion to the labels.
     final class StretchedSegments: NSSegmentedControl {
         override func setFrameSize(_ size: NSSize) {
             super.setFrameSize(size)
-            let weights = (0..<segmentCount).map { (label(forSegment: $0) ?? "").size(withAttributes: [.font: NSFont.systemFont(ofSize: 13)]).width + 20 }
+            let weights = (0..<segmentCount).map { (label(forSegment: $0) ?? "").size(withAttributes: [.font: font]).width + 20 }
             let total = weights.reduce(0, +)
             guard total > 0 else { return }
+            let share = (size.width - 4) / CGFloat(segmentCount)
+            if let widest = weights.max(), widest <= share {
+                for index in 0..<segmentCount { setWidth(share.rounded(.down), forSegment: index) }
+                return
+            }
             let scale = max(1, (size.width - 4) / total)
             for (index, weight) in weights.enumerated() { setWidth((weight * scale).rounded(.down), forSegment: index) }
         }
     }
 
-    final class Coordinator: NSObject {
+    @MainActor final class Coordinator: NSObject {
         var parent: FilterSegments
         init(_ parent: FilterSegments) { self.parent = parent }
         @objc func changed(_ sender: NSSegmentedControl) {
@@ -834,6 +851,13 @@ private struct HistoryDetailView: View {
                 .onChange(of: history.search) {
                     if let block = history.activeMatch?.block { proxy.scrollTo(block, anchor: .center) }
                 }
+                // The new recording's scroll view is made in this same pass, so the scroll waits a turn.
+                .onChange(of: detail.entry.id) {
+                    Task {
+                        await Task.yield()
+                        if let block = history.activeMatch?.block { proxy.scrollTo(block, anchor: .center) }
+                    }
+                }
                 .onChange(of: playingBlock) { _, id in
                     guard player.isPlaying, let id else { return }
                     proxy.scrollTo(id)
@@ -856,19 +880,18 @@ extension HistoryDetailView {
     }
 }
 
-/// Where the search is in the open recording: the count and the steppers, shown while a search is set.
+/// Where the search is in the open recording: the count and the steppers, shown while it has a match.
 private struct MatchSteppers: View {
     let history: HistoryModel
 
     var body: some View {
-        if !history.search.isEmpty {
+        if !history.matches.isEmpty {
             HStack(spacing: 6) {
-                Text(history.matches.isEmpty ? "No matches" : "\(history.currentMatch + 1) of \(history.matches.count)")
+                Text("\(history.currentMatch + 1) of \(history.matches.count)")
                     .font(.callout)
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
-                    .accessibilityLabel(history.matches.isEmpty ? "No matches"
-                                        : "Match \(history.currentMatch + 1) of \(history.matches.count)")
+                    .accessibilityLabel("Match \(history.currentMatch + 1) of \(history.matches.count)")
                 Button { history.stepMatch(-1) } label: { Image(systemName: "chevron.up") }
                     .help("Previous match")
                     .accessibilityLabel("Previous match")
