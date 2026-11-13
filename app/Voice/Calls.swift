@@ -100,6 +100,8 @@ final class CallsModel {
     @ObservationIgnored private var ollamaRequest: Task<String?, Never>?
     /// An Ollama model is naming a call, so the Mac is not quiet: nothing should restart it.
     private(set) var ollamaTitling = false
+    /// Calls whose title is being made, for History's "Naming\u{2026}".
+    private(set) var naming: Set<String> = []
     private static let quiet: Duration = .seconds(20)
 
     init() {
@@ -118,6 +120,9 @@ final class CallsModel {
     }
 
     #if DEBUG
+    /// The app-shots run shows a call whose title is being made.
+    func setNamingForSnapshots(_ ids: Set<String>) { naming = ids }
+
     /// The app-shots run fills the menu's Recent list without a database behind it.
     func setRecentForSnapshots(_ calls: [Call]) { recent = calls }
 
@@ -438,12 +443,15 @@ final class CallsModel {
         let usesOllama: Bool
         if case .ollama = choice { usesOllama = true } else { usesOllama = false }
 
+        // Cheap and off the main actor, so a call that can't be titled never waits for a
+        // quiet Mac or takes whisper's memory, and never shows as being named.
+        guard await Task.detached(priority: .utility, operation: {
+            CallTitler().isEligible(callID, in: store)
+        }).value else { return }
+        naming.insert(callID)
+        defer { naming.remove(callID) }
+
         if usesOllama {
-            // Cheap and off the main actor, so a call that can't be titled never waits for a
-            // quiet Mac or takes whisper's memory.
-            guard await Task.detached(priority: .utility, operation: {
-                CallTitler().isEligible(callID, in: store)
-            }).value else { return }
             // A dictation can start while whisper unloads, so the Mac is checked again after.
             var ready = false
             while !ready {

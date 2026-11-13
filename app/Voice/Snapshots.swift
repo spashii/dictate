@@ -42,6 +42,8 @@ enum Snapshots {
                     await write(folder, "history-\(name)-list-\(suffix)",
                                 try await historyWindow(model, HistoryModel(store: store), listWidth: width, dark: dark))
                 }
+                await write(folder, "history-naming-\(suffix)", try await namingWindow(model, store: store, dark: dark))
+                await write(folder, "transcript-hover-\(suffix)", try await transcriptHoverWindow(model, store: store, dark: dark))
                 await write(folder, "history-plus-menu-\(suffix)", try await plusMenu(model, store: store, dark: dark))
                 await write(folder, "history-import-progress-\(suffix)",
                             try await importWindow(model, store: store, selecting: "call:interview", dark: dark))

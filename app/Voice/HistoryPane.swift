@@ -486,6 +486,7 @@ private struct HistoryList: View {
                         HistoryRow(entry: entry, renaming: history.renaming == entry.id,
                                    importState: ImportRowState.of(entry, progress: calls.importProgress[entry.ref],
                                                                   waiting: calls.importsWaiting.contains(entry.ref)),
+                                   naming: calls.naming.contains(entry.ref),
                                    commit: { history.rename(entry, to: $0) }, cancel: { history.renaming = nil })
                             .equatable()
                             .onAppear { history.loadMoreIfNeeded(at: entry) }
@@ -508,6 +509,8 @@ private struct HistoryList: View {
                     .onChange(of: history.renaming) { _, id in
                         if let id { proxy.scrollTo(id) }
                     }
+                    // A title that was just made is read now, not at the next refresh.
+                    .onChange(of: calls.naming) { history.reload() }
                 }
             }
         }
@@ -589,11 +592,13 @@ private struct HistoryRow: View, @MainActor Equatable {
     let entry: HistoryEntry
     let renaming: Bool
     let importState: ImportRowState?
+    /// The row's call is being named, which is only said for a call without a title.
+    let naming: Bool
     let commit: (String) -> Void
     let cancel: () -> Void
 
     static func == (a: Self, b: Self) -> Bool {
-        a.entry == b.entry && a.renaming == b.renaming && a.importState == b.importState
+        a.entry == b.entry && a.renaming == b.renaming && a.importState == b.importState && a.naming == b.naming
     }
 
     var body: some View {
@@ -606,10 +611,14 @@ private struct HistoryRow: View, @MainActor Equatable {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     if renaming {
                         RenameField(initial: entry.customTitle ?? "", prompt: entry.fileName ?? date, commit: commit, cancel: cancel)
+                    } else if namingNow {
+                        Text(RowNaming.label).foregroundStyle(.secondary).lineLimit(1)
+                            .transition(.opacity)
                     } else {
                         Text(entry.customTitle ?? entry.fileName ?? date).fontWeight(.semibold).lineLimit(1)
                             // A file name keeps its extension; a title reads from its start.
                             .truncationMode(entry.customTitle == nil && entry.fileName != nil ? .middle : .tail)
+                            .transition(.opacity)
                         if entry.customTitle == nil, entry.fileName == nil, let zone = entry.originalZoneLabel {
                             Text(zone).font(.caption).foregroundStyle(.secondary)
                         }
@@ -643,7 +652,13 @@ private struct HistoryRow: View, @MainActor Equatable {
             }
         }
         .padding(.vertical, 3)
+        .animation(.easeInOut(duration: 0.25), value: namingNow)
+        .animation(.easeInOut(duration: 0.25), value: entry.customTitle)
         .help(entry.customTitle ?? entry.fileName ?? date)
+    }
+
+    private var namingNow: Bool {
+        naming && RowNaming.shows(entry, naming: [entry.ref], importState: importState)
     }
 
     /// A renamed recording shows what it was, then its date and time; one without a name

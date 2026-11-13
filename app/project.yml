@@ -148,6 +148,7 @@ targets:
       - path: Voice/MainPane.swift
       - path: Voice/HistoryDisplay.swift
       - path: Voice/HistoryImport.swift
+      - path: Voice/RowNaming.swift
       - path: Voice/SecureInput.swift
       - path: Voice/LocalModelChoice.swift
       - path: Voice/RecentCallLabel.swift
