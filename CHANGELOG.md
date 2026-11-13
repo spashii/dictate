@@ -10,14 +10,14 @@ stops when VERSION has no entry here.
 
 ## 0.15.2 (unreleased)
 
-- **Data retention.** Settings, Setup deletes audio after 7 days and history after 30 days unless you choose otherwise. Developer mode keeps everything, and asks before deleting when you turn it off.
+- **Data retention.** Dictate deletes audio after 7 days and history after 30 days. You can change both in Settings, Setup. Developer mode keeps everything and asks before deleting when you turn it off.
 - **Audio deleted.** A recording whose audio is gone says so in History where the player was.
 - **Ask before you record.** The Record this call? prompt now says it.
 - **Retry unsure words.** Retry unsure segments has a new name.
 
 ## 0.15.1 (2026-11-13)
 
-- History fills the window again when a filter has nothing in it.
+- **Empty filters.** History fills the window again when a filter has nothing in it.
 
 ## 0.15.0 (2026-11-13)
 
