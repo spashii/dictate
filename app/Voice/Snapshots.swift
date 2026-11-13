@@ -47,6 +47,10 @@ enum Snapshots {
                 await write(folder, "history-naming-\(suffix)", try await namingWindow(model, store: store, dark: dark))
                 await write(folder, "transcript-hover-\(suffix)", try await transcriptHoverWindow(model, store: store, dark: dark))
                 await write(folder, "history-plus-menu-\(suffix)", try await plusMenu(model, store: store, dark: dark))
+                await write(folder, "history-title-menu-\(suffix)",
+                            try await rowMenu(model, store: store, recording: "call:rollout", at: NSPoint(x: 330, y: 234), dark: dark))
+                await write(folder, "history-title-menu-generate-\(suffix)",
+                            try await rowMenu(model, store: store, recording: "call:short", at: NSPoint(x: 330, y: 416), dark: dark))
                 await write(folder, "history-import-progress-\(suffix)",
                             try await importWindow(model, store: store, selecting: "call:interview", dark: dark))
                 await write(folder, "history-import-detail-\(suffix)",
@@ -173,9 +177,9 @@ enum Snapshots {
         return toolbar.search.map { withSearchField(plus, frame: $0, text: search.isEmpty ? searchingAfter : search, size: size, dark: dark) } ?? plus
     }
 
-    /// Where History's + sits in the window, in points from its top left: the toolbar button the bitmap draw puts at the
+    /// Where History's New button sits in the window, in points from its top left: the toolbar button the bitmap draw puts at the
     /// trailing edge.
-    /// The + as laid out in the last History window drawn, for the shots that hang something under it.
+    /// The button as laid out in the last History window drawn, for the shots that hang something under it.
     static var plusFrame = NSRect(x: 1016, y: 8, width: 36, height: 36)
 
     static let plusButton = NSRect(x: 1016, y: 8, width: 36, height: 36)
@@ -202,13 +206,13 @@ enum Snapshots {
             shadow.shadowOffset = NSSize(width: 0, height: -1)
             shadow.set()
             (dark ? NSColor(white: 0.24, alpha: 1) : NSColor(white: 0.985, alpha: 1)).setFill()
-            NSBezierPath(ovalIn: frame).fill()
+            NSBezierPath(roundedRect: frame, xRadius: frame.height / 2, yRadius: frame.height / 2).fill()
             NSGraphicsContext.restoreGraphicsState()
             (dark ? NSColor(white: 1, alpha: 0.16) : NSColor(white: 0, alpha: 0.1)).setStroke()
-            let ring = NSBezierPath(ovalIn: frame.insetBy(dx: 0.25, dy: 0.25))
+            let ring = NSBezierPath(roundedRect: frame.insetBy(dx: 0.25, dy: 0.25), xRadius: frame.height / 2, yRadius: frame.height / 2)
             ring.lineWidth = 0.5
             ring.stroke()
-            if let symbol = NSImage(systemSymbolName: "plus", accessibilityDescription: nil)?
+            if let symbol = NSImage(systemSymbolName: "tray.and.arrow.down", accessibilityDescription: nil)?
                 .withSymbolConfiguration(.init(pointSize: 14, weight: .regular)) {
                 let tint = dark ? NSColor(white: 1, alpha: 0.85) : NSColor(white: 0, alpha: 0.75)
                 let tinted = NSImage(size: symbol.size, flipped: false) { rect in

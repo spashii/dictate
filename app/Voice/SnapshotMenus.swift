@@ -22,7 +22,7 @@ extension Snapshots {
 
     // MARK: History + menu
 
-    /// History with the + menu open under its button, drawn from the real items the way the
+    /// History with the New menu open under its button, drawn from the real items the way the
     /// menu bar menu is. AppKit opens a menu below the button with its left edge on the button's,
     /// or against the window edge when it would run past it.
     static func plusMenu(_ model: AppModel, store: CallStore, dark: Bool) async throws -> NSBitmapImageRep? {
@@ -33,6 +33,32 @@ extension Snapshots {
         let window = try await historyWindow(model, HistoryModel(store: store), calls: calls, dark: dark)
         let menu = NSHostingMenu(rootView: HistoryNewMenu(chooseFiles: {}).environment(model).environment(calls))
         menu.update()
+        return await menuOver(window, menu, below: plusFrame, dark: dark)
+    }
+
+    /// A History row's right-click menu on the recording, open at the pointer.
+    static func rowMenu(_ model: AppModel, store: CallStore, recording id: String, at pointer: NSPoint,
+                        dark: Bool) async throws -> NSBitmapImageRep? {
+        model.setModelsForSnapshots(apple: .available, ollama: ["qwen3.5:9b", "gemma3:4b"], choice: .apple)
+        let calls = CallsModel()
+        let history = HistoryModel(store: store)
+        let window = try await historyWindow(model, history, calls: calls, dark: dark)
+        guard let entry = history.visible.first(where: { $0.id == id }) else {
+            throw VoiceError.store("The seeded recording is missing.")
+        }
+        let menu = NSHostingMenu(rootView: HistoryRowMenu(entry: entry, history: history).environment(model).environment(calls))
+        menu.update()
+        return await menuOver(window, menu, at: pointer, dark: dark)
+    }
+
+    private static func menuOver(_ window: NSBitmapImageRep?, _ menu: NSMenu, below button: NSRect, dark: Bool) async -> NSBitmapImageRep? {
+        let width = ReplicaRow.width(of: ReplicaRow.rows(of: menu))
+        let left = min(button.minX, (window?.size.width ?? 0) - 8 - width)
+        return await menuOver(window, menu, at: NSPoint(x: left, y: button.maxY + 4), dark: dark)
+    }
+
+    /// Draws the menu's replica with its top left at `point`, in points from the window's top left, as AppKit opens a menu at a click.
+    private static func menuOver(_ window: NSBitmapImageRep?, _ menu: NSMenu, at point: NSPoint, dark: Bool) async -> NSBitmapImageRep? {
         let rows = ReplicaRow.rows(of: menu)
         let width = ReplicaRow.width(of: rows), height = ReplicaRow.height(of: rows)
         let margin: CGFloat = 36
@@ -47,10 +73,8 @@ extension Snapshots {
               let context = NSGraphicsContext(bitmapImageRep: out) else { return nil }
         let windowSize = window.size
         out.size = windowSize
-        let button = plusFrame
-        let left = min(button.minX, windowSize.width - 8 - width)
-        // The panel sits 4 points under the button; its own margin holds the shadow.
-        let origin = NSPoint(x: left - margin, y: windowSize.height - (button.maxY + 4) - height - margin)
+        // The panel's own margin holds the shadow.
+        let origin = NSPoint(x: point.x - margin, y: windowSize.height - point.y - height - margin)
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = context
         context.cgContext.scaleBy(x: 2, y: 2)

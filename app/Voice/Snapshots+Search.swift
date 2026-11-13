@@ -13,7 +13,7 @@ extension Snapshots {
             let frame = view.convert(view.bounds, to: nil)
             let top = NSRect(x: frame.minX, y: height - frame.maxY, width: frame.width, height: frame.height)
             if name == "AppKitSearchField" { search = top }
-            if name == "NSToolbarPlatterView", frame.width == 36 { plus = top }
+            if name == "NSToolbarPlatterView", frame.width < 100 { plus = top }
             view.subviews.forEach(walk)
         }
         if let root = window.contentView?.superview { walk(root) }
