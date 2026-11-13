@@ -256,6 +256,8 @@
 .get .steps li::before { content: counter(step) "."; font-variant-numeric: tabular-nums; }
 .get .steps li + li { margin-top: 0; }
 .get .meta > span { text-wrap: wrap; }
+/* get.js appends the live count as plain text, so the markup cannot hold "41 spots left." together; balanced lines keep the count off a line of its own. */
+.get .meta > [data-left], .tier [data-founding] { text-wrap: balance; }
 
 /* And more: one line per item between hairlines, the same rule the Questions list draws, so the list
    sits quietly between the cards above and the FAQ below. */
