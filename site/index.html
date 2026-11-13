@@ -164,14 +164,15 @@
       <p class="lede">Dictate types what you say into any app, and records your online calls with your side and theirs kept apart. It runs on your Mac, and no bot joins the call.</p>
       <div class="get">
         <div class="actions"><a class="button primary" data-get href="https://dictate.firstversion.in/get">Download for Mac</a></div>
-        <p class="meta"><span>Free during the beta, then $49 once.</span> <span>The first 50 to activate keep it free for good.</span></p>
-        <p class="meta"><span>You activate Dictate with your email and a code.</span></p>
-        <p class="meta"><span>Apple silicon, macOS 15 or later</span></p>
+        <p class="meta" data-founding><span>The first 50 to activate keep it free for good.</span><span data-left hidden></span></p>
+        <p class="meta" data-install-hide><span>Free during the beta, then $49 once.</span></p>
+        <p class="meta" data-install-hide><span>Apple silicon, macOS 15 or later</span></p>
+        <p class="meta"><span>You activate Dictate with your email and a code.</span><span>The app does not sign in and does not report what you do.</span></p>
       </div>
     </div>
 
     <div class="demo-wrap">
-      <div class="stage frame mac" id="demo" role="img" aria-label="Animation of the whole flow, in three steps. One, record the call: a call with Alex is under way, Dictate asks Record this call?, Record is pressed, and the pill at the top of the screen fills with Me and Call lines until the call ends and the pill shows the stopped call. Two, ask your agent: a chat window titled Agent opens, you press Option and backtick, and the dictation pill shows your words as you speak: Summarize my call with Alex and draft a follow-up email. Check our earlier calls too, and add any names you misheard to my key terms. The text is pasted and sent. Three, use it with your own agent: the agent calls get_transcript, list_calls, search_transcripts and add_key_terms with Northwind and Q3 deck, then answers with a short summary and a draft email to Alex.">
+      <div class="stage frame mac" id="demo" role="img" aria-label="Animation of the whole flow, in three steps. One, record the call: a call with Alex is under way, Dictate asks Record this call?, Record is pressed, and the pill at the top of the screen fills with Me and Call lines until the call ends and the pill shows the stopped call. Two, dictate the ask: a chat window titled Agent opens, you press Option and backtick, and the dictation pill shows your words as you speak: Summarize my call with Alex and draft a follow-up email. Check our earlier calls too, and add any names you misheard to my key terms. The text is pasted and sent. Three, use it with your own agent: the agent calls get_transcript, list_calls, search_transcripts and add_key_terms with Northwind and Q3 deck, then answers with a short summary and a draft email to Alex.">
         <div class="scene" id="scene" aria-hidden="true">
           <div class="menubar"><span id="mb-app">Zoom</span><span class="mbicon" id="mbicon" data-state="idle"><svg viewBox="0 0 22 18" fill="currentColor"><g class="i-idle"><path fill-rule="evenodd" d="M0.5 7A2.5 2.5 0 0 1 5.5 7V11A2.5 2.5 0 0 1 0.5 11ZM1.9 7A1.1 1.1 0 0 1 4.1 7V11A1.1 1.1 0 0 1 1.9 11ZM7.5 3.5A2.5 2.5 0 0 1 12.5 3.5V14.5A2.5 2.5 0 0 1 7.5 14.5ZM8.9 3.5A1.1 1.1 0 0 1 11.1 3.5V14.5A1.1 1.1 0 0 1 8.9 14.5ZM14.5 7A2.5 2.5 0 0 1 19.5 7V11A2.5 2.5 0 0 1 14.5 11ZM15.9 7A1.1 1.1 0 0 1 18.1 7V11A1.1 1.1 0 0 1 15.9 11Z"/></g><g class="i-call"><path fill-rule="evenodd" d="M0.5 7A2.5 2.5 0 0 1 5.5 7V11A2.5 2.5 0 0 1 0.5 11ZM7.5 3.5A2.5 2.5 0 0 1 12.5 3.5V14.5A2.5 2.5 0 0 1 7.5 14.5ZM14.5 7A2.5 2.5 0 0 1 19.5 7V11A2.5 2.5 0 0 1 14.5 11Z"/><circle cx="20" cy="2.1" r="1.9"/></g><g class="i-dict"><path fill-rule="evenodd" d="M0.5 7A2.5 2.5 0 0 1 5.5 7V11A2.5 2.5 0 0 1 0.5 11ZM1.9 7A1.1 1.1 0 0 1 4.1 7V11A1.1 1.1 0 0 1 1.9 11ZM7.5 3.5A2.5 2.5 0 0 1 12.5 3.5V14.5A2.5 2.5 0 0 1 7.5 14.5ZM14.5 7A2.5 2.5 0 0 1 19.5 7V11A2.5 2.5 0 0 1 14.5 11ZM15.9 7A1.1 1.1 0 0 1 18.1 7V11A1.1 1.1 0 0 1 15.9 11Z"/></g></svg></span><span class="clock">Thu 12 Nov&nbsp;&nbsp;16:30</span></div>
           <div class="cam" id="cam">
@@ -199,7 +200,7 @@
                 <div class="mw" id="m-mail"><div><div class="m mail"><span class="to">Draft to Alex</span><span id="mail">Hi Alex, thanks for today. I will look out for the Northwind slides, and the Q3 deck will be with you by Friday, as promised.</span></div></div></div>
               </div>
               <div class="inp">
-                <div class="field" id="field"><span class="ph">Message</span><span class="txt">Summarize my call with Alex and draft a follow-up email. Check our earlier calls too, and add any names you misheard to my key terms.</span></div>
+                <div class="field" id="field"><span class="caret c0"></span><span class="ph">Message</span><span class="txt">Summarize my call with Alex and draft a follow-up email. Check our earlier calls too, and add any names you misheard to my key terms.</span></div>
                 <span class="send" id="send"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg></span>
               </div>
             </div>
@@ -227,15 +228,12 @@
         </div>
       </div>
       <div class="beats" id="beats">
-        <div class="bars" aria-hidden="true"><i><b></b></i><i><b></b></i><i><b></b></i></div>
-        <div class="row">
-          <ol>
-            <li><span class="n">1</span>Record the call</li>
-            <li><span class="n">2</span>Ask your agent</li>
-            <li><span class="n">3</span>Use it with your own agent</li>
-          </ol>
-          <button type="button" class="button small" id="pause">Pause</button>
-        </div>
+        <ol class="phases">
+          <li><button type="button" class="button small phase" data-phase="0"><span class="prog" aria-hidden="true"><b></b></span><span class="n">1</span>Record the call</button></li>
+          <li><button type="button" class="button small phase" data-phase="1"><span class="prog" aria-hidden="true"><b></b></span><span class="n">2</span>Dictate the ask</button></li>
+          <li><button type="button" class="button small phase" data-phase="2"><span class="prog" aria-hidden="true"><b></b></span><span class="n">3</span>Use it with your own agent</button></li>
+        </ol>
+        <button type="button" class="button small" id="pause">Pause</button>
       </div>
     </div>
   </section>
@@ -251,7 +249,7 @@
       <div class="card">
         <div class="art well mac" aria-hidden="true"><div class="pillc col"><span style="display:flex;align-items:center;gap:8px"><span class="rd"></span><span class="levelbar"><i style="width:62%"></i></span><span class="time">0:04</span></span><span>Can you send me the slides</span></div></div>
         <h3>Dictation in any app</h3>
-        <p>Press <span class="nowrap"><kbd>Option</kbd> <kbd>`</kbd></span> and talk, and Dictate transcribes as you go. Press it again and the text lands where you were writing. If the app quits mid dictation, the next launch recovers it into your history.</p>
+        <p>Press <span class="nowrap"><kbd>Option</kbd> <kbd>`</kbd></span> and talk, and Dictate transcribes as you go. Press it again and the text lands where you were writing.</p>
       </div>
       <div class="card">
         <div class="art well mac" aria-hidden="true"><div class="pill nudge"><svg class="phone" viewBox="0 0 16 16" fill="currentColor"><path d="M4.2 1.6c.5-.3 1.1-.2 1.4.3l1.3 2.2c.3.5.2 1.1-.2 1.4l-.9.7c.6 1.5 1.8 2.8 3.3 3.5l.8-.9c.4-.4 1-.5 1.4-.2l2.2 1.3c.5.3.6.9.3 1.4l-.7 1.2c-.5.8-1.4 1.2-2.3 1C6.4 12.6 3.4 9.6 2.5 5.4c-.2-.9.2-1.8 1-2.3z"/></svg><span>Record this call?</span><span class="s">Zoom</span><span class="sp"></span><span class="bt">Not now</span><span class="bt">Record</span></div><div class="ml"><span class="w">Me</span><span>Thanks for joining, Alex.</span></div><div class="ml"><span class="w">Call</span><span>Sure. Let's start with the budget.</span></div></div>
@@ -261,17 +259,17 @@
       <div class="card">
         <div class="art well mac" aria-hidden="true"><div class="toggle-row"><span>Retry unsure segments</span><span class="switch on"></span></div><div class="toggle-row"><span>Fix the text before pasting</span><span class="switch"></span></div></div>
         <h3>A better transcription pipeline</h3>
-        <p>Whisper scores how sure it is of each part. Parts below a confidence threshold are decoded again automatically, and Dictate keeps the better version. Fix the text before pasting lets a model in Ollama on your Mac correct the transcript. It is off until you turn it on.</p>
+        <p>Whisper scores how sure it is of each part. Parts below a confidence threshold are decoded again automatically, and Dictate keeps the better version. Fix the text before pasting lets a model in Ollama on your Mac correct the transcript.</p>
       </div>
       <div class="card">
         <div class="art well mac" aria-hidden="true"><div class="sug"><span class="g">Qdrant</span><span class="bt main">Add</span><span class="bt">Dismiss</span></div><div class="sug"><span class="g">OAuth</span><span class="bt main">Add</span><span class="bt">Dismiss</span></div></div>
         <h3>Key terms</h3>
-        <p>Add the names Whisper gets wrong, spelled your way. Dictate suggests more from your corrections and adds nothing until you press Add.</p>
+        <p>Add the names Whisper gets wrong, spelled your way. Dictate suggests more from your corrections.</p>
       </div>
       <div class="card">
         <div class="art well mac" aria-hidden="true"><div class="tool"><span>search_transcripts</span><span class="switch on"></span></div><div class="tool"><span>wait_for_transcript</span><span class="switch on"></span></div><div class="tool"><span>start_recording</span><span class="switch"></span></div></div>
         <h3>Your agents can read it</h3>
-        <p>Claude Code or any MCP client can search your dictations and calls. Tools that record or change anything start off.</p>
+        <p>Claude Code or any MCP client can search your dictations and calls.</p>
       </div>
       <div class="card">
         <div class="well shot" aria-hidden="true"><picture><source srcset="history-dark.png" media="(prefers-color-scheme: dark)"><img src="history-light.png" alt="" width="1704" height="600" loading="lazy" decoding="async"></picture></div>
@@ -335,9 +333,10 @@
     <h2>Get Dictate</h2>
     <div class="get">
       <div class="actions"><a class="button primary" data-get href="https://dictate.firstversion.in/get">Download for Mac</a></div>
-      <p class="meta"><span>Free during the beta, then $49 once.</span> <span>The first 50 to activate keep it free for good.</span></p>
-        <p class="meta"><span>You activate Dictate with your email and a code.</span></p>
-        <p class="meta"><span>Apple silicon, macOS 15 or later</span></p>
+      <p class="meta" data-founding><span>The first 50 to activate keep it free for good.</span><span data-left hidden></span></p>
+      <p class="meta" data-install-hide><span>Free during the beta, then $49 once.</span></p>
+      <p class="meta" data-install-hide><span>Apple silicon, macOS 15 or later</span></p>
+      <p class="meta"><span>You activate Dictate with your email and a code.</span><span>The app does not sign in and does not report what you do.</span></p>
     </div>
   </section>
 
@@ -370,10 +369,13 @@ if (location.hostname === "spashii.github.io") {
 }
 </script>
 <script>
-/* Hero demo, a 25.5 second loop in three steps. Every frame is a function of the clock t, so the
-   loop can pause, resume and reset without drift; CSS transitions carry the motion between states.
-   It runs only while the stage is on screen and the tab is visible, holds four seconds on the
-   answer, fades, and starts again. Reduced motion shows the last frame and all three steps. */
+/* Hero demo, a 13 second loop in three steps: record the call, dictate the ask, use it with your
+   own agent. It opens on the Record this call? nudge, so the first frame already says what it is,
+   and the agent's answer starts at 7.9 s. Every frame is a function of the clock t, so the loop can
+   pause, resume, jump to a phase and reset without drift; CSS transitions carry the motion between
+   states. It runs only while the stage is on screen and the tab is visible, holds three seconds on
+   the answer, fades, and starts again. The phase buttons jump to a step and play on from there.
+   Reduced motion shows one still frame per phase, picked with the phase buttons. */
 (() => {
   const $ = id => document.getElementById(id);
   const stage = $("demo");
@@ -387,18 +389,20 @@ if (location.hostname === "spashii.github.io") {
   const chat = $("chat"), field = $("field"), send = $("send");
   const mUser = $("m-user"), mTools = $("m-tools"), mSum = $("m-sum"), mMail = $("m-mail");
   const tools = [...chat.querySelectorAll(".tw")];
-  const captions = [...beats.querySelectorAll("li")], bars = [...beats.querySelectorAll(".bars b")];
+  const phases = [...beats.querySelectorAll(".phase")], bars = phases.map(b => b.querySelector(".prog b"));
 
   const T = {
-    nudge: 600, cursorIn: 1300, click: 2200, rec: 2500, lines: [3200, 4400, 5600], end: 6800,
-    step2: 7900, keys1: 8500, press1: 8700, dict: 8900, chunks: [9400, 10500, 11600, 12700],
-    keys2: 13600, press2: 13800, busy: 13900, paste: 14500, send: 15200,
-    step3: 15500, tools: [15600, 16100, 16600, 17100], sum: [17800, 18900], mail: [19300, 20700],
-    fade: 24900, loop: 25500
+    nudge: 0, cursorIn: 150, click: 800, rec: 1000, lines: [1250, 1650, 2050], end: 2600,
+    step2: 3400, keys1: 3600, press1: 3750, dict: 3850, chunks: [4000, 4400, 4800, 5200],
+    keys2: 5550, press2: 5700, busy: 5750, type: [5950, 6400], send: 6600,
+    step3: 6600, tools: [6800, 7050, 7300, 7550], sum: [7900, 8700], mail: [8900, 9900],
+    fade: 12400, loop: 13000
   };
   // Displayed clocks start mid call so the stopped pill reads 12:41, not a few seconds.
   const REC = 757, CALL = 842;
   const STEPS = [0, T.step2, T.step3, T.fade];
+  // One still frame per phase for reduced motion: the stopped call, two chunks of words, the answer.
+  const STILL = [T.end + 500, T.chunks[1] + 200, T.mail[1]];
   const SAID = ["Summarize my call with Alex", "and draft a follow-up email.", "Check our earlier calls too,", "and add any names you misheard to my key terms."];
 
   // The scene is drawn at 420 by 500 (360 on a narrow column) and scaled to the column.
@@ -416,7 +420,8 @@ if (location.hostname === "spashii.github.io") {
     el.textContent = "";
     return ws.map((w, i) => { const s = document.createElement("span"); s.className = "w"; s.textContent = w + (i < ws.length - 1 ? " " : ""); el.append(s); return s; });
   };
-  const sumW = split($("sum")), mailW = split($("mail"));
+  const sumW = split($("sum")), mailW = split($("mail")), fieldW = split(field.querySelector(".txt"));
+  const caret = document.createElement("span"); caret.className = "caret c1"; field.querySelector(".txt").append(caret);
   const reveal = (ws, t, [a, b]) => { const n = Math.ceil(clamp((t - a) / (b - a)) * ws.length); ws.forEach((w, i) => cls(w, "on", i < n)); };
   // Where the pointer clicks, in scene units: offsets ignore the camera and the entrance motion.
   const centre = el => {
@@ -439,12 +444,11 @@ if (location.hostname === "spashii.github.io") {
     const step = t < T.step2 ? 0 : t < T.step3 ? 1 : 2;
 
     // Step 1: the call, the nudge, Record, the call pill, the stopped call.
-    cls(cam, "top", on(T.nudge, T.step2) || on(T.dict, T.paste));
+    cls(cam, "top", on(T.nudge, T.step2));
     txt(mbApp, step ? "Agent" : "Zoom");
     // Same glyphs as the app: dictating wins over the call, as in menuBarImage.
     mbicon.dataset.state = on(T.dict, T.busy) ? "dict" : on(T.rec, T.end) ? "call" : "idle";
-    cls(callwin, "on", t < T.end + 700);
-    cls(callwin, "dim", on(T.nudge));
+    cls(callwin, "on", t < T.step2);
     txt(ctime, t >= T.end ? "Call ended" : clock(CALL + Math.floor(t / 1000)));
     cls(nudge, "on", on(T.nudge, T.rec));
     const click = on(T.click, T.click + 200);
@@ -463,19 +467,19 @@ if (location.hostname === "spashii.github.io") {
 
     // Step 2: the agent's window, the shortcut, the dictation pill, the paste and send.
     cls(chat, "on", on(T.step2));
-    cls(chat, "dim", on(T.dict, T.paste));
-    cls(hud, "on", on(T.keys1, T.keys1 + 900) || on(T.keys2, T.keys2 + 800));
+    cls(hud, "on", on(T.keys1, T.keys1 + 700) || on(T.keys2, T.keys2 + 600));
     cls(hud, "down", on(T.press1, T.press1 + 240) || on(T.press2, T.press2 + 240));
-    cls(dpill, "on", on(T.dict, T.paste));
+    cls(dpill, "on", on(T.dict, T.type[0]));
     cls(dpill, "is-busy", on(T.busy));
     setSaid(SAID.slice(0, T.chunks.filter(a => t >= a).length).join(" "));
     txt(dtime, clock(Math.max(0, Math.floor((Math.min(t, T.busy) - T.dict) / 1000))));
     const talking = on(T.dict + 300, T.keys2);
     lvl.style.width = (talking ? 16 + 70 * Math.abs(Math.sin(t / 170) * Math.sin(t / 410 + 1)) : 6).toFixed(0) + "%";
-    const pasted = on(T.paste, T.send);
-    cls(field, "has", pasted);
-    cls(field, "hot", pasted);
-    cls(send, "ready", pasted);
+    // The message field is focused as the window opens and fills word by word as the words land.
+    cls(field, "hot", on(T.step2, T.send));
+    cls(field, "has", on(T.type[0], T.send));
+    reveal(fieldW, t < T.send ? t : 0, T.type);
+    cls(send, "ready", on(T.type[1], T.send));
     cls(send, "down", on(T.send - 180, T.send));
 
     // Step 3: the tool calls, then the answer. What came before steps back.
@@ -483,14 +487,16 @@ if (location.hostname === "spashii.github.io") {
     cls(mUser, "dim", on(T.tools[0]));
     cls(mTools, "on", on(T.tools[0]));
     cls(mTools, "dim", on(T.sum[0]));
-    tools.forEach((el, i) => { cls(el, "on", on(T.tools[i])); cls(el, "done", on(T.tools[i] + 450)); });
+    tools.forEach((el, i) => { cls(el, "on", on(T.tools[i])); cls(el, "done", on(T.tools[i] + 250)); });
     cls(mSum, "on", on(T.sum[0]));
     reveal(sumW, t, T.sum);
     cls(mMail, "on", on(T.mail[0]));
     reveal(mailW, t, T.mail);
 
-    captions.forEach((li, i) => cls(li, "on", i === step));
-    bars.forEach((b, i) => { b.style.transform = "scaleX(" + clamp((t - STEPS[i]) / (STEPS[i + 1] - STEPS[i])).toFixed(4) + ")"; });
+    phases.forEach((b, i) => {
+      if (i === step) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current");
+      bars[i].style.transform = "scaleX(" + (i === step && !still.matches ? clamp((t - STEPS[i]) / (STEPS[i + 1] - STEPS[i])) : 0).toFixed(4) + ")";
+    });
   };
 
   // Jump to a moment with no transitions, then let the next change animate again.
@@ -512,7 +518,7 @@ if (location.hostname === "spashii.github.io") {
   const go = () => { if (!raf && running()) { last = performance.now(); raf = requestAnimationFrame(tick); } };
   const motion = () => {
     cls(beats, "still", still.matches);
-    if (still.matches) { scene.classList.remove("out"); snap(T.mail[1]); } else { snap(t); go(); }
+    if (still.matches) { scene.classList.remove("out"); snap(STILL[2]); } else { snap(t); go(); }
   };
 
   pause.addEventListener("click", () => {
@@ -522,11 +528,23 @@ if (location.hostname === "spashii.github.io") {
   });
   document.addEventListener("visibilitychange", go);
   new IntersectionObserver(([e]) => { seen = e.isIntersecting; go(); }, { threshold: .25 }).observe(stage);
+  // A jump unpauses, sets the clock to the phase start and plays on through the loop.
+  phases.forEach((b, i) => b.addEventListener("click", () => {
+    scene.classList.remove("out");
+    faded = false;
+    if (still.matches) { snap(STILL[i]); return; }
+    paused = false;
+    pause.textContent = "Pause";
+    t = STEPS[i];
+    snap(t);
+    go();
+  }));
   still.addEventListener("change", motion);
   motion();
 
   // For screenshots: hold the demo at a moment.
   window.__seek = t0 => { paused = true; t = t0; scene.classList.remove("out"); snap(t0); };
+  window.__moments = { start: 0, dictating: T.chunks[1] + 200, answer: T.mail[1] + 400 };
 })();
 </script>
 </body>

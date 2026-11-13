@@ -64,24 +64,26 @@
 .art .ml .w { flex: 0 0 34px; color: var(--text2); }
 .art .tool { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-radius: 8px; background: var(--app-control); box-shadow: var(--app-ring); font: 13px var(--mono); }
 
-/* History card: the real History window, list and transcript, cropped to the well. The frame's
-   hairline is drawn over the picture so it stays visible. */
-.well.shot { position: relative; height: 170px; overflow: hidden; }
+/* History card: the Me and Call transcript lines of the real History window (a 1704 by 600 capture),
+   cropped to x 694 to 1690 and y 128 to 530 so no line is cut. The ratio and the percentage sizes keep
+   the crop identical at every width; vertical margins resolve against the width. The frame's hairline
+   is drawn over the picture so it stays visible. */
+.well.shot { position: relative; height: auto; min-height: 0; aspect-ratio: 996 / 402; }
 .well.shot picture { display: block; }
-.well.shot img { display: block; width: 760px; max-width: none; height: auto; }
+.well.shot img { display: block; width: 171.08%; max-width: none; height: auto; margin: -12.85% 0 0 -69.68%; }
 .well.shot::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px var(--hairline); pointer-events: none; }
 
 /* Hero demo. A 420 by 500 scene of the top of a Mac screen, scaled to the column by the script so
-   it reads the same at every width. Whatever acts in a beat is in focus; the rest dims and softens,
-   and the camera leans in on the pills at the top. */
+   it reads the same at every width. Every window stays sharp; the camera leans in on the pills at
+   the top during the first step only, so the message field stays on stage while it fills. */
 .demo-wrap { justify-self: end; width: 100%; max-width: 440px; }
 @media (max-width: 834px) { .demo-wrap { justify-self: center; } }
 .stage { position: relative; aspect-ratio: 420 / 500; overflow: hidden; }
 .stage::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px var(--hairline); pointer-events: none; }
-.scene { position: absolute; left: 0; top: 0; width: 420px; height: 500px; transform-origin: 0 0; background: var(--desk); color: var(--text); font: 500 12px/16px var(--sans); transition: opacity .6s ease; }
+.scene { position: absolute; left: 0; top: 0; width: 420px; height: 500px; transform-origin: 0 0; background: var(--desk); color: var(--text); font: 500 12px/16px var(--sans); transition: opacity .5s ease; }
 .scene.out { opacity: 0; }
 .instant * { transition: none !important; }
-.cam { position: absolute; inset: 0; transform-origin: 50% 0; transition: transform 1.3s cubic-bezier(.4,0,.15,1); }
+.cam { position: absolute; inset: 0; transform-origin: 50% 0; transition: transform .6s cubic-bezier(.4,0,.15,1); }
 .cam.top { transform: scale(1.16); }
 
 .menubar { position: absolute; z-index: 4; left: 0; right: 0; top: 0; height: 24px; display: flex; align-items: center; padding: 0 12px; background: var(--bar); box-shadow: 0 .5px 0 var(--bar-edge); font: 600 11.5px/24px var(--sans); }
@@ -97,9 +99,8 @@
 @media (max-width: 480px) { .art .pill.nudge { gap: 6px; padding: 0 10px; } .art .pill .s { display: none; } .art .nudge .bt { padding: 0 7px; } }
 
 /* Windows */
-.stage .win { position: absolute; z-index: 2; border-radius: 12px; background: var(--win); box-shadow: 0 0 0 .5px var(--winedge), var(--winshadow); overflow: hidden; opacity: 0; transform: translateY(10px) scale(.985); transition: opacity .7s ease, transform .8s cubic-bezier(.2,.7,.2,1), filter .7s ease; }
+.stage .win { position: absolute; z-index: 2; border-radius: 12px; background: var(--win); box-shadow: 0 0 0 .5px var(--winedge), var(--winshadow); overflow: hidden; opacity: 0; transform: translateY(10px) scale(.985); transition: opacity .4s ease, transform .5s cubic-bezier(.2,.7,.2,1); }
 .stage .win.on { opacity: 1; transform: none; }
-.stage .win.on.dim { opacity: .38; filter: blur(1.5px) saturate(.6); }
 .stage .wtitle { flex: none; height: 30px; display: flex; align-items: center; justify-content: center; position: relative; border-bottom: 1px solid var(--sep); font: 600 12.5px/1 var(--sans); }
 .stage .lights { position: absolute; left: 11px; top: 9.5px; display: flex; gap: 7px; }
 .stage .lights i { width: 11px; height: 11px; border-radius: 50%; background: #ff5f57; }
@@ -119,7 +120,7 @@
 .chat { left: 22px; top: 46px; width: 376px; height: 438px; display: flex; flex-direction: column; }
 .chat .msgs { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: 0 14px 12px; overflow: hidden; -webkit-mask-image: linear-gradient(transparent, #000 32px); mask-image: linear-gradient(transparent, #000 32px); font: 400 13.5px/1.42 var(--sans); }
 /* Each message opens its own height, so what is above it slides up instead of jumping. */
-.chat .mw { flex: none; display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .7s cubic-bezier(.2,.8,.2,1), opacity .6s ease; }
+.chat .mw { flex: none; display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .45s cubic-bezier(.2,.8,.2,1), opacity .4s ease; }
 .chat .mw > div { min-height: 0; overflow: hidden; }
 .chat .mw.on { grid-template-rows: 1fr; opacity: 1; }
 .chat .mw.on.dim { opacity: .4; }
@@ -140,7 +141,13 @@
 .chat .field.hot { box-shadow: inset 0 0 0 1.5px var(--text2); }
 .chat .field .ph { color: var(--text3); }
 .chat .field .txt, .chat .field.has .ph { display: none; }
-.chat .field.has .txt { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.chat .field.has .txt { display: block; }
+.chat .field .w { display: none; opacity: 1; }
+.chat .field .w.on { display: inline; }
+/* The text caret blinks while the field has focus. */
+.chat .field .caret { display: none; width: 1.5px; height: 16px; margin-right: 1px; vertical-align: -3px; background: var(--text); animation: blink 1s steps(1) infinite; }
+.chat .field.hot:not(.has) .c0, .chat .field.hot.has .c1 { display: inline-block; }
+@keyframes blink { 50% { opacity: 0; } }
 .chat .send { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--fill2); color: var(--text2); transition: background-color .3s, color .3s, transform .12s; }
 .chat .send svg { width: 16px; height: 16px; }
 .chat .send.ready { background: var(--text); color: var(--win); }
@@ -199,21 +206,25 @@
 .hud .tick .lab { left: 0; right: 0; bottom: 3px; text-align: center; font-size: 22px; line-height: 22px; }
 .hud .plus { color: var(--p2); font-size: 15px; }
 
-.cursor { position: absolute; z-index: 20; left: 0; top: 0; width: 20px; height: 24px; opacity: 0; transition: opacity .3s ease, transform 1s cubic-bezier(.45,.05,.2,1); }
+.cursor { position: absolute; z-index: 20; left: 0; top: 0; width: 20px; height: 24px; opacity: 0; transition: opacity .2s ease, transform .55s cubic-bezier(.45,.05,.2,1); }
 .cursor.on { opacity: 1; }
 .cursor svg { display: block; width: 100%; height: 100%; transform-origin: 3px 2px; transition: transform .12s; }
 .cursor.down svg { transform: scale(.86); }
 
-/* Under the stage: how far into each step, then the step itself in words. */
-.beats { margin-top: var(--sp-4); }
-.beats .bars { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-2); }
-.beats .bars i { height: 3px; border-radius: 2px; background: var(--fill); overflow: hidden; }
-.beats .bars b { display: block; height: 100%; background: var(--text); transform-origin: 0 50%; transform: scaleX(0); }
-.beats .row { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-4); margin-top: var(--sp-3); }
-.beats ol { list-style: none; padding: 0; display: grid; }
-.beats li { grid-area: 1 / 1; opacity: 0; transition: opacity .3s ease; }
-.beats li.on { opacity: 1; transition: opacity .45s ease .3s; }
+/* Under the stage: the three phases as buttons, the current one filling like a progress bar, and Pause beside them. */
+.beats { margin-top: var(--sp-4); display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-3); }
+.beats .phases { list-style: none; margin: 0; padding: 0; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-2); }
+.beats .phases li { margin: 0; padding: 0; max-width: 100%; }
+.beats .phase { position: relative; isolation: isolate; overflow: hidden; max-width: 100%; padding-block: 6px; justify-content: flex-start; text-align: left; white-space: normal; }
+.beats .prog { position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; }
+.beats .prog b { display: block; height: 100%; background: var(--fill-active); transform-origin: 0 50%; transform: scaleX(0); }
 .beats .n { display: inline-block; min-width: 1.5em; font-variant-numeric: tabular-nums; }
-.beats.still .bars, .beats.still button { display: none; }
-.beats.still li { grid-area: auto; opacity: 1; }
+.beats #pause { flex: none; }
+.beats.still .prog, .beats.still #pause { display: none; }
+@media (prefers-reduced-motion: reduce) { .beats .prog, .beats #pause { display: none; } }
 @media (prefers-reduced-motion: reduce) { .chat .st, .dpill .spin { animation: none; } }
+/* Install steps: the number sits inside the text's left edge, and a wrapped line aligns with the step's text. */
+.get .steps ol { margin-left: 0; padding: 0; list-style: none; counter-reset: step; }
+.get .steps li { display: grid; grid-template-columns: 1.5em 1fr; counter-increment: step; }
+.get .steps li::before { content: counter(step) "."; font-variant-numeric: tabular-nums; }
+.get [hidden] { display: none; }
