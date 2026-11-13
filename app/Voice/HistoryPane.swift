@@ -208,18 +208,23 @@ final class HistoryModel {
     /// False for a dictation whose pasted text differs from the transcript shown.
     var canCorrect: Bool { detail?.canCorrect ?? false }
 
-    /// Stores the correction the way an agent's is stored, then reads the recording again.
-    /// Returns what went wrong, if anything.
-    func save(_ request: HandCorrection, to text: String, known: [String]) async -> String? {
-        guard let store = await openStore() else { return "Couldn't open the history." }
+    /// Stores the correction, adds the key terms it proposes, then reads the recording again.
+    func save(_ request: HandCorrection, to text: String, settings: PreferencesKeyTerms) async -> CorrectionOutcome {
+        guard let store = await openStore() else { return .failed("Couldn't open the history.") }
+        let service = KeyTermSuggestions(store: store, settings: settings)
+        let result: HandCorrectionResult
         do {
-            try await Task.detached { try store.correct(request, to: text, known: known) }.value
+            result = try await service.correct(request, to: text)
         } catch {
-            return "\(error)"
+            return .failed("\(error)")
         }
         refreshDetail()
         reload()
-        return nil
+        if !result.added.isEmpty {
+            let added = result.added
+            return .added(KeyTermAddition(terms: added.map(\.term), undo: { try? await service.undo(added) }))
+        }
+        return result.refused == nil ? .saved : .refused
     }
 
     /// Starts editing a row's title in place.
@@ -749,7 +754,7 @@ private struct HistoryDetailView: View {
                                                 find: history.matchesByBlock[block.id] ?? [],
                                                 activeFind: history.activeIndex(inBlock: block.id),
                                                 draft: { history.correction(in: $0, range: $1) },
-                                                save: { await history.save($0, to: $1, known: KeyTerms.parse(preferences.keyTerms)) })
+                                                save: { await history.save($0, to: $1, settings: PreferencesKeyTerms(preferences: preferences)) })
                                 .equatable()
                         }
                         if preferences.showCorrections {
@@ -851,15 +856,14 @@ private struct TranscriptBlockView: View, @MainActor Equatable {
     let times: HistoryTimeMode
     let showCorrections: Bool
     let play: (Double) -> Void
-    /// The correction for words at a range of the block's text, and its storing; nil from
-    /// save when it worked, else what went wrong.
+    /// The correction for words at a range of the block's text, and its storing.
     /// False when what is drawn isn't the stored text, so a correction would change the wrong words.
     let correctable: Bool
     /// The found words in this block, and which of them is the one stepped to.
     let find: [Range<Int>]
     let activeFind: Int?
     let draft: (DisplayBlock, Range<Int>) -> HandCorrection?
-    let save: (HandCorrection, String) async -> String?
+    let save: (HandCorrection, String) async -> CorrectionOutcome
     @State private var hovered = false
     /// The words a drag selected, in the block's text; a right click or a key corrects the
     /// words under the pointer or the line when nothing is selected.
@@ -1045,7 +1049,7 @@ private struct Editing: Identifiable {
 /// The popover that corrects the selected words.
 private struct CorrectionEditorHost: ViewModifier {
     @Binding var editing: Editing?
-    let save: (HandCorrection, String) async -> String?
+    let save: (HandCorrection, String) async -> CorrectionOutcome
 
     func body(content: Content) -> some View {
         content.popover(item: $editing, attachmentAnchor: .rect(.rect(editing?.rect ?? .zero)), arrowEdge: .bottom) { item in
@@ -1064,14 +1068,15 @@ private struct CorrectionEditorHost: ViewModifier {
 
 private struct CorrectionEditor: View {
     let original: String
-    let save: (String) async -> String?
+    let save: (String) async -> CorrectionOutcome
     let done: () -> Void
     @State private var text: String
     @State private var error: String?
+    @State private var note: CorrectionOutcome?
     @State private var saving = false
     @FocusState private var focused: Bool
 
-    init(original: String, save: @escaping (String) async -> String?, done: @escaping () -> Void) {
+    init(original: String, save: @escaping (String) async -> CorrectionOutcome, done: @escaping () -> Void) {
         self.original = original
         self.save = save
         self.done = done
@@ -1081,6 +1086,14 @@ private struct CorrectionEditor: View {
     private var changed: Bool { text.trimmingCharacters(in: .whitespacesAndNewlines) != original }
 
     var body: some View {
+        switch note {
+        case .added(let addition): KeyTermConfirmation(message: addition.message, undo: addition.undo, done: done)
+        case .refused: KeyTermConfirmation(message: KeyTermConfirmation.full, undo: nil, done: done)
+        default: form
+        }
+    }
+
+    private var form: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 TextField("Corrected text", text: $text)
@@ -1104,9 +1117,13 @@ private struct CorrectionEditor: View {
         guard changed, !saving else { return }
         saving = true
         Task {
-            error = await save(text)
+            let outcome = await save(text)
             saving = false
-            if error == nil { done() }
+            switch outcome {
+            case .failed(let message): error = message
+            case .saved: done()
+            case .added, .refused: note = outcome
+            }
         }
     }
 }

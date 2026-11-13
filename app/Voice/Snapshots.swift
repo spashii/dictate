@@ -44,6 +44,7 @@ enum Snapshots {
                 // The site shows the list and the detail without the sidebar and the title bar.
                 await write(folder.appending(path: "site-tile"), "history-\(suffix)",
                             crop(window, x: 208, top: 52, width: 852, height: 300))
+                await write(folder, "keyterm-added-\(suffix)", try await keyTermAdded(model, history, dark: dark))
                 await write(folder, "recent-menu-\(suffix)", await recentMenu(model, store: store, dictations: dictationStore, dark: dark))
                 let both = ["qwen3.5:9b", "gemma3:4b"]
                 await write(folder, "model-settings-apple-\(suffix)",
