@@ -13,6 +13,15 @@ extension CallStore {
         client == Edit.personClient ? .user : .agent
     }
 
+    /// A call's or dictation's title and who set it, as stored; nil when no such recording exists.
+    public func recordingTitle(_ kind: HistoryEntry.Kind, _ ref: String) throws -> (title: String?, source: TitleSource?)? {
+        let table = kind == .call ? "calls" : "dictations"
+        return try queue.sync {
+            try db.query("SELECT title, title_source FROM \(table) WHERE id = ?", [ref],
+                         { (title: $0.string(0), source: $0.string(1).flatMap(TitleSource.init(rawValue:))) }).first
+        }
+    }
+
     /// Gives a recording a title, or takes it away with nil or blank text. Recorded as an
     /// edit so an agent sees it and `undo_edit` reverts it. Nil when nothing changed. The title's
     /// source follows the client, also when the title is cleared, so an automatic title never
