@@ -18,9 +18,26 @@ html=$(awk -v v="$version" '
     }
     item = ""
   }
+  # HTML comments hold drafts and never publish. Cut them out of each line, across lines too,
+  # the way the Swift parser does.
+  {
+    line = $0
+    if (incomment) {
+      e = index(line, "-->")
+      if (!e) next
+      line = substr(line, e + 3); incomment = 0
+    }
+    while ((s = index(line, "<!--")) > 0) {
+      rest = substr(line, s + 4)
+      e = index(rest, "-->")
+      if (e) line = substr(line, 1, s - 1) substr(rest, e + 3)
+      else { line = substr(line, 1, s - 1); incomment = 1 }
+    }
+    $0 = line
+  }
   /^## / {
     flush()
-    inside = ($2 == v)
+    inside = ($2 "" == v "")
     next
   }
   !inside { next }
