@@ -323,34 +323,32 @@
 }
 
 /* How it compares by price: Dictate, then Cloud, then Local. From 735px the columns share their rows (name,
-   the line of apps, price, terms, where the processing happens) through subgrid, so the names, the prices and
-   the processing lines sit level across all three; Dictate leaves the apps row empty and Cloud the terms row.
-   The icon sits beside Dictate's name and sets the name row's height for every column. Dictate is the raised
-   card and runs on below its processing line with its button; the flat columns end at theirs. All prices
-   share one display size. Below 735px it is one column in the same order. */
+   the line of apps, price) through subgrid, so the names and the prices sit level across all three; Dictate
+   leaves the apps row empty. Under each price is one paragraph that wraps, at the same gap in every column,
+   so no line is held level with another and no column carries an empty row. The icon sits beside Dictate's
+   name and sets the name row's height for every column. Dictate is the raised card and runs on below its
+   paragraph with its button; the flat columns end at theirs. All prices share one display size. Below 735px
+   it is one column in the same order. */
 .tiers { margin-top: var(--sp-6); display: grid; gap: var(--sp-8); }
 .tier p { margin: 0; }
 .tier .apps { margin-top: var(--sp-2); }
 .tier .fig { margin-top: var(--sp-5); font-size: 48px; line-height: 1; font-weight: 600; letter-spacing: -.03em; font-variant-numeric: lining-nums tabular-nums; white-space: nowrap; }
 .tier .fig .per { font-size: 26px; letter-spacing: -.01em; }
 .tier .terms { margin-top: var(--sp-4); }
-.tier .terms p + p { margin-top: var(--sp-2); }
-.tier .where { margin-top: var(--sp-4); }
 .tier .get { margin-top: var(--sp-5); }
 .tier-dictate { background: var(--surface); border-radius: var(--radius-card); box-shadow: var(--app-float); padding: var(--sp-5); }
 .tier-dictate .name { display: flex; align-items: center; gap: var(--sp-3); }
 .tier-dictate .name img { flex: none; width: 40px; height: 40px; border-radius: 9px; box-shadow: 0 4px 12px -4px rgba(0,0,0,.35), 0 0 0 1px rgba(0,0,0,.08); }
 
 @media (min-width: 735px) {
-  .tiers { grid-template-columns: 1.15fr 1fr 1fr; grid-template-rows: repeat(6, auto); gap: 0 var(--sp-6); }
-  .tier { display: grid; grid-row: 1 / span 6; grid-template-rows: subgrid; align-content: start; padding: var(--sp-5) 0; }
+  .tiers { grid-template-columns: 1.15fr 1fr 1fr; grid-template-rows: repeat(5, auto); gap: 0 var(--sp-6); }
+  .tier { display: grid; grid-row: 1 / span 5; grid-template-rows: subgrid; align-content: start; padding: var(--sp-5) 0; }
   .tier-dictate { padding: var(--sp-5); }
   .tier > h3 { grid-row: 1; align-self: center; }
   .tier > .apps { grid-row: 2; }
   .tier > .fig { grid-row: 3; align-self: baseline; }
   .tier > .terms { grid-row: 4; }
-  .tier > .where { grid-row: 5; }
-  .tier > .get { grid-row: 6; }
+  .tier > .get { grid-row: 5; }
 }
 @media (min-width: 735px) and (max-width: 1000px) {
   .tiers { column-gap: var(--sp-5); }
