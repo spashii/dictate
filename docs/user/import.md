@@ -7,7 +7,7 @@ To import, press + on History and choose Import Audio File, or drop files on His
 Supported types are m4a, mp3, wav, aiff, caf, aac, flac, m4b, mp4, mov and m4v. A file can be up to 2 GB.
 
 - Transcribing happens on this Mac. Nothing is uploaded.
-- Dictate keeps a copy, so you can move or delete the original.
+- Dictate keeps a copy as soon as the row appears, so you can then move or delete the original.
 - A file is one track, so its transcript has no Me and Call labels.
 - Importing the same file again opens the earlier import instead of making a second one.
 - A file with no audio Dictate can read shows as failed with the reason. Delete it like any other row.

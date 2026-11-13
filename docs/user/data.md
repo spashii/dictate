@@ -3,12 +3,12 @@
 Everything is in `~/Library/Application Support/Dictate`:
 
 - `recordings/`: each dictation as `<ms>.wav`, 16 kHz mono.
-- `calls/`: each online call as `<ms>-<id>.wav` while it records, then `.m4a`.
+- `calls/`: each online call as `<ms>-<id>.wav` while it records, then `.m4a`. An imported file is kept here too: an audio file in its own format, a video as its audio only.
 - `voice.sqlite`: dictations, online calls with their segments and tags, and one full-text index over both.
 - `models/`: the speech models.
 - `mcp-token`: the MCP token, readable by you only.
 
-Settings are in the app's preferences (`io.github.spashii.voice`). Keep history set to 30 days deletes dictations and online calls older than that, with their audio. It never deletes a call that is still recording or being transcribed.
+Settings are in the app's preferences (`io.github.spashii.voice`). Keep history set to 30 days deletes dictations and online calls older than that, with their audio. An imported file counts from the day you imported it. It never deletes a call that is still recording or being transcribed.
 
 Dictate uses the microphone while you dictate or record an online call. To paste, it puts the text on the clipboard, pastes, and half a second later puts back what was there. Whisper runs on the GPU, and Fix the text before pasting and the automatic call titles use the intelligence model chosen in Settings, Model: Apple Intelligence on this Mac, or Ollama on `127.0.0.1`. Nothing goes off this Mac.
 
