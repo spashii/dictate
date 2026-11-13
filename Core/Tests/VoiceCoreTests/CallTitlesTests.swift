@@ -242,6 +242,25 @@ private final class AskCount: @unchecked Sendable {
         #expect(try store.call(created.id)?.title == nil)
     }
 
+    private func outcome(_ models: [FakeModel], cancelling: Bool = false) async throws -> ModelTimings.Outcome {
+        let (store, created) = try call()
+        let task = Task { await CallTitler().timedTitle(created.id, in: store, models: models, kind: .apple, since: .now) }
+        if cancelling {
+            while models[0].asked.count == 0 { try await Task.sleep(for: .milliseconds(5)) }
+            task.cancel()
+        }
+        _ = await task.value
+        return try #require(try ModelTimings.read(store.url).first).outcome
+    }
+
+    @Test func timedTitleRecordsTheOutcome() async throws {
+        #expect(try await outcome([FakeModel(name: "a") { "Lakeside schedule" }]) == .ok)
+        #expect(try await outcome([FakeModel(name: "a") { "" }]) == .empty)
+        #expect(try await outcome([FakeModel(name: "a") { throw FakeModel.Failure.failed }]) == .failed)
+        let slow = FakeModel(name: "a") { try await Task.sleep(for: .seconds(30)); return "Late" }
+        #expect(try await outcome([slow], cancelling: true) == .cancelled)
+    }
+
     @Test func aTooShortCallAsksNoModel() async throws {
         let store = try CallStore(url: temporaryCallDatabase())
         let created = try store.createCall(NewCall(split: true))

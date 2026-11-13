@@ -72,7 +72,7 @@ public final class Pipeline: Sendable {
                 // the cleanup timing.
                 let entry = ModelTimings.Entry(
                     work: .fix, kind: cleanup.engine == .apple ? .apple : .ollama,
-                    outcome: outcome.error == nil ? .ok : .failed,
+                    outcome: outcome.error == nil ? .ok : Task.isCancelled ? .cancelled : .failed,
                     totalMs: (ContinuousClock.now - asked).milliseconds, modelMs: Self.ms(outcome.seconds))
                 try? ModelTimings.record(entry, at: store.url)
             }
