@@ -61,6 +61,7 @@ final class ChangelogTests: XCTestCase {
         // release sets VERSION and the date.
         if let next = entries.first, next.version != version, next.date == nil {
             XCTAssertFalse(next.items.isEmpty, next.version)
+            XCTAssertTrue(Changelog.isOlder(version, than: next.version), next.version)
             entries.removeFirst()
         }
         XCTAssertGreaterThanOrEqual(entries.count, 6)

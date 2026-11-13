@@ -54,9 +54,10 @@ final class HistoryImportTests: XCTestCase {
     }
 
     private func blocks(_ texts: [String], generation: Int) throws -> [DisplayBlock] {
-        let url = FileManager.default.temporaryDirectory
+        let dir = FileManager.default.temporaryDirectory
             .appending(path: "dictate-tests-\(UUID().uuidString)", directoryHint: .isDirectory)
-            .appending(path: "voice.sqlite")
+        addTeardownBlock { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appending(path: "voice.sqlite")
         let store = try CallStore(url: url)
         let call = try store.createCall(NewCall(split: true))
         _ = try store.appendSegments(call.id, texts.enumerated().map {

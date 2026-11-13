@@ -371,6 +371,13 @@ public final class CallRecorder: @unchecked Sendable {
             return fail(AudioImport.unreadable, removing: stored.url)
         }
         if let raw = stored.superseded { try? FileManager.default.removeItem(at: raw) }
+        // A crash after the row moved to the .m4a can leave the video it came from beside it.
+        if stored.url.pathExtension.lowercased() == "m4a" {
+            let stem = stored.url.deletingPathExtension()
+            for ext in AudioImport.videoExtensions where FileManager.default.fileExists(atPath: stem.appendingPathExtension(ext).path) {
+                try? FileManager.default.removeItem(at: stem.appendingPathExtension(ext))
+            }
+        }
         let format = audio.processingFormat
         let duration = stored.duration
         let session: CallSession

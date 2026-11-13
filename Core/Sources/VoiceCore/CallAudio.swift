@@ -86,8 +86,9 @@ public enum CallAudio {
             mixed.frameLength = buffer.frameLength
             let count = Int(format.channelCount)
             for side in 0..<channels {
-                // Beyond stereo every channel feeds both sides, so centre dialogue is heard in both ears.
-                let members = count > 2 ? Array(0..<count) : [side]
+                // Beyond stereo every channel feeds both sides, so centre dialogue is heard in both ears;
+                // 5.1's low-frequency channel (the fourth) is left out, as it holds no speech.
+                let members = count > 2 ? Array(0..<count).filter { count != 6 || $0 != 3 } : [side]
                 for frame in 0..<Int(buffer.frameLength) {
                     to[side][frame] = members.reduce(Float(0)) { $0 + from[$1][frame] } / Float(members.count)
                 }

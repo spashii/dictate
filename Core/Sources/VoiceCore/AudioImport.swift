@@ -157,6 +157,8 @@ public enum AudioImport {
                     _ = try FileManager.default.replaceItemAt(m4a, withItemAt: partial)
                     return Prepared(url: m4a, duration: duration)
                 }
+                // A name is this import's own, so an .m4a already there is left by a crash after an earlier export.
+                try? FileManager.default.removeItem(at: m4a)
                 try FileManager.default.moveItem(at: partial, to: m4a)
                 return Prepared(url: m4a, duration: duration, superseded: copy)
             } catch {

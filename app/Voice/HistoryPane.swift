@@ -590,7 +590,7 @@ private struct HistoryRow: View, @MainActor Equatable {
             }
         }
         .padding(.vertical, 3)
-        .help(entry.customTitle ?? date)
+        .help(entry.customTitle ?? entry.fileName ?? date)
     }
 
     /// A renamed recording shows what it was, then its date and time; one without a name
