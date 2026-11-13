@@ -791,7 +791,7 @@ extension CallsModel {
 final class CallPrompt {
     private unowned let calls: CallsModel
     private var panel: NSPanel?
-    private static let size = NSSize(width: 340, height: 56)
+    private static let size = NSSize(width: 420, height: 56)
 
     init(calls: CallsModel) {
         self.calls = calls
@@ -836,11 +836,12 @@ struct CallPromptView: View {
                 Image(systemName: "phone.fill").foregroundStyle(.green)
                 VStack(alignment: .leading, spacing: 1) {
                     HStack(spacing: 8) {
-                        Text("Record this call?")
+                        Text("Record this call?").lineLimit(1)
                         Text(app.name).foregroundStyle(.secondary).lineLimit(1)
                     }
                     .font(.system(size: 12, weight: .medium))
                     Text(Self.note)
+                        .lineLimit(1)
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }

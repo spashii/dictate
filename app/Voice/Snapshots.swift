@@ -90,6 +90,7 @@ enum Snapshots {
                 await write(folder, "dictation-pill-\(suffix)", await dictationPill(model, dark: dark))
                 await write(folder, "call-pill-\(suffix)", await callPill(dark: dark))
                 await write(folder, "record-call-nudge-\(suffix)", await nudge(model, dark: dark))
+                try await retentionShots(model, store: store, into: folder, suffix: suffix, dark: dark)
             }
         } catch {
             DevLog.write("app-shots failed: \(error)")
@@ -147,9 +148,9 @@ enum Snapshots {
     private static func nudge(_ model: AppModel, dark: Bool) async -> NSBitmapImageRep? {
         let calls = CallsModel()
         calls.promptForSnapshots(DetectedCall(bundleID: "com.example.meeting", name: "Meeting"), model: model)
-        let size = NSSize(width: 420, height: 104)
+        let size = NSSize(width: 500, height: 104)
         let view = Backdrop(dark: dark) {
-            CallPromptView().environment(calls).frame(width: 340, height: 56)
+            CallPromptView().environment(calls).frame(width: 420, height: 56)
         }
         return await capture(makeWindow(view, size: size, dark: dark, titled: false), size: size, titled: false)
     }

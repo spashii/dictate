@@ -425,7 +425,8 @@ final class AppModel {
     /// Bumped when a confirmation is cancelled, so a picker that already moved shows the stored value again.
     private(set) var retentionRevision = 0
 
-    private func confirm(_ text: RetentionText.Alert) async -> Bool {
+    /// The confirmation as the app shows it, one place so the app-shots draw the same alert.
+    static func retentionAlert(_ text: RetentionText.Alert) -> NSAlert {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = text.title
@@ -433,6 +434,11 @@ final class AppModel {
         let destructive = alert.addButton(withTitle: text.confirm)
         destructive.hasDestructiveAction = true
         alert.addButton(withTitle: text.cancel)
+        return alert
+    }
+
+    private func confirm(_ text: RetentionText.Alert) async -> Bool {
+        let alert = Self.retentionAlert(text)
         if let window = mainWindow.visibleWindow {
             return await alert.beginSheetModal(for: window) == .alertFirstButtonReturn
         }
