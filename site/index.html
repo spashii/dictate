@@ -355,18 +355,31 @@
 
   <section class="compare">
     <h2>How it compares</h2>
-    <table class="compare-table" role="table">
-      <thead role="rowgroup">
-        <tr role="row"><td role="presentation"></td><th scope="col" role="columnheader" class="c-dictate">Dictate</th><th scope="col" role="columnheader">Cloud apps<span class="apps">Wispr Flow, Granola</span></th><th scope="col" role="columnheader">Local apps<span class="apps">Handy, OpenSuperWhisper, VoiceInk, MacWhisper</span></th></tr>
-      </thead>
-      <tbody role="rowgroup">
-        <tr role="row"><th scope="row" role="rowheader">Your audio stays on your Mac</th><td role="cell" data-label="Dictate"><span aria-hidden="true">✓</span><span class="sr">Yes</span></td><td role="cell" data-label="Cloud apps"><span aria-hidden="true">✕</span><span class="sr">No</span></td><td role="cell" data-label="Local apps"><span aria-hidden="true">✓</span><span class="sr">Yes</span></td></tr>
-        <tr role="row"><th scope="row" role="rowheader">You pay once</th><td role="cell" data-label="Dictate"><span aria-hidden="true">✓</span><span class="sr">Yes</span></td><td role="cell" data-label="Cloud apps"><span aria-hidden="true">✕</span><span class="sr">No</span></td><td role="cell" data-label="Local apps"><span aria-hidden="true">✓</span><span class="sr">Yes</span></td></tr>
-        <tr role="row"><th scope="row" role="rowheader">Dictation in any app</th><td role="cell" data-label="Dictate"><span aria-hidden="true">✓</span><span class="sr">Yes</span></td><td role="cell" data-label="Cloud apps"><span aria-hidden="true">✓</span><span class="sr">Yes</span></td><td role="cell" data-label="Local apps"><span aria-hidden="true">✓</span><span class="sr">Yes</span></td></tr>
-        <tr role="row"><th scope="row" role="rowheader">Online calls, no bot</th><td role="cell" data-label="Dictate"><span aria-hidden="true">✓</span><span class="sr">Yes</span></td><td role="cell" data-label="Cloud apps"><span aria-hidden="true">✓</span><span class="sr">Yes</span></td><td role="cell" data-label="Local apps">Only MacWhisper Pro</td></tr>
-        <tr role="row"><th scope="row" role="rowheader">Your agents can read it on your Mac</th><td role="cell" data-label="Dictate"><span aria-hidden="true">✓</span><span class="sr">Yes</span></td><td role="cell" data-label="Cloud apps"><span aria-hidden="true">✕</span><span class="sr">No</span></td><td role="cell" data-label="Local apps"><span aria-hidden="true">✕</span><span class="sr">No</span></td></tr>
-      </tbody>
-    </table>
+    <div class="tiers">
+      <div class="tier">
+        <h3>Cloud apps</h3>
+        <p class="apps">Wispr Flow and Granola</p>
+        <p class="fig"><span class="sr">Around $150 a year</span><span aria-hidden="true">~$150<span class="per"> a year</span></span></p>
+        <p class="line">Your audio goes to their servers.</p>
+      </div>
+      <div class="tier tier-dictate">
+        <h3 class="name"><img src="icon.svg" alt="" width="56" height="56">Dictate</h3>
+        <p class="fig"><s class="was"><span class="sr">was </span><span data-price>$49</span></s> <span class="now">Free</span></p>
+        <div class="terms">
+          <p data-founding><span data-left>Free forever for the first 50 people.</span></p>
+          <p>After that, free until launch, then <span class="nowrap"><span data-price>$49</span> once, for life.</span></p>
+        </div>
+        <p class="line">Your audio stays on your Mac. It records calls with both sides apart, and your agents can read them.</p>
+        <div class="get"><div class="actions"><a class="button primary" data-get href="https://dictate.firstversion.in/get">Download for Mac</a></div></div>
+      </div>
+      <div class="tier">
+        <h3>Local apps</h3>
+        <p class="apps">Handy, OpenSuperWhisper, VoiceInk and MacWhisper</p>
+        <p class="fig">Free</p>
+        <p class="terms">Handy and OpenSuperWhisper. VoiceInk and MacWhisper are $25 to &euro;64 once.</p>
+        <p class="line">Your audio stays on your Mac. Only MacWhisper Pro records calls, in beta.</p>
+      </div>
+    </div>
     <p class="measure">Dictate is <span class="nowrap">a one-time <span data-price>$49</span></span> and runs on Apple silicon Macs. The cloud apps cost $144 to $168 a year and also run on Windows and phones. The local apps are free, or $25 to €64 once.</p>
     <p class="measure">Local apps like <a href="https://handy.computer">Handy</a>, <a href="https://github.com/Starmel/OpenSuperWhisper">OpenSuperWhisper</a>, <a href="https://tryvoiceink.com">VoiceInk</a> and <a href="https://www.macwhisper.com">MacWhisper</a> are already great, and nothing you say leaves your Mac with them either.</p>
     <p class="measure">One thing I want to do next is measure Dictate's quality against the cloud apps and the other local apps.</p>
