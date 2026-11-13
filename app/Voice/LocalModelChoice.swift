@@ -19,12 +19,67 @@ enum LocalModelChoice {
         return configured
     }
 
+    static let intelligenceCheckedKey = "intelligenceDefaultChecked"
+
+    /// Runs on one launch only. Someone whose fix ran on Ollama because Apple's model wasn't
+    /// there would otherwise find it failing once the default became Apple's, so Ollama is
+    /// stored for them.
+    static func keepOllamaInUse(in defaults: UserDefaults, appleState: AppleModelState) {
+        guard !defaults.bool(forKey: intelligenceCheckedKey) else { return }
+        defaults.set(true, forKey: intelligenceCheckedKey)
+        let usedOllamaForTheFix = defaults.bool(forKey: "runPrompt")
+            && (defaults.object(forKey: configuredKey) as? Bool) == false
+        if defaults.object(forKey: "localModel") == nil, usedOllamaForTheFix,
+           appleState != .available, appleState != .notReady {
+            defaults.set("ollama", forKey: "localModel")
+        }
+    }
+
     /// The model in use from the observed pick, not from what is stored, so a pick in Settings
     /// shows at once.
-    static func effective(stored: LocalModel?, ollamaConfigured: Bool, ollamaModel: String,
-                          appleAvailable: Bool) -> LocalModel {
-        LocalModel.resolve(stored: stored?.storedValue, ollamaConfigured: ollamaConfigured,
-                           appleAvailable: appleAvailable, fixModel: ollamaModel)
+    static func effective(stored: LocalModel?, ollamaConfigured: Bool, ollamaModel: String) -> LocalModel {
+        LocalModel.resolve(stored: stored?.storedValue, ollamaConfigured: ollamaConfigured, fixModel: ollamaModel)
+    }
+
+    /// What the model picker lists: Apple's entry first, then the Ollama ones, with a divider
+    /// between the two groups. Never empty, so the person always sees both choices and why one
+    /// may not work.
+    struct Options {
+        struct Entry: Hashable {
+            var title: String
+            var model: LocalModel
+        }
+        var apple: Entry
+        var ollama: [Entry]
+    }
+
+    static func pickerOptions(apple: AppleModelState, current: LocalModel, ollamaModels: [String]?,
+                              ollamaModel: String) -> Options {
+        let appleTitle: String
+        switch apple {
+        case .available: appleTitle = "Apple Intelligence"
+        case .turnedOff: appleTitle = "Apple Intelligence (turn it on in System Settings)"
+        case .notReady: appleTitle = "Apple Intelligence (not ready yet)"
+        case .unsupported: appleTitle = "Apple Intelligence (not available on this Mac)"
+        case .needsNewerMacOS: appleTitle = "Apple Intelligence (needs macOS 26)"
+        }
+        var options = Options(apple: .init(title: appleTitle, model: .apple), ollama: [])
+        if let models = ollamaModels {
+            // The entry matching the stored name only through ":latest" takes the stored name, so
+            // the picker's selection tag finds it.
+            options.ollama = models.map { name in
+                let isStored = name == ollamaModel || name == ollamaModel + ":latest"
+                return .init(title: name, model: .ollama(isStored ? ollamaModel : name))
+            }
+            if !CallTitles.contains(models, ollamaModel) {
+                options.ollama.append(.init(title: "\(ollamaModel) (not installed)", model: .ollama(ollamaModel)))
+            }
+        } else {
+            var name = ollamaModel
+            if case .ollama(let picked) = current { name = picked }
+            options.ollama = [.init(title: "\(name) (Ollama is not running)", model: .ollama(name))]
+        }
+        return options
     }
 
     /// Whether the model can answer now: Apple's is there, or Ollama runs and has the model.
@@ -70,5 +125,22 @@ enum TitleGate {
             if Task.isCancelled { return false }
         }
         return true
+    }
+}
+
+/// Automatic call titles are on unless the person turned them off with the Settings toggle: a
+/// stored "titleCalls" counts only beside the "titleCallsChosen" marker that the toggle writes.
+enum TitleCallsDefault {
+    static let key = "titleCalls"
+    static let chosenKey = "titleCallsChosen"
+
+    static func load(from defaults: UserDefaults) -> Bool {
+        guard defaults.bool(forKey: chosenKey) else { return true }
+        return defaults.object(forKey: key) as? Bool ?? true
+    }
+
+    static func save(_ value: Bool, to defaults: UserDefaults) {
+        defaults.set(value, forKey: key)
+        defaults.set(true, forKey: chosenKey)
     }
 }

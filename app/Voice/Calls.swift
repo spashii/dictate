@@ -400,7 +400,7 @@ final class CallsModel {
     private func makeTitle(_ callID: String, store: CallStore) async {
         guard let model, model.preferences.titleCalls else { return }
         let choice = model.effectiveModel
-        if case .ollama = choice { await model.refreshOllama() } else { model.appleModelAvailable = AppleModel.isAvailable }
+        if case .ollama = choice { await model.refreshOllama() } else { model.appleModelState = AppleModel.state }
         let models = CallTitles.models(choice: choice, appleAvailable: model.appleModelAvailable,
                                        ollamaModels: model.ollamaModels, ollamaURL: model.preferences.ollamaEndpoint)
         guard !models.isEmpty else { return }

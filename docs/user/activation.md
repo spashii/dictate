@@ -1,6 +1,6 @@
 # Activation
 
-Dictate is a free beta, and each Mac activates once with your email.
+Dictate is free during early access, and each Mac activates once with your email.
 
 1. Press Activate in Browser in Dictate's window, in the menu or in Setup.
 2. On the page that opens, enter your email. You get a code by email.
