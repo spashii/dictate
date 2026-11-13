@@ -4,7 +4,7 @@ import Foundation
 /// Tells ordinary English from a name. A key term is a spelling whisper gets wrong, so a term
 /// made only of everyday words ("quarterly roadmap", "harbour") is not worth listing: whisper
 /// already spells those, and the suggestion is noise. A term with a digit, or with any word
-/// the dictionary doesn't know ("OAuth", "T3 Code", "Szymon"), is kept.
+/// the dictionary doesn't know ("OAuth", "T3 Code", "Quorvin"), is kept.
 public enum CommonWords {
     /// Whether a lower-case word is in the dictionary.
     public typealias Dictionary = @Sendable (String) -> Bool
