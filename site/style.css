@@ -289,3 +289,5 @@
   .nav .links { gap: var(--sp-3); }
   .nav .links a:not(.button):not([href="#questions"]) { display: none; }
 }
+
+.nowrap { white-space: nowrap; }
