@@ -388,13 +388,11 @@ private func source(_ type: String, in dir: URL) throws -> URL {
         #expect(message(towardsText.path) == "Only audio and video files can be imported.")
     }
 
-    @Test func expandsTheHomeFolder() throws {
-        let name = ".dictate-import-test-\(UUID().uuidString).m4a"
-        let file = URL(fileURLWithPath: NSHomeDirectory()).appending(path: name)
-        try Data([1]).write(to: file)
-        defer { try? FileManager.default.removeItem(at: file) }
-
-        #expect(try AudioImport.validate(path: "~/\(name)").lastPathComponent == name)
+    @Test func expandsTheHomeFolder() {
+        let name = "dictate-import-test-\(UUID().uuidString).m4a"
+        let expanded = URL(fileURLWithPath: NSHomeDirectory()).appending(path: name).standardizedFileURL.path
+        #expect(message("~/\(name)") == "No file at \(expanded).")
+        #expect(!FileManager.default.fileExists(atPath: expanded))
     }
 
     @Test func hashesAFileTheSameWhateverItsName() throws {
