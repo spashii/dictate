@@ -353,7 +353,8 @@ public final class CallRecorder: @unchecked Sendable {
         let session: CallSession
         do {
             session = try CallSession(callID: callID, format: format, labels: [.mix],
-                                      order: Self.channelOrder(format, split: false), wav: nil, store: store,
+                                      order: Self.channelOrder(format, split: false), wav: nil,
+                                      replacingSegments: true, store: store,
                                       transcriber: transcriber, whisper: whisper,
                                       progress: { onProgress(min(1, $0 / duration)) })
         } catch {
@@ -361,8 +362,10 @@ public final class CallRecorder: @unchecked Sendable {
         }
         do {
             if try await Self.feed(audio, into: session) == .cancelled {
-                session.close()
-                return fail("The import was cancelled.")
+                // The row stays transcribing with its copy: quitting cancels too, and the next
+                // launch reads the file again. A person who cancels fails the row themselves.
+                await session.closeAndWait()
+                return try? store.call(callID)
             }
         } catch {
             session.close()
@@ -739,6 +742,12 @@ final class CallSession: @unchecked Sendable {
             file = nil
             chunks.finish()
         }
+    }
+
+    /// Closes without cutting the tail, and returns once the worker has stopped using whisper.
+    func closeAndWait() async {
+        close()
+        _ = await worker.value
     }
 
     /// Cuts the tail, closes the file and waits for the transcription to catch up. Returns

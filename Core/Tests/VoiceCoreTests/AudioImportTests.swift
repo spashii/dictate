@@ -235,7 +235,7 @@ private func source(_ type: String, in dir: URL) throws -> URL {
         #expect(try work.store.callsAwaitingCompression().isEmpty)
     }
 
-    @Test func cancellingLeavesAFailedRowItsCopyAndNoPartials() async throws {
+    @Test func cancellingLeavesTheRowTranscribingWithItsCopyAndNoPartials() async throws {
         let work = try Workspace()
         defer { work.remove() }
         let file = work.source.appending(path: "long.wav")
@@ -246,10 +246,25 @@ private func source(_ type: String, in dir: URL) throws -> URL {
         task.cancel()
         let call = await task.value
 
-        #expect(call?.status == .failed)
-        #expect(call?.error == "The import was cancelled.")
+        #expect(call?.status == .transcribing)
         #expect(work.stored.count == 1 && work.stored.allSatisfy { !$0.hasSuffix(".partial") })
         #expect(call?.audioPath.map { FileManager.default.fileExists(atPath: $0) } == true)
+    }
+
+    @Test func aCancelledImportIsReadAgainWithoutRepeatingItsWords() async throws {
+        let work = try Workspace()
+        defer { work.remove() }
+        let file = work.source.appending(path: "long.wav")
+        try writeTone(to: file, bursts: 12)
+        let start = try await work.recorder.beginImport(file)
+        let task = Task { await work.recorder.transcribeImport(start.call.id, transcriber: FakeTranscriber(delay: .milliseconds(200))) }
+        try await Task.sleep(for: .milliseconds(600))
+        task.cancel()
+        _ = await task.value
+        let again = await work.recorder.transcribeImport(start.call.id, transcriber: FakeTranscriber())
+
+        #expect(again?.status == .done)
+        #expect(try work.store.segments(start.call.id).count == 12)
     }
 
     @Test func aQuitImportIsRebuiltFromItsCopyWithBackPressure() async throws {
