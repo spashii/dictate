@@ -253,6 +253,12 @@ public final class Store: @unchecked Sendable {
                           (SELECT id FROM dictations WHERE created_at < ? AND \(Self.notImported))
                         """, [date.timeIntervalSince1970])
                 }
+                // The edits that targeted these rows go with them. Key term suggestions stay:
+                // they are about the person's vocabulary, not about one recording.
+                try run("""
+                    DELETE FROM edits WHERE target IN
+                      (SELECT 'dictation:' || id FROM dictations WHERE created_at < ? AND \(Self.notImported))
+                    """, [date.timeIntervalSince1970])
                 try run("DELETE FROM dictations WHERE created_at < ? AND \(Self.notImported)",
                         [date.timeIntervalSince1970])
                 try exec("COMMIT")
@@ -266,6 +272,76 @@ public final class Store: @unchecked Sendable {
             for path in Set(paths) where !kept.contains(path) { try? FileManager.default.removeItem(atPath: path) }
             return paths.count
         }
+    }
+
+    /// How many rows `prune(before:)` would delete.
+    public func countRows(before date: Date) -> Int {
+        queue.sync {
+            var statement: OpaquePointer?
+            guard sqlite3_prepare_v2(
+                db, "SELECT count(*) FROM dictations WHERE created_at < ? AND \(Self.notImported)", -1,
+                &statement, nil) == SQLITE_OK else { return 0 }
+            defer { sqlite3_finalize(statement) }
+            sqlite3_bind_double(statement, 1, date.timeIntervalSince1970)
+            return sqlite3_step(statement) == SQLITE_ROW ? Int(sqlite3_column_int64(statement, 0)) : 0
+        }
+    }
+
+    /// Deletes the audio of dictations made before this date, keeping their rows and text.
+    /// With `finishedOnly`, a dictation that failed keeps its audio so it can be tried
+    /// again. Imported rows are left alone, and so is a file another row outside the set
+    /// still points at: a retry can share a recording. The row keeps its path, which the
+    /// history reads as no audio once the file is gone. Returns how many rows lost a file.
+    @discardableResult
+    public func deleteAudio(before date: Date, finishedOnly: Bool) -> Int {
+        deleteAudio(finishedBefore: finishedOnly ? date : .distantPast,
+                    anyBefore: finishedOnly ? .distantPast : date)
+    }
+
+    /// Deletes the audio of dictations that finished well before `finishedBefore`, and of any
+    /// dictation before `anyBefore`.
+    @discardableResult
+    func deleteAudio(finishedBefore: Date, anyBefore: Date) -> Int {
+        queue.sync {
+            let files = audioFilesOnQueue(finishedBefore: finishedBefore, anyBefore: anyBefore, keptFrom: nil)
+            for path in Set(files) { try? FileManager.default.removeItem(atPath: path) }
+            return files.count
+        }
+    }
+
+    /// The audio paths, one per row, that `deleteAudio` would remove. `keptFrom` leaves out
+    /// rows older than it, which a transcript deletion removes first.
+    func audioFiles(finishedBefore: Date, anyBefore: Date, keptFrom: Date?) -> [String] {
+        queue.sync { audioFilesOnQueue(finishedBefore: finishedBefore, anyBefore: anyBefore, keptFrom: keptFrom) }
+    }
+
+    private func audioFilesOnQueue(finishedBefore: Date, anyBefore: Date, keptFrom: Date?) -> [String] {
+        // 2 for rows a transcript deletion removes first, 1 for the rows in the set, 0 for
+        // the rest, which keep any file they share with a row in the set.
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, """
+            SELECT audio_path, CASE
+              WHEN ?3 IS NOT NULL AND created_at < ?3 AND \(Self.notImported) THEN 2
+              WHEN \(Self.notImported) AND ((error IS NULL AND created_at < ?1) OR created_at < ?2) THEN 1
+              ELSE 0 END
+            FROM dictations
+            """, -1, &statement, nil) == SQLITE_OK else { return [] }
+        defer { sqlite3_finalize(statement) }
+        sqlite3_bind_double(statement, 1, finishedBefore.timeIntervalSince1970)
+        sqlite3_bind_double(statement, 2, anyBefore.timeIntervalSince1970)
+        if let keptFrom { sqlite3_bind_double(statement, 3, keptFrom.timeIntervalSince1970) } else { sqlite3_bind_null(statement, 3) }
+        var inSet: [String] = []
+        var shared: Set<String> = []
+        while sqlite3_step(statement) == SQLITE_ROW {
+            guard let text = sqlite3_column_text(statement, 0) else { continue }
+            let path = String(cString: text)
+            switch sqlite3_column_int(statement, 1) {
+            case 1: inSet.append(path)
+            case 0: shared.insert(path)
+            default: break
+            }
+        }
+        return inSet.filter { !shared.contains($0) && FileManager.default.fileExists(atPath: $0) }
     }
 
     /// NULL origins need their own test: `origin <> 'imported'` is not true for NULL.

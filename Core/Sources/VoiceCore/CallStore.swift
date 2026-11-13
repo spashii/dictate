@@ -201,6 +201,14 @@ public final class CallStore: @unchecked Sendable {
                 for child in ["call_segments", "call_tags", "segment_retries"] {
                     try db.run("DELETE FROM \(child) WHERE call_id IN (SELECT id FROM calls WHERE \(old))", [date])
                 }
+                // The call's edits, and its segments', go too. Prefix tests use substr, so an
+                // id can't act as a LIKE wildcard. Key term suggestions stay.
+                try db.run("""
+                    DELETE FROM edits WHERE EXISTS (
+                      SELECT 1 FROM calls c WHERE c.started_at < ? AND c.status NOT IN ('recording', 'transcribing')
+                        AND (edits.target = 'call:' || c.id
+                             OR substr(edits.target, 1, length(c.id) + 6) = 'call:' || c.id || '/'))
+                    """, [date])
                 try db.run("DELETE FROM calls WHERE \(old)", [date])
                 return paths
             }
@@ -210,6 +218,55 @@ public final class CallStore: @unchecked Sendable {
                 try? FileManager.default.removeItem(atPath: path)
             }
             return rows.count
+        }
+    }
+
+    /// How many calls `prune(before:)` would delete.
+    public func countCalls(before date: Date) throws -> Int {
+        try queue.sync {
+            try db.query("SELECT count(*) FROM calls WHERE started_at < ? AND status NOT IN ('recording', 'transcribing')",
+                         [date]) { $0.int(0) }.first ?? 0
+        }
+    }
+
+    /// The finished calls, and the failed ones unless `finishedOnly`, that started before this
+    /// date and still point at an audio file. A call still recording or transcribing is never
+    /// listed: its audio is what a rebuild reads.
+    public func callsWithAudio(before date: Date, finishedOnly: Bool) throws -> [String] {
+        try callsWithAudio(finishedBefore: finishedOnly ? date : .distantPast,
+                           anyBefore: finishedOnly ? .distantPast : date, keptFrom: nil).map(\.id)
+    }
+
+    /// Calls that finished before `finishedBefore`, and calls that finished or failed before
+    /// `anyBefore`. `keptFrom` leaves out calls older than it, which a transcript deletion
+    /// removes first.
+    func callsWithAudio(finishedBefore: Date, anyBefore: Date,
+                        keptFrom: Date?) throws -> [(id: String, path: String)] {
+        try queue.sync {
+            try db.query("""
+                SELECT id, audio_path FROM calls
+                WHERE audio_path IS NOT NULL
+                  AND ((status = 'done' AND started_at < ?1) OR (status IN ('done', 'failed') AND started_at < ?2))
+                  AND (?3 IS NULL OR started_at >= ?3)
+                ORDER BY started_at
+                """, [finishedBefore, anyBefore, keptFrom]) { (id: $0.text(0), path: $0.text(1)) }
+        }
+    }
+
+    /// Forgets a call's audio and deletes the file, unless another call points at it. Callers
+    /// that may race a compression go through `CallRecorder.deleteAudio`. Returns whether a
+    /// file was deleted.
+    @discardableResult
+    public func clearAudio(_ callID: String) throws -> Bool {
+        try queue.sync {
+            try db.transaction {
+                guard let path = try db.query("SELECT audio_path FROM calls WHERE id = ?", [callID], { $0.string(0) }).first ?? nil
+                else { return false }
+                try db.run("UPDATE calls SET audio_path = NULL WHERE id = ?", [callID])
+                let shared = try !db.query("SELECT 1 FROM calls WHERE audio_path = ? LIMIT 1", [path], { _ in 1 }).isEmpty
+                guard !shared, FileManager.default.fileExists(atPath: path) else { return false }
+                return (try? FileManager.default.removeItem(atPath: path)) != nil
+            }
         }
     }
 

@@ -38,6 +38,7 @@ public final class CallRecorder: @unchecked Sendable {
     /// Calls whose audio is being compressed, so one call is never converted twice at once.
     private var compressing: Set<String> = []
     private var conversions: [Task<Void, Never>] = []
+    private var deletesAudioWhenDone = false
     private let directory: URL
     private let onInputLost: @Sendable (Call?) -> Void
     private let onNotice: @Sendable (String) -> Void
@@ -452,6 +453,20 @@ public final class CallRecorder: @unchecked Sendable {
         for task in tasks { await task.value }
     }
 
+    /// Deletes a call's audio under the same claim a compression takes, so the file never
+    /// goes while it is being converted. Returns false when the call was claimed.
+    public func deleteAudio(_ callID: String) -> Bool {
+        guard claim(callID) else { return false }
+        defer { release(callID) }
+        return (try? store.clearAudio(callID)) ?? false
+    }
+
+    /// While on, a call that finishes well has its audio deleted instead of compressed: the
+    /// "delete immediately" choice. A failed call keeps its audio so it can be tried again.
+    public func setDeletesAudioWhenDone(_ on: Bool) {
+        lock.withLockUnchecked { deletesAudioWhenDone = on }
+    }
+
     private static let log = Logger(subsystem: "io.github.spashii.voice", category: "call-audio")
 
     private func claim(_ callID: String) -> Bool {
@@ -627,10 +642,15 @@ public final class CallRecorder: @unchecked Sendable {
             try? store.failCall(session.callID, error: failure)
         } else {
             try? store.finishCall(session.callID)
-            // Left to run on its own: stopping a call returns once its words are in.
             let id = session.callID
-            let conversion = Task(priority: .utility) { _ = await self.compressAudio(id) }
-            lock.withLockUnchecked { conversions.append(conversion) }
+            if lock.withLockUnchecked({ deletesAudioWhenDone }) {
+                // The session's worker, retries included, has returned: nothing reads the file now.
+                _ = deleteAudio(id)
+            } else {
+                // Left to run on its own: stopping a call returns once its words are in.
+                let conversion = Task(priority: .utility) { _ = await self.compressAudio(id) }
+                lock.withLockUnchecked { conversions.append(conversion) }
+            }
         }
         return try? store.call(session.callID)
     }
