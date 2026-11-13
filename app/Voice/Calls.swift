@@ -90,6 +90,8 @@ final class CallsModel {
     @ObservationIgnored private var importQueue: [PendingImport] = []
     @ObservationIgnored private var importWorker: Task<Void, Never>?
     @ObservationIgnored private var importRunning: (id: String, task: Task<Call?, Never>)?
+    /// Set once Dictate is quitting: the queue is left as it is for the next launch.
+    @ObservationIgnored private var importsStopped = false
     @ObservationIgnored private var following: Task<Void, Never>?
     @ObservationIgnored private var quieting: Task<Void, Never>?
     /// Titles are made one call at a time, in the order the calls ended.
@@ -148,11 +150,15 @@ final class CallsModel {
         Task {
             do {
                 let store = try await Task.detached { try CallStore(url: Paths.database) }.value
-                let interrupted = try store.liveCalls().filter { call in
+                let live = try store.liveCalls().filter { call in
                     call.audioPath.map { FileManager.default.fileExists(atPath: $0) } ?? false
                 }
+                let interrupted = live.filter { $0.fileName == nil }
+                // An import that kept its copy is read again through the import queue, which
+                // shows its progress and lets it be cancelled or deleted.
+                let resumed = live.filter { $0.fileName != nil }
                 // Those with audio stay live until their rebuild finishes or fails them.
-                try store.failInterruptedCalls(except: Set(interrupted.map(\.id)))
+                try store.failInterruptedCalls(except: Set(live.map(\.id)))
                 self.store = store
                 // Before the rebuilds and conversions below, which would spend their time on
                 // calls about to be deleted. The store didn't exist when the app first pruned.
@@ -163,6 +169,11 @@ final class CallsModel {
                     Task { @MainActor in self.model?.notice(text) }
                 })
                 self.recorder = recorder
+                recorder.sweepPartials()
+                for call in resumed {
+                    importsWaiting.insert(call.id)
+                    importQueue.append(PendingImport(callID: call.id))
+                }
                 refreshRecent()
                 transcribing = true
                 for call in interrupted {
@@ -171,6 +182,7 @@ final class CallsModel {
                     if rebuilt != nil { title(call.id) }
                 }
                 transcribing = false
+                runImports()
                 refreshRecent()
                 // Calls that finished before audio was compressed, or whose conversion was
                 // cut off by quitting. Runs off the main thread.
@@ -202,6 +214,12 @@ final class CallsModel {
     func shutDown() async {
         detector?.stop()
         await recorder?.abandon()
+        // An import is cancelled without failing its row, and its worker is awaited, so whisper
+        // is idle when the model is unloaded. The next launch reads the stored copy again.
+        importsStopped = true
+        importQueue.removeAll()
+        importRunning?.task.cancel()
+        await importWorker?.value
     }
 
     /// Blend's devices.json, the connected inputs and the permission, read off the main
@@ -594,7 +612,6 @@ extension CallsModel: RecordingControl {
 
 private struct PendingImport {
     let callID: String
-    let source: URL
 }
 
 extension CallsModel {
@@ -636,7 +653,11 @@ extension CallsModel {
     func importForAgent(path: String) async throws -> CallRecorder.ImportStart {
         guard let model else { throw VoiceError.store("Dictate is still starting.") }
         try RecordingGate.check(model.activation)
-        return try await beginImport(try AudioImport.validate(path: path))
+        let start = try await beginImport(try AudioImport.validate(path: path))
+        if !start.duplicate, let name = start.call.fileName {
+            model.notice("An agent imported \(name).")
+        }
+        return start
     }
 
     private func beginImport(_ source: URL) async throws -> CallRecorder.ImportStart {
@@ -644,7 +665,7 @@ extension CallsModel {
         let start = try await recorder.beginImport(source)
         if !start.duplicate {
             importsWaiting.insert(start.call.id)
-            importQueue.append(PendingImport(callID: start.call.id, source: source))
+            importQueue.append(PendingImport(callID: start.call.id))
             runImports()
         }
         return start
@@ -659,7 +680,7 @@ extension CallsModel {
     }
 
     private func drainImports() async {
-        while !importQueue.isEmpty {
+        while !importQueue.isEmpty, !importsStopped {
             let next = importQueue.removeFirst()
             await transcribe(next)
         }
@@ -708,6 +729,10 @@ extension CallsModel {
         } else if let running = importRunning, running.id == callID {
             running.task.cancel()
             _ = await running.task.value
+            // The cancelled row is still transcribing, which a delete refuses.
+            if (try? store?.call(callID))?.status.isLive == true {
+                try? store?.failCall(callID, error: "The import was cancelled.")
+            }
         }
     }
 }
@@ -858,6 +883,9 @@ struct CallMenuItems: View {
             Button((app == nil ? "Record a Call" : "Record This Call") + keys) { calls.recordFromMenu(app) }
                 .disabled(calls.starting)
         }
+        if calls.recording == nil, calls.isImporting, model.preferences.runPrompt {
+            Text("Whisper only while importing")
+        }
         if let warning = calls.warning {
             Text(warning)
         }
@@ -872,6 +900,7 @@ struct CallMenuItems: View {
 struct RecentCall: View {
     @Environment(CallsModel.self) private var calls
     let call: Call
+    private var symbol: String { call.fileName == nil ? "phone" : "waveform" }
 
     var body: some View {
         Button {
@@ -883,10 +912,10 @@ struct RecentCall: View {
         } label: {
             let lines = RecentCallLabel.lines(call)
             if let title = lines.title {
-                Label(title, systemImage: "phone")
+                Label(title, systemImage: symbol)
                 Text(lines.detail)
             } else {
-                Label(lines.detail, systemImage: "phone")
+                Label(lines.detail, systemImage: symbol)
             }
         }
         .help("Click to copy the transcript")

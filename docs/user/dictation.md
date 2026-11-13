@@ -5,7 +5,7 @@ Press ``Option+` `` in any text field, talk, and press it again. Your words show
 - The shortcut is the only way to stop a dictation: there is no Escape and no timeout.
 - Every recording is a WAV written as you speak, so a crash loses at most the last buffer. A recording that is too short or fails to transcribe keeps a history row, and a failed one retries from the menu.
 - Dictate cuts the speech at pauses and transcribes each piece while you are still talking, so stopping costs only the last piece.
-- Pasting is Cmd+V into the app in front, and then the clipboard is restored to what it held. Without Accessibility access the text stays on the clipboard.
+- Pasting is Cmd+V into the app in front, and then the clipboard is restored to what it held. Without Accessibility access the text stays on the clipboard. The same happens when Dictate is the app in front.
 - The menu lists your last five dictations and three online calls. Click one to copy it.
 - When another app has secure keyboard input on, which a focused password field does and a stuck app can leave on, macOS stops every global shortcut. The menu then says that app's name and that shortcuts are paused. Leave the field, or quit the app.
 - Quitting during a dictation keeps the recording. The next launch transcribes it into the history without pasting, and the menu marks it "Recovered a recording".

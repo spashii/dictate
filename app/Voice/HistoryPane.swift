@@ -106,11 +106,16 @@ final class HistoryModel {
         let read = (try? await Task.detached { try store?.historyEntries(limit: limit, matching: query) ?? [] }.value) ?? []
         guard query == search else { return }
         let before = selected
-        guard read != entries else { return }
+        // An import's words arrive without its row changing, so its open detail is read again
+        // on every reload while it runs.
+        if read == entries {
+            if selected?.isLive == true, selected?.fileName != nil { refreshDetail() }
+            return
+        }
         entries = read
         if detail == nil || !visible.contains(where: { $0.id == selection }) {
             keepSelection()
-        } else if let before, let now = selected, before != now {
+        } else if let before, let now = selected, before != now || (now.isLive && now.fileName != nil) {
             refreshDetail()
         }
     }
@@ -121,6 +126,11 @@ final class HistoryModel {
         if filter == .dictations || filter == .calls { filter = .all }
         search = ""
         await refresh()
+        // An older entry than the loaded page is read in by growing the page.
+        while !visible.contains(where: { $0.id == id }), entries.count >= limit {
+            limit += Self.page
+            await refresh()
+        }
         guard visible.contains(where: { $0.id == id }) else { return }
         selection = id
     }
@@ -350,7 +360,7 @@ struct HistoryPane: View {
                 model.notice(ImportDrop.refusal)
                 return false
             }
-            importFiles(supported)
+            importFiles(supported, refusing: supported.count < urls.count)
             return true
         } isTargeted: { dropTargeted = $0 }
         .toolbar {
@@ -408,15 +418,18 @@ struct HistoryPane: View {
         .onChange(of: history.selection) { _, id in history.select(id) }
     }
 
-    private func importFiles(_ urls: [URL]) {
+    private func importFiles(_ urls: [URL], refusing: Bool = false) {
         Task {
-            guard let id = await calls.importFiles(urls) else { return }
+            let id = await calls.importFiles(urls)
+            if refusing { model.notice(ImportDrop.refusal) }
+            guard let id else { return }
             await history.reveal(id)
         }
     }
 
     /// The open panel, as a sheet on the window when there is one.
     private func chooseFiles() {
+        guard model.requireActivation() else { return }
         let panel = NSOpenPanel()
         panel.allowedContentTypes = AudioImport.supportedExtensions.sorted().compactMap { UTType(filenameExtension: $0) }
         panel.allowsMultipleSelection = true
@@ -501,11 +514,12 @@ struct HistoryNewMenu: View {
     var body: some View {
         Button(model.isRecording ? "Stop Dictation" : "New Dictation") { model.toggle() }
             .disabled(model.isWorking)
-        Button(calls.recording != nil ? "Stop Recording" : "Record a Call") {
+        let app = calls.detected.first
+        Button(calls.recording != nil ? "Stop Recording" : app == nil ? "Record a Call" : "Record This Call") {
             if calls.recording != nil {
                 Task { await calls.stop() }
             } else {
-                calls.recordFromMenu(calls.detected.first)
+                calls.recordFromMenu(app)
             }
         }
         .disabled(calls.starting)
@@ -535,10 +549,10 @@ private struct HistoryRow: View, @MainActor Equatable {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     if renaming {
-                        RenameField(initial: entry.customTitle ?? "", prompt: date, commit: commit, cancel: cancel)
+                        RenameField(initial: entry.customTitle ?? "", prompt: entry.fileName ?? date, commit: commit, cancel: cancel)
                     } else {
-                        Text(entry.customTitle ?? date).fontWeight(.semibold).lineLimit(1)
-                        if entry.customTitle == nil, let zone = entry.originalZoneLabel {
+                        Text(entry.customTitle ?? entry.fileName ?? date).fontWeight(.semibold).lineLimit(1)
+                        if entry.customTitle == nil, entry.fileName == nil, let zone = entry.originalZoneLabel {
                             Text(zone).font(.caption).foregroundStyle(.secondary)
                         }
                     }
@@ -553,7 +567,16 @@ private struct HistoryRow: View, @MainActor Equatable {
                         .lineLimit(1)
                         .hidden()
                         .frame(maxWidth: .infinity)
-                        .overlay { ProgressView(value: part).controlSize(.small).accessibilityLabel("Transcribing") }
+                        .overlay(alignment: .leading) {
+                            HStack(spacing: 6) {
+                                // A title replaced the file name above, so the name moves here.
+                                if entry.customTitle != nil, let name = entry.fileName {
+                                    Text(name).lineLimit(1).truncationMode(.middle).foregroundStyle(.secondary)
+                                }
+                                ProgressView(value: part).controlSize(.small).frame(minWidth: 40)
+                                    .accessibilityLabel("Transcribing")
+                            }
+                        }
                 } else {
                     Text(secondLine(date: date))
                         .lineLimit(1)
@@ -568,10 +591,13 @@ private struct HistoryRow: View, @MainActor Equatable {
     /// A renamed recording shows what it was, then its date and time; one without a name
     /// shows what it was, and the first words.
     private func secondLine(date: String) -> String {
-        switch importState {
-        case .waiting: return "Waiting"
-        case .failed(let reason): return reason
-        default: break
+        if entry.fileName != nil {
+            switch importState {
+            case .waiting: return [entry.customTitle == nil ? nil : entry.kindLabel, "Waiting"].compactMap { $0 }.joined(separator: " \u{00B7} ")
+            case .failed(let reason): return reason
+            default: break
+            }
+            if entry.customTitle == nil { return entry.firstLine }
         }
         let preview = entry.firstLine.isEmpty ? entry.title : entry.firstLine
         if entry.customTitle != nil {
@@ -622,7 +648,7 @@ private struct RenameField: View {
 extension HistoryEntry {
     /// What a confirmation calls it: the title it was given, or what it is and when.
     var deletionName: String {
-        customTitle ?? "\(kindLabel) from \(HistoryTime.title(start: at, zone: timeZone))"
+        customTitle ?? fileName ?? "\(kindLabel) from \(HistoryTime.title(start: at, zone: timeZone))"
     }
 }
 
@@ -649,10 +675,13 @@ private struct HistoryDetailView: View {
         VStack(spacing: 0) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(entry.customTitle ?? date)
+                    Text(entry.customTitle ?? entry.fileName ?? date)
                         .font(.title3.weight(.semibold))
                         .lineLimit(2)
-                    Text([entry.kindLabel, entry.customTitle == nil ? nil : date, HistoryTime.elapsed(entry.duration)]
+                    // An untitled file is already named by its title, so its subtitle starts at the date.
+                    Text([entry.fileName != nil && entry.customTitle == nil ? nil : entry.kindLabel,
+                          entry.customTitle == nil && entry.fileName == nil ? nil : date,
+                          ImportRowState.showsDuration(entry) ? HistoryTime.elapsed(entry.duration) : nil]
                         .compactMap { $0 }.joined(separator: " \u{00B7} "))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -669,6 +698,7 @@ private struct HistoryDetailView: View {
                         ForEach(HistoryTimeMode.allCases) { Text($0.title).tag($0) }
                     }
                     .pickerStyle(.inline)
+                    .disabled(isImport)
                     Divider()
                     Toggle("Show corrections", isOn: $preferences.showCorrections)
                     Divider()
@@ -705,7 +735,8 @@ private struct HistoryDetailView: View {
                             // others compare equal and are not redrawn when it moves.
                             TranscriptBlockView(block: block, isCall: isCall,
                                                 playing: block.id == playingBlock ? playingLine : nil,
-                                                times: preferences.historyTimes,
+                                                // The clock times of an import would count from the moment it was imported.
+                                                times: isImport ? .elapsed : preferences.historyTimes,
                                                 showCorrections: preferences.showCorrections,
                                                 play: { player.play(from: $0) },
                                                 correctable: detail.canCorrect,
