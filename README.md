@@ -12,7 +12,7 @@ Fast local dictation and call transcription for Mac. Dictate types what you say 
 
 ## Get it
 
-Download Dictate from [spashii.github.io/dictate](https://spashii.github.io/dictate/), open the DMG and drag it to Applications. Activate it once with your email and a code. It is free during early access.
+Download Dictate from [spashii.github.io/dictate](https://spashii.github.io/dictate/), open the DMG and drag it to Applications. Activate it once with your email and a code. It is free forever for the first 50 early access users.
 
 ## Requirements
 
