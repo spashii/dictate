@@ -261,7 +261,12 @@ struct MCPRouter: Sendable {
 
         case "start_recording":
             guard let recording else { throw ToolError(recordingUnavailable) }
-            let call = try await recording.startRecording(title: try args.string("title"))
+            let title = try args.string("title")
+            var call = try await recording.startRecording(title: title)
+            // Core stores a title given at the start as a person's; this one is the agent's.
+            if title != nil, call.title != nil, try store.setTitleSource(call.id, .agent) {
+                call.titleSource = .agent
+            }
             return try Self.json(try Self.plain(call))
 
         case "stop_recording":
@@ -477,7 +482,9 @@ struct MCPRouter: Sendable {
     }
 
     /// A Codable value as JSON objects, with snake_case keys and ISO 8601 times.
-    private static func plain(_ value: some Encodable) throws -> [String: Any] {
+    private static func plain(_ value: some Encodable) throws -> [String: Any] { try encoded(value) }
+
+    private static func encoded(_ value: some Encodable) throws -> [String: Any] {
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
         encoder.dateEncodingStrategy = .iso8601
@@ -485,6 +492,13 @@ struct MCPRouter: Sendable {
         encoder.nonConformingFloatEncodingStrategy = .convertToString(positiveInfinity: "Infinity",
                                                                       negativeInfinity: "-Infinity", nan: "NaN")
         return try JSONSerialization.jsonObject(with: encoder.encode(value)) as? [String: Any] ?? [:]
+    }
+
+    /// A call, with `title_source` always present: null says nobody has titled it.
+    private static func plain(_ call: Call) throws -> [String: Any] {
+        var object: [String: Any] = try encoded(call)
+        object["title_source"] = call.titleSource?.rawValue ?? NSNull()
+        return object
     }
 
     /// What an agent following a call needs of a segment; the id is what correct_segment takes.

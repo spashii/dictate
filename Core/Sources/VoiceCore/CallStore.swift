@@ -26,10 +26,11 @@ public final class CallStore: @unchecked Sendable {
         _ = try queue.sync {
             try db.run("""
                 INSERT INTO calls (id, started_at, time_zone, app_bundle_id, app_name, device_uid, split, audio_path,
-                                   status, title, speakers)
-                VALUES (?,?,?,?,?,?,?,?,'recording',?,?)
+                                   status, title, title_source, speakers)
+                VALUES (?,?,?,?,?,?,?,?,'recording',?,?,?)
                 """, [new.id, new.startedAt, new.timeZone, new.appBundleID, new.appName, new.deviceUID, new.split, new.audioPath,
-                      new.title, new.speakers?.joined(separator: "\u{1F}")])
+                      new.title, new.title.map { _ in (new.titleSource ?? .user).rawValue },
+                      new.speakers?.joined(separator: "\u{1F}")])
         }
         return try require(new.id)
     }
@@ -86,6 +87,29 @@ public final class CallStore: @unchecked Sendable {
 
     public func setTitle(_ callID: String, _ title: String?) throws {
         try update(callID, "title = ?", [title])
+    }
+
+    /// Gives an untitled call the title a model made. Writes only while nobody has set one,
+    /// a person's clearing it included, so a title that matters is never replaced and a
+    /// cleared one stays cleared. Not an edit: it is not something to undo. Returns whether
+    /// it wrote.
+    @discardableResult
+    public func setAutoTitle(_ callID: String, _ title: String) throws -> Bool {
+        try queue.sync {
+            try db.run("""
+                UPDATE calls SET title = ?, title_source = 'auto'
+                WHERE id = ? AND title IS NULL AND title_source IS NULL
+                """, [title, callID]) > 0
+        }
+    }
+
+    /// Marks who set a title that already exists. Returns whether the call has one.
+    @discardableResult
+    public func setTitleSource(_ callID: String, _ source: TitleSource) throws -> Bool {
+        try queue.sync {
+            try db.run("UPDATE calls SET title_source = ? WHERE id = ? AND title IS NOT NULL",
+                       [source.rawValue, callID]) > 0
+        }
     }
 
     /// Points the call at its audio after the file changed format. The old file is the
@@ -633,6 +657,13 @@ public final class CallStore: @unchecked Sendable {
             """),
         // A name a person gave a recording; a call has had one since calls-1.
         ("titles-1", "ALTER TABLE dictations ADD COLUMN title TEXT;"),
+        // Who set the title. Titles that exist were set by a person or by start_recording.
+        ("titles-2", """
+            ALTER TABLE calls ADD COLUMN title_source TEXT;
+            ALTER TABLE dictations ADD COLUMN title_source TEXT;
+            UPDATE calls SET title_source = 'user' WHERE title IS NOT NULL;
+            UPDATE dictations SET title_source = 'user' WHERE title IS NOT NULL;
+            """),
     ]
 
     /// The names of the migrations this file has had.
@@ -660,13 +691,15 @@ public final class CallStore: @unchecked Sendable {
 
     private static let callColumns = """
         id, started_at, ended_at, app_bundle_id, app_name, device_uid, split, audio_path, status, title, error,
-        (SELECT group_concat(tag, char(31)) FROM call_tags WHERE call_id = calls.id), speakers, time_zone
+        (SELECT group_concat(tag, char(31)) FROM call_tags WHERE call_id = calls.id), speakers, time_zone,
+        title_source
         """
 
     private static func readCall(_ row: SQLiteRow) -> Call {
         Call(id: row.text(0), startedAt: row.date(1), timeZone: row.string(13), endedAt: row.optionalDate(2), appBundleID: row.string(3),
              appName: row.string(4), deviceUID: row.string(5), split: row.int(6) != 0, audioPath: row.string(7),
-             status: Call.Status(rawValue: row.text(8)) ?? .failed, title: row.string(9), error: row.string(10),
+             status: Call.Status(rawValue: row.text(8)) ?? .failed, title: row.string(9),
+             titleSource: row.string(14).flatMap(TitleSource.init(rawValue:)), error: row.string(10),
              tags: (row.string(11) ?? "").split(separator: "\u{1F}").map(String.init)
                 .sorted { $0.localizedStandardCompare($1) == .orderedAscending },
              speakers: row.string(12).map { $0.split(separator: "\u{1F}", omittingEmptySubsequences: false).map(String.init) })

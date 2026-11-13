@@ -204,7 +204,8 @@ extension CallStore {
                         throw VoiceError.store("\(edit.target) has been renamed since edit \(edit.id); undo that one first.")
                     }
                     let restored = edit.before?.text
-                    try db.run("UPDATE \(table) SET title = ? WHERE id = ?", [restored, id])
+                    try db.run("UPDATE \(table) SET title = ?, title_source = ? WHERE id = ?",
+                           [restored, Self.titleSource(client: client).rawValue, id])
                     before = Edit.Value(text: current)
                     after = Edit.Value(text: restored)
                 case .addKeyTerms, .removeKeyTerms, .dismissKeyTerm, .undo:

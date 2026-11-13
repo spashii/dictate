@@ -8,8 +8,15 @@ extension CallStore {
         throw VoiceError.store("\(target) can't be renamed.")
     }
 
+    /// A person's title is `user`; an agent's, or anyone else's, is `agent`.
+    static func titleSource(client: String?) -> TitleSource {
+        client == Edit.personClient ? .user : .agent
+    }
+
     /// Gives a recording a title, or takes it away with nil or blank text. Recorded as an
-    /// edit so an agent sees it and `undo_edit` reverts it. Nil when nothing changed.
+    /// edit so an agent sees it and `undo_edit` reverts it. Nil when nothing changed. The title's
+    /// source follows the client, also when the title is cleared, so an automatic title never
+    /// comes back over one a person took away.
     @discardableResult
     public func rename(_ kind: HistoryEntry.Kind, _ ref: String, to title: String?, client: String? = Edit.personClient) throws -> Edit? {
         let name = title?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
@@ -21,7 +28,8 @@ extension CallStore {
                     throw VoiceError.store("No \(kind.rawValue) \(ref).")
                 }
                 guard (current ?? "") != (name ?? "") else { return nil }
-                try db.run("UPDATE \(table) SET title = ? WHERE id = ?", [name, id])
+                try db.run("UPDATE \(table) SET title = ?, title_source = ? WHERE id = ?",
+                           [name, Self.titleSource(client: client).rawValue, id])
                 return try insertEdit(.renameRecording, target: target, client: client, before: Edit.Value(text: current),
                                       after: Edit.Value(text: name))
             }
