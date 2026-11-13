@@ -164,9 +164,9 @@
       <p class="lede">Dictate types what you say into any app, and records your online calls with your side and theirs kept apart. It runs on your Mac, and no bot joins the call.</p>
       <div class="get">
         <div class="actions"><a class="button primary" data-get href="https://dictate.firstversion.in/get">Download for Mac</a></div>
-        <p class="meta" data-founding><span>The first 50 to activate keep it free for good.</span><span data-left hidden></span></p>
+        <p class="meta" data-founding><span data-left>The first 50 to activate keep it free for good.</span></p>
         <p class="meta" data-install-hide><span>Free during the beta, then $49 once.</span></p>
-        <p class="meta" data-install-hide><span>Apple silicon, macOS 15 or later</span></p>
+        <p class="meta" data-install-hide><span>Apple silicon, macOS 15 or later.</span></p>
         <p class="meta"><span>You activate Dictate with your email and a code.</span><span>The app does not sign in and does not report what you do.</span></p>
       </div>
     </div>
@@ -333,9 +333,9 @@
     <h2>Get Dictate</h2>
     <div class="get">
       <div class="actions"><a class="button primary" data-get href="https://dictate.firstversion.in/get">Download for Mac</a></div>
-      <p class="meta" data-founding><span>The first 50 to activate keep it free for good.</span><span data-left hidden></span></p>
+      <p class="meta" data-founding><span data-left>The first 50 to activate keep it free for good.</span></p>
       <p class="meta" data-install-hide><span>Free during the beta, then $49 once.</span></p>
-      <p class="meta" data-install-hide><span>Apple silicon, macOS 15 or later</span></p>
+      <p class="meta" data-install-hide><span>Apple silicon, macOS 15 or later.</span></p>
       <p class="meta"><span>You activate Dictate with your email and a code.</span><span>The app does not sign in and does not report what you do.</span></p>
     </div>
   </section>
@@ -369,9 +369,9 @@ if (location.hostname === "spashii.github.io") {
 }
 </script>
 <script>
-/* Hero demo, a 13 second loop in three steps: record the call, dictate the ask, use it with your
+/* Hero demo, a 13.7 second loop in three steps: record the call, dictate the ask, use it with your
    own agent. It opens on the Record this call? nudge, so the first frame already says what it is,
-   and the agent's answer starts at 7.9 s. Every frame is a function of the clock t, so the loop can
+   and the agent's answer starts at 8.6 s. Every frame is a function of the clock t, so the loop can
    pause, resume, jump to a phase and reset without drift; CSS transitions carry the motion between
    states. It runs only while the stage is on screen and the tab is visible, holds three seconds on
    the answer, fades, and starts again. The phase buttons jump to a step and play on from there.
@@ -394,11 +394,11 @@ if (location.hostname === "spashii.github.io") {
   const T = {
     nudge: 0, cursorIn: 150, click: 800, rec: 1000, lines: [1250, 1650, 2050], end: 2600,
     step2: 3400, keys1: 3600, press1: 3750, dict: 3850, chunks: [4000, 4400, 4800, 5200],
-    keys2: 5550, press2: 5700, busy: 5750, type: [5950, 6400], send: 6600,
-    step3: 6600, tools: [6800, 7050, 7300, 7550], sum: [7900, 8700], mail: [8900, 9900],
-    fade: 12400, loop: 13000
+    keys2: 5550, press2: 5700, busy: 5750, type: [5950, 7050], send: 7250,
+    step3: 7250, tools: [7450, 7700, 7950, 8200], sum: [8550, 9350], mail: [9550, 10550],
+    fade: 13050, loop: 13650
   };
-  // Displayed clocks start mid call so the stopped pill reads 12:41, not a few seconds.
+  // Displayed clocks start mid call so the stopped pill reads 12:38, not a few seconds.
   const REC = 757, CALL = 842;
   const STEPS = [0, T.step2, T.step3, T.fade];
   // One still frame per phase for reduced motion: the stopped call, two chunks of words, the answer.

@@ -2,8 +2,8 @@
    the button's place, and hides the price and requirements lines meanwhile. The download itself is the
    button's own link. On a phone there is no Mac to install on, so every Download button becomes a
    Share or Copy link button for the page address and never navigates to the DMG.
-   The founding spots count is fetched once and fills every [data-left]; if the request fails the
-   offer line stands alone. */
+   The founding spots count is fetched once and appends "N spots left." to the founding sentence in every [data-left]; if the
+   request fails the sentence stands alone. */
 (function () {
   var STEPS = ["Open the DMG and drag Dictate to Applications.", "Open Dictate.", "Press Activate in Browser."];
   var FOUNDING = "https://dictate.firstversion.in/api/activate/founding";
@@ -28,9 +28,10 @@
   function founding() {
     var spots = document.querySelectorAll("[data-left]");
     if (!spots.length || !window.fetch) return;
+    for (var k = 0; k < spots.length; k++) spots[k].setAttribute("data-base", spots[k].textContent);
     fetch(FOUNDING).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
       if (j && Number.isInteger(j.left) && j.left >= 0) {
-        for (var i = 0; i < spots.length; i++) { spots[i].textContent = j.left + " of 50 founding spots left"; spots[i].hidden = false; }
+        for (var i = 0; i < spots.length; i++) { spots[i].textContent = spots[i].getAttribute("data-base") + " " + j.left + (j.left === 1 ? " spot left." : " spots left."); }
       }
     }).catch(function () {});
   }
@@ -81,29 +82,31 @@
     });
 
     var timer = null;
-    function copied() {
-      buttons.forEach(function (b) { b.textContent = "Link copied"; });
+    function copied(btn) {
+      buttons.forEach(function (b) { b.textContent = idle; });
+      btn.textContent = "Link copied";
       live.textContent = "Link copied";
       clearTimeout(timer);
       timer = setTimeout(function () {
-        buttons.forEach(function (b) { b.textContent = "Copy link"; });
+        btn.textContent = idle;
         live.textContent = "";
       }, 2000);
     }
-    function copy(url) { copyText(url).then(copied, function () {}); }
+    function copy(url, btn) { copyText(url).then(function () { copied(btn); }, function () {}); }
 
     buttons.forEach(function (b) {
       b.addEventListener("click", function () {
+        var btn = b;
         var url = location.href.split("#")[0];
         if (canShare) {
           var p;
           try { p = navigator.share({ url: url }); } catch (e) { p = Promise.reject(e); }
           Promise.resolve(p).then(null, function (err) {
             if (err && err.name === "AbortError") return;
-            copy(url);
+            copy(url, btn);
           });
         } else {
-          copy(url);
+          copy(url, btn);
         }
       });
     });

@@ -65,13 +65,19 @@
 .art .tool { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-radius: 8px; background: var(--app-control); box-shadow: var(--app-ring); font: 13px var(--mono); }
 
 /* History card: the Me and Call transcript lines of the real History window (a 1704 by 600 capture),
-   cropped to x 694 to 1690 and y 128 to 530 so no line is cut. The ratio and the percentage sizes keep
-   the crop identical at every width; vertical margins resolve against the width. The frame's hairline
-   is drawn over the picture so it stays visible. */
-.well.shot { position: relative; height: auto; min-height: 0; aspect-ratio: 996 / 402; }
+   cropped to x 694 to 1690 starting at the first transcript line (y 128). Below 735px the whole crop
+   shows (y 128 to 530) at a fixed ratio. From 735px the well is 144px tall like its neighbour: the
+   image keeps its width percentage so no line is cut on the right, and the picture fades out over its
+   last 28px so a line cut by the height dissolves instead of being sliced. The frame's hairline is
+   drawn over the well so it stays visible. */
+.well.shot { position: relative; height: auto; min-height: 0; aspect-ratio: 996 / 402; overflow: hidden; }
 .well.shot picture { display: block; }
 .well.shot img { display: block; width: 171.08%; max-width: none; height: auto; margin: -12.85% 0 0 -69.68%; }
 .well.shot::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px var(--hairline); pointer-events: none; }
+@media (min-width: 735px) {
+  .well.shot { height: 144px; aspect-ratio: auto; }
+  .well.shot picture { height: 100%; overflow: hidden; -webkit-mask-image: linear-gradient(#000 calc(100% - 28px), transparent); mask-image: linear-gradient(#000 calc(100% - 28px), transparent); }
+}
 
 /* Hero demo. A 420 by 500 scene of the top of a Mac screen, scaled to the column by the script so
    it reads the same at every width. Every window stays sharp; the camera leans in on the pills at
@@ -117,7 +123,7 @@
 .callwin .cb.end { background: var(--endcall); color: #fff; }
 .callwin .cb svg { width: 16px; height: 16px; }
 
-.chat { left: 22px; top: 46px; width: 376px; height: 438px; display: flex; flex-direction: column; }
+.chat { left: 22px; top: 116px; width: 376px; height: 368px; display: flex; flex-direction: column; }
 .chat .msgs { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: 0 14px 12px; overflow: hidden; -webkit-mask-image: linear-gradient(transparent, #000 32px); mask-image: linear-gradient(transparent, #000 32px); font: 400 13.5px/1.42 var(--sans); }
 /* Each message opens its own height, so what is above it slides up instead of jumping. */
 .chat .mw { flex: none; display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .45s cubic-bezier(.2,.8,.2,1), opacity .4s ease; }
@@ -212,19 +218,23 @@
 .cursor.down svg { transform: scale(.86); }
 
 /* Under the stage: the three phases as buttons, the current one filling like a progress bar, and Pause beside them. */
-.beats { margin-top: var(--sp-4); display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-3); }
-.beats .phases { list-style: none; margin: 0; padding: 0; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-2); }
+.beats { margin-top: var(--sp-4); display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--sp-4) var(--sp-3); }
+/* The list keeps its content width so no caption wraps; when Pause does not fit beside it, Pause drops to its own row. All three capsules share the widest width. */
+.beats .phases { list-style: none; margin: 0; padding: 0; width: max-content; max-width: 100%; display: flex; flex-direction: column; align-items: stretch; gap: var(--sp-2); }
 .beats .phases li { margin: 0; padding: 0; max-width: 100%; }
-.beats .phase { position: relative; isolation: isolate; overflow: hidden; max-width: 100%; padding-block: 6px; justify-content: flex-start; text-align: left; white-space: normal; }
+.beats .phase { position: relative; isolation: isolate; overflow: hidden; display: flex; width: 100%; max-width: 100%; padding-block: 6px; justify-content: flex-start; text-align: left; white-space: nowrap; }
+/* The current step keeps a fixed outline: it shows at 0 s and under reduced motion, and hover cannot outdo it. */
+.beats .phase[aria-current] { box-shadow: inset 0 0 0 1.5px var(--text); }
 .beats .prog { position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; }
 .beats .prog b { display: block; height: 100%; background: var(--fill-active); transform-origin: 0 50%; transform: scaleX(0); }
-.beats .n { display: inline-block; min-width: 1.5em; font-variant-numeric: tabular-nums; }
+.beats .n { display: inline-block; min-width: 0; font-variant-numeric: tabular-nums; }
 .beats #pause { flex: none; }
 .beats.still .prog, .beats.still #pause { display: none; }
 @media (prefers-reduced-motion: reduce) { .beats .prog, .beats #pause { display: none; } }
-@media (prefers-reduced-motion: reduce) { .chat .st, .dpill .spin { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .chat .st, .dpill .spin, .chat .field .caret { animation: none; } }
 /* Install steps: the number sits inside the text's left edge, and a wrapped line aligns with the step's text. */
 .get .steps ol { margin-left: 0; padding: 0; list-style: none; counter-reset: step; }
 .get .steps li { display: grid; grid-template-columns: 1.5em 1fr; counter-increment: step; }
 .get .steps li::before { content: counter(step) "."; font-variant-numeric: tabular-nums; }
-.get [hidden] { display: none; }
+.get .steps li + li { margin-top: 0; }
+.get .meta > span { text-wrap: balance; }
