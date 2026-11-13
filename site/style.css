@@ -260,6 +260,7 @@
 .compare-table th, .compare-table td { font-weight: 400; text-align: left; vertical-align: top; padding: var(--sp-4) var(--sp-4) var(--sp-4) 0; border-bottom: 1px solid var(--hairline); }
 .compare-table thead tr:first-child > * { border-top: 1px solid var(--hairline); }
 .compare-table tr > :last-child { padding-right: 0; }
+.compare-table .apps { display: block; }
 
 /* Below 735 px three columns no longer fit: each row becomes a block, the label on its own line, then
    each value prefixed by its column name. The roles in the HTML keep the table semantics for screen readers. */
@@ -273,6 +274,10 @@
   .compare-table tbody th { font-size: var(--size-h3); line-height: var(--leading-h3); font-weight: 600; letter-spacing: -.01em; }
   .compare-table th + td { margin-top: var(--sp-2); }
   .compare-table td::before { content: attr(data-label) ": "; }
+  .compare-table thead { position: static; width: auto; height: auto; overflow: visible; clip: auto; clip-path: none; white-space: normal; margin-bottom: var(--sp-4); }
+  .compare-table thead tr { padding: 0; border: 0; }
+  .compare-table thead td, .compare-table thead .c-dictate { display: none; }
+  .compare-table thead th { margin-top: var(--sp-2); }
 }
 
 /* Hero headline: "call transcription" never splits at any width. From 1000px each phrase
