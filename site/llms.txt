@@ -21,3 +21,6 @@
 - [Source on GitHub](https://github.com/spashii/dictate)
 - [Where everything is kept](https://github.com/spashii/dictate/blob/main/docs/user/data.md)
 - [Privacy](https://spashii.github.io/dictate/privacy.html)
+- [Local Wispr Flow alternative for Mac](https://spashii.github.io/dictate/wispr-flow-alternative/)
+- [Granola alternative without the cloud](https://spashii.github.io/dictate/granola-alternative/)
+- [How to transcribe online calls on a Mac, locally](https://spashii.github.io/dictate/transcribe-calls-on-mac/)
