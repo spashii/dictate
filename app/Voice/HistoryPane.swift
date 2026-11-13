@@ -232,9 +232,10 @@ final class HistoryModel {
         reload()
         if !result.added.isEmpty {
             let added = result.added
-            return .added(KeyTermAddition(terms: added.map(\.term), undo: { try? await service.undo(added) }))
+            return .added(KeyTermAddition(terms: added.map(\.term), undo: { await service.undo(added).errors }))
         }
-        return result.refused == nil ? .saved : .refused
+        if !result.refused.isEmpty { return .note(KeyTermConfirmation.full(result.refused)) }
+        return result.failed == nil ? .saved : .note(KeyTermConfirmation.addFailed)
     }
 
     /// Starts editing a row's title in place.
@@ -1033,7 +1034,12 @@ private struct TranscriptBlockView: View, @MainActor Equatable {
         }
         .onChange(of: block.generation) {
             selection = nil
-            editing = nil
+            // A correction being saved or confirmed outlives the redraw it causes.
+            if let held = editing, !held.anchor.closesOnRefresh {
+                if let layout = textLayout() { editing?.rect = layout.rect(of: held.anchor.range) }
+            } else {
+                editing = nil
+            }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(block.spokenLabel(times))
@@ -1081,11 +1087,11 @@ extension TranscriptBlockView {
     private func begin(_ range: Range<Int>, layout: BlockTextLayout) {
         hoveredMark = nil
         guard correctable else {
-            editing = Editing(request: nil, rect: layout.rect(of: range))
+            editing = Editing(request: nil, rect: layout.rect(of: range), anchor: CorrectionAnchor(range: range))
             return
         }
         guard let request = draft(block, range) else { return }
-        editing = Editing(request: request, rect: layout.rect(of: range))
+        editing = Editing(request: request, rect: layout.rect(of: range), anchor: CorrectionAnchor(range: range))
     }
 
     /// The layout for the row's current width, made when first needed.
@@ -1119,7 +1125,8 @@ private struct Editing: Identifiable {
     let id = UUID()
     /// Nil when the recording can't be corrected, and the popover says so.
     let request: HandCorrection?
-    let rect: CGRect
+    var rect: CGRect
+    var anchor: CorrectionAnchor
 }
 
 /// The popover that corrects the selected words.
@@ -1132,6 +1139,9 @@ private struct CorrectionEditorHost: ViewModifier {
             if let request = item.request {
                 CorrectionEditor(original: request.selected,
                                  save: { await save(request, $0) },
+                                 holding: { text, on in
+                                     if on { editing?.anchor.hold(replacement: text) } else { editing?.anchor.release() }
+                                 },
                                  done: { editing = nil })
             } else {
                 Text("Fix the text before pasting changed this dictation, so its words can't be corrected here.")
@@ -1145,6 +1155,8 @@ private struct CorrectionEditorHost: ViewModifier {
 private struct CorrectionEditor: View {
     let original: String
     let save: (String) async -> CorrectionOutcome
+    /// Tells the popover its correction is saving (true) or failed to (false).
+    let holding: (String, Bool) -> Void
     let done: () -> Void
     @State private var text: String
     @State private var error: String?
@@ -1152,9 +1164,11 @@ private struct CorrectionEditor: View {
     @State private var saving = false
     @FocusState private var focused: Bool
 
-    init(original: String, save: @escaping (String) async -> CorrectionOutcome, done: @escaping () -> Void) {
+    init(original: String, save: @escaping (String) async -> CorrectionOutcome,
+         holding: @escaping (String, Bool) -> Void, done: @escaping () -> Void) {
         self.original = original
         self.save = save
+        self.holding = holding
         self.done = done
         _text = State(initialValue: original)
     }
@@ -1164,7 +1178,7 @@ private struct CorrectionEditor: View {
     var body: some View {
         switch note {
         case .added(let addition): KeyTermConfirmation(message: addition.message, undo: addition.undo, done: done)
-        case .refused: KeyTermConfirmation(message: KeyTermConfirmation.full, undo: nil, done: done)
+        case .note(let message): KeyTermConfirmation(message: message, undo: nil, done: done)
         default: form
         }
     }
@@ -1192,13 +1206,17 @@ private struct CorrectionEditor: View {
     private func commit() {
         guard changed, !saving else { return }
         saving = true
+        let replacement = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        holding(replacement, true)
         Task {
             let outcome = await save(text)
             saving = false
             switch outcome {
-            case .failed(let message): error = message
+            case .failed(let message):
+                error = message
+                holding(replacement, false)
             case .saved: done()
-            case .added, .refused: note = outcome
+            case .added, .note: note = outcome
             }
         }
     }

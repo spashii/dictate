@@ -154,6 +154,7 @@ targets:
       - path: Voice/RecentCallLabel.swift
       - path: Voice/Changelog.swift
       - path: Voice/UpdateAvailability.swift
+      - path: Voice/KeyTermConfirmation.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.spashii.voice.tests

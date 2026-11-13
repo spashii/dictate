@@ -391,6 +391,7 @@ public actor KeyTermSuggestions {
         do {
             change = try await editor.add([suggestion.term], client: client)
         } catch let error as ToolError {
+            if error.isFull { throw KeyTermsFull(message: error.message) }
             throw VoiceError.store(error.message)
         }
         try store.acceptTermSuggestion(id, edit: change.edit?.id)
@@ -401,6 +402,12 @@ public actor KeyTermSuggestions {
     public func dismiss(_ id: Int64, client: String = settingsClient) throws -> Edit {
         try store.dismissTermSuggestion(id, client: client)
     }
+}
+
+/// Whisper's prompt has no room for a term; the suggestion stays pending.
+public struct KeyTermsFull: Error, CustomStringConvertible {
+    public let message: String
+    public var description: String { message }
 }
 
 /// A key term a hand correction added.
@@ -416,41 +423,67 @@ public struct HandCorrectionResult: Sendable {
     /// The correction itself; nil when nothing changed.
     public var edit: Edit?
     public var added: [AddedKeyTerm]
-    /// Why a proposed term wasn't added, in add_key_terms' words, such as the list being full.
-    public var refused: String?
+    /// Proposed terms the list had no room for. They stay pending suggestions.
+    public var refused: [String]
+    /// Why a proposed term couldn't be added for any other reason.
+    public var failed: String?
+}
+
+/// What taking added key terms back out did, term by term.
+public struct KeyTermUndoResult: Sendable {
+    public var undone: [AddedKeyTerm]
+    /// What went wrong, one line per term that couldn't be taken out.
+    public var errors: [String]
 }
 
 extension KeyTermSuggestions {
     /// A person's correction in History: stores it, then adds each key term it proposes, as
-    /// Settings' Add would, by `Edit.personClient`. A refused add stays a pending suggestion.
-    /// An agent's correction only suggests; undo it with `undo`.
+    /// Settings' Add would, by `Edit.personClient`. A term the list has no room for stays a
+    /// pending suggestion. An agent's correction only suggests; undo a person's with `undo`.
     public func correct(_ request: HandCorrection, to replacement: String) async throws -> HandCorrectionResult {
         let known = KeyTerms.parse(await editor.settings.keyTerms())
         guard let edit = try store.correct(request, to: replacement, known: known, suggest: false) else {
-            return HandCorrectionResult(edit: nil, added: [], refused: nil)
+            return HandCorrectionResult(edit: nil, added: [], refused: [], failed: nil)
         }
         let suggestions = (try? store.suggestKeyTerms(from: edit, known: known, dictionary: dictionary)) ?? []
         var added: [AddedKeyTerm] = []
-        var refused: String?
+        var refused: [String] = []
+        var failed: String?
         for suggestion in suggestions where suggestion.status == .pending {
             do {
                 if let add = try await accept(suggestion.id, client: Edit.personClient) {
                     added.append(AddedKeyTerm(term: suggestion.term, suggestionID: suggestion.id, editID: add.id))
                 }
+            } catch is KeyTermsFull {
+                refused.append(suggestion.term)
             } catch {
-                refused = "\(error)"
+                failed = Self.words(error)
                 break
             }
         }
-        return HandCorrectionResult(edit: edit, added: added, refused: refused)
+        return HandCorrectionResult(edit: edit, added: added, refused: refused, failed: failed)
     }
 
-    /// Takes the added terms out of the list and dismisses their suggestions, so they don't
-    /// come back as pending.
-    public func undo(_ added: [AddedKeyTerm]) async throws {
+    private static func words(_ error: Error) -> String { (error as? ToolError)?.message ?? "\(error)" }
+
+    /// Takes each added term out of the list and dismisses its suggestion, so it doesn't come
+    /// back as pending. One term failing doesn't stop the others.
+    public func undo(_ added: [AddedKeyTerm]) async -> KeyTermUndoResult {
+        var result = KeyTermUndoResult(undone: [], errors: [])
         for term in added {
-            try await editor.undo(term.editID, client: Edit.personClient)
-            try store.dismissTermSuggestion(term.suggestionID, client: Edit.personClient)
+            do {
+                try await editor.undo(term.editID, client: Edit.personClient)
+            } catch {
+                result.errors.append("\(term.term): \(Self.words(error))")
+                continue
+            }
+            result.undone.append(term)
+            do {
+                try store.dismissTermSuggestion(term.suggestionID, client: Edit.personClient)
+            } catch {
+                result.errors.append("\(term.term): \(Self.words(error))")
+            }
         }
+        return result
     }
 }

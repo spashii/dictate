@@ -7,7 +7,7 @@ extension Snapshots {
     /// where the popover would sit. A popover doesn't draw in an offscreen window.
     static func keyTermAdded(_ model: AppModel, _ history: HistoryModel, dark: Bool) async throws -> NSBitmapImageRep? {
         guard let window = try await historyWindow(model, history, dark: dark) else { return nil }
-        let card = KeyTermConfirmation(message: "Northwind is now a key term.", undo: {}, done: {})
+        let card = KeyTermConfirmation(message: "Northwind is now a key term.", undo: { [] }, done: {})
             .frame(width: 250, height: 46)
             .background(Color(nsColor: .windowBackgroundColor))
             .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.primary.opacity(0.2)))

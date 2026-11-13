@@ -616,9 +616,12 @@ struct RPCError: Error {
 /// A tool that ran and failed: reported in its result, so the agent reads why.
 struct ToolError: Error {
     let message: String
+    /// The key terms wouldn't fit whisper's prompt.
+    let isFull: Bool
 
-    init(_ message: String) {
+    init(_ message: String, isFull: Bool = false) {
         self.message = message
+        self.isFull = isFull
     }
 }
 
