@@ -18,6 +18,25 @@ enum HistoryFilter: String, CaseIterable, Identifiable {
         case .imports: entry.fileName != nil
         }
     }
+
+    /// What the list says when the filter has nothing in it, and what to do next.
+    var emptyTitle: String {
+        switch self {
+        case .all: "Nothing yet"
+        case .dictations: "No dictations yet"
+        case .calls: "No calls yet"
+        case .imports: "No imports yet"
+        }
+    }
+
+    var emptyHint: String {
+        switch self {
+        case .all: "Dictations, calls and imports show up here."
+        case .dictations: "Press your dictation shortcut in any app."
+        case .calls: "Join a call and Dictate offers to transcribe it."
+        case .imports: "Drop an audio or video file here."
+        }
+    }
 }
 
 /// What a History row says about an import: queued behind another, being transcribed, failed
