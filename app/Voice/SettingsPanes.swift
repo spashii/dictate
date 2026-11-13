@@ -506,10 +506,7 @@ struct AboutPane: View {
                 }
             }
             Section {
-                Toggle(isOn: $preferences.developerMode) {
-                    Text("Developer mode")
-                    Text("Shows Advanced in the sidebar.")
-                }
+                Toggle("Developer mode", isOn: $preferences.developerMode)
             }
             Section {
                 Link(destination: URL(string: "https://spashii.github.io/dictate/")!) {
