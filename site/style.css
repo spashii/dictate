@@ -262,22 +262,18 @@
 .compare-table tr > :last-child { padding-right: 0; }
 .compare-table .apps { display: block; }
 
-/* Below 735 px three columns no longer fit: each row becomes a block, the label on its own line, then
-   each value prefixed by its column name. The roles in the HTML keep the table semantics for screen readers. */
+/* Below 735 px the table keeps its three columns as a grid: the headings on top, then each question on its
+   own full-width line with its marks beneath, aligned under the headings. The roles in the HTML keep the
+   table semantics for screen readers. */
 @media (max-width: 734px) {
-  .compare-table, .compare-table tbody, .compare-table tr, .compare-table th, .compare-table td { display: block; }
-  .compare-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
-  .compare-table tbody { border-top: 1px solid var(--hairline); }
-  .compare-table tr { padding: var(--sp-4) 0; border-bottom: 1px solid var(--hairline); }
-  .compare-table th, .compare-table td { padding: 0; border: 0; }
-  .compare-table td { margin-top: var(--sp-1); }
-  .compare-table tbody th { font-size: var(--size-h3); line-height: var(--leading-h3); font-weight: 600; letter-spacing: -.01em; }
-  .compare-table th + td { margin-top: var(--sp-2); }
-  .compare-table td::before { content: attr(data-label) ": "; }
-  .compare-table thead { position: static; width: auto; height: auto; overflow: visible; clip: auto; clip-path: none; white-space: normal; margin-bottom: var(--sp-4); }
-  .compare-table thead tr { padding: 0; border: 0; }
-  .compare-table thead td, .compare-table thead .c-dictate { display: none; }
-  .compare-table thead th { margin-top: var(--sp-2); }
+  .compare-table, .compare-table thead, .compare-table tbody { display: block; }
+  .compare-table tr { display: grid; grid-template-columns: 3.75rem minmax(0, .75fr) minmax(0, 1.75fr); column-gap: var(--sp-2); }
+  .compare-table th, .compare-table td { display: block; padding: 0; border: 0; overflow-wrap: anywhere; }
+  .compare-table thead td { display: none; }
+  .compare-table thead tr:first-child > * { border-top: 0; }
+  .compare-table thead tr { padding: var(--sp-4) 0; border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
+  .compare-table tbody tr { padding: var(--sp-4) 0; border-bottom: 1px solid var(--hairline); row-gap: var(--sp-2); }
+  .compare-table tbody th { grid-column: 1 / -1; }
 }
 
 /* Hero headline: "call transcription" never splits at any width. From 1000px each phrase
