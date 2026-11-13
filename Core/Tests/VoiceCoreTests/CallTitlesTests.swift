@@ -116,19 +116,25 @@ import Testing
         #expect(JSONSerialization.isValidJSONObject(body))
     }
 
-    @Test func modelsComeInOrderAndNeedTheFixModel() {
+    @Test func titlingUsesTheChosenModelOnly() {
         let url = URL(string: "http://127.0.0.1:11434")!
-        func names(_ apple: Bool, _ installed: [String]?) -> [String] {
-            CallTitles.models(appleAvailable: apple, ollamaModels: installed, fixModel: "qwen3.5:9b", ollamaURL: url).map(\.name)
+        func names(_ choice: LocalModel, apple: Bool, _ installed: [String]?) -> [String] {
+            CallTitles.models(choice: choice, appleAvailable: apple, ollamaModels: installed, ollamaURL: url).map(\.name)
         }
-        #expect(names(false, nil) == [])
-        #expect(names(false, ["llama3:8b"]) == [])
-        #expect(names(false, ["qwen3.5:9b"]) == ["ollama"])
+        let qwen = LocalModel.ollama("qwen3.5:9b")
+        #expect(names(qwen, apple: false, nil) == [])
+        #expect(names(qwen, apple: false, ["llama3:8b"]) == [])
+        #expect(names(qwen, apple: false, ["qwen3.5:9b", "other"]) == ["ollama"])
+        #expect(names(.ollama("qwen3.5"), apple: false, ["qwen3.5:latest"]) == ["ollama"])
+        // No cross fallback: Ollama chosen and Apple available still means Ollama only.
+        #expect(names(qwen, apple: true, ["qwen3.5:9b"]) == ["ollama"])
+        #expect(names(qwen, apple: true, nil) == [])
+        // Apple chosen but unavailable gives no model, even with Ollama installed.
+        #expect(names(.apple, apple: false, ["qwen3.5:9b"]) == [])
         #expect(CallTitles.contains(["qwen3.5:latest"], "qwen3.5"))
-        #expect(names(false, ["qwen3.5:9b", "other"]) == ["ollama"])
-        // Apple's model is only offered where this Mac has it; the test host may not.
-        let both = names(true, ["qwen3.5:9b"])
-        #expect(both == ["ollama"] || both == ["apple", "ollama"])
+        // Apple's model needs macOS 26 as well as the fact; the test host may be older.
+        let apple = names(.apple, apple: true, ["qwen3.5:9b"])
+        if #available(macOS 26, *) { #expect(apple == ["apple"]) } else { #expect(apple == []) }
     }
 }
 

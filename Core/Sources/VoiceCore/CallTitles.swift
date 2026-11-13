@@ -104,22 +104,26 @@ public enum CallTitles {
         models.contains(name) || models.contains(name + ":latest")
     }
 
-    /// The models to try, best first: Apple's on-device model when this Mac offers it, then
-    /// Ollama when it has the fix-up model. The app passes facts and never builds a model.
-    public static func models(appleAvailable: Bool, ollamaModels: [String]?, fixModel: String,
+    /// The model that titles calls: the chosen one only, with no fallback to the other, since
+    /// someone who picked Apple does not want a 9B Ollama model loaded after each call. Empty
+    /// when the chosen model isn't there, and the call keeps its label. The app passes facts
+    /// and never builds a model.
+    public static func models(choice: LocalModel, appleAvailable: Bool, ollamaModels: [String]?,
                               ollamaURL: URL) -> [any TitleModel] {
-        var models: [any TitleModel] = []
-        #if canImport(FoundationModels)
-        if appleAvailable, #available(macOS 26, *) { models.append(AppleTitleModel()) }
-        #endif
-        if let installed = ollamaModels, contains(installed, fixModel) {
-            models.append(OllamaTitleModel(model: fixModel, url: ollamaURL))
+        switch choice {
+        case .apple:
+            #if canImport(FoundationModels)
+            if appleAvailable, #available(macOS 26, *) { return [AppleTitleModel()] }
+            #endif
+            return []
+        case .ollama(let model):
+            guard let installed = ollamaModels, contains(installed, model) else { return [] }
+            return [OllamaTitleModel(model: model, url: ollamaURL)]
         }
-        return models
     }
 }
 
-/// Something that can name a call from a prompt. Any error means "try the next one".
+/// Something that can name a call from a prompt. An error means the call stays untitled.
 public protocol TitleModel: Sendable {
     var name: String { get }
     func title(instructions: String, prompt: String) async throws -> String
@@ -163,8 +167,6 @@ public struct AppleTitleModel: TitleModel {
     public var name: String { "apple" }
 
     public init() {}
-
-    public static var isAvailable: Bool { SystemLanguageModel.default.availability == .available }
 
     public func title(instructions: String, prompt: String) async throws -> String {
         let session = LanguageModelSession(instructions: instructions)

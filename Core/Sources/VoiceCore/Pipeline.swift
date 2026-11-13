@@ -11,7 +11,6 @@ public final class Pipeline: Sendable {
 
     public let transcriber: Transcriber
     public let store: Store?
-    private let ollama = Ollama()
 
     public init(transcriber: Transcriber, store: Store?) {
         self.transcriber = transcriber
@@ -50,7 +49,7 @@ public final class Pipeline: Sendable {
             duration: duration,
             mode: mode, whisperModel: transcriber.modelName,
             rawText: transcript.text, finalText: transcript.text,
-            cleanupModel: cleanup?.model, cleanupSystem: cleanup.map { fixScope == .whole ? $0.system : TargetedFix.system },
+            cleanupModel: cleanup?.modelName, cleanupSystem: cleanup.map { fixScope == .whole ? $0.system : TargetedFix.system },
             timings: .init(record: recordMs, load: Self.ms(loadSeconds), transcribe: Self.ms(transcript.seconds),
                            retry: Self.ms(transcript.retryAfterStop)),
             segments: transcript.segments)
@@ -62,8 +61,7 @@ public final class Pipeline: Sendable {
                 // allows, and Ollama's runner then fails every request until its model is
                 // unloaded. Whisper gives its memory back first; reloading it costs 0.4 s.
                 await transcriber.unload()
-                onStage(.cleaningUp)
-            })
+            }, beforeModel: { onStage(.cleaningUp) })
             dictation.finalText = outcome.text
             if fixScope != .whole { dictation.fixEdits = outcome.edits }
             if outcome.askedOllama { dictation.timings.cleanup = Self.ms(outcome.seconds) }
@@ -74,25 +72,31 @@ public final class Pipeline: Sendable {
     }
 
     /// The fix step on its own, as the app runs it, so dictate-cli can measure exactly this.
-    /// A scope that sends no segment returns at once without touching Ollama or whisper. A
-    /// failure keeps whisper's text and says why, so the words aren't lost.
+    /// A scope that sends no segment returns at once without touching the model or whisper. A
+    /// failure keeps whisper's text and says why, so the words aren't lost. `beforeOllama`
+    /// runs only for an editor that competes with whisper for memory; `beforeModel` runs for
+    /// every editor, after it. `editor` defaults to the settings' engine.
     public static func fix(_ transcript: Transcript, settings: CleanupSettings, scope: FixScope,
                            flagBelow: Double = SegmentRetry().logprobBelow,
-                           beforeOllama: @Sendable () async -> Void = {}) async -> FixOutcome {
+                           editor: (any FixEditor)? = nil,
+                           beforeOllama: @Sendable () async -> Void = {},
+                           beforeModel: @Sendable () async -> Void = {}) async -> FixOutcome {
         let segments = transcript.segments
         let flagged = TargetedFix.sent(segments, scope: scope, flagBelow: flagBelow)
         var outcome = FixOutcome(text: transcript.text, flagged: flagged, edits: [], askedOllama: false, seconds: 0)
         guard !transcript.text.isEmpty, !flagged.isEmpty else { return outcome }
-        await beforeOllama()
+        let editor = editor ?? FixEditors.editor(for: settings)
+        if editor.unloadsWhisper { await beforeOllama() }
+        await beforeModel()
         let start = ContinuousClock.now
         outcome.askedOllama = true
         do {
             switch scope {
             case .whole:
-                let result = try await Ollama().cleanup(transcript.text, settings: settings)
-                if !result.text.isEmpty { outcome.text = result.text }
+                let text = try await editor.rewrite(transcript.text, settings: settings)
+                if !text.isEmpty { outcome.text = text }
             case .every, .flagged:
-                let proposed = try await Ollama().edits(segments, flagged: flagged, settings: settings).edits
+                let proposed = try await editor.edits(segments, flagged: flagged, settings: settings)
                 outcome.edits = TargetedFix.validate(proposed, segments: segments, flagged: flagged)
                 if outcome.edits.contains(where: \.applied) {
                     outcome.text = TargetedFix.join(TargetedFix.apply(outcome.edits, to: segments))
