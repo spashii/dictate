@@ -46,6 +46,14 @@ enum Changelog {
         return entries
     }
 
+    /// How many releases What's new lists before View more.
+    static let recentCount = 3
+
+    /// The entries What's new lists: the newest few, or all of them once View more is pressed.
+    static func visible(_ entries: [Entry], showingAll: Bool) -> [Entry] {
+        showingAll ? entries : Array(entries.prefix(recentCount))
+    }
+
     /// "0.14.0 (2026-11-13)" into the version and the date.
     private static func heading(_ text: String) -> (String, DateComponents?) {
         let parts = text.split(separator: " ", maxSplits: 1).map(String.init)

@@ -66,4 +66,13 @@ final class ChangelogTests: XCTestCase {
         XCTAssertFalse(text.contains("\u{2014}"))
         XCTAssertFalse(text.contains("\u{2013}"))
     }
+
+    func testWhatsNewShowsTheLastThreeReleasesUntilViewMore() {
+        let entries = ["1.5.0", "1.4.0", "1.3.0", "1.2.0", "1.1.0"].map {
+            Changelog.Entry(version: $0, date: nil, items: ["A change."])
+        }
+        XCTAssertEqual(Changelog.visible(entries, showingAll: false).map(\.version), ["1.5.0", "1.4.0", "1.3.0"])
+        XCTAssertEqual(Changelog.visible(entries, showingAll: true).map(\.version), entries.map(\.version))
+        XCTAssertEqual(Changelog.visible(Array(entries.prefix(2)), showingAll: false).count, 2)
+    }
 }
