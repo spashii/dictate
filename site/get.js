@@ -3,6 +3,8 @@
    founding line stays. The download itself is the button's own link. On a phone there is no Mac to
    install on, so every Download button becomes a "Send to my Mac" button (or "Copy link" where the
    share sheet is missing) for the page address and never navigates to the DMG.
+   Prices are written with a dollar sign; for visitors in a eurozone country the [data-price] amounts
+   switch to euros, decided from the time zone, then the language region.
    The founding spots count is fetched once and appends "N spots left." to the founding sentence in every [data-left]; if the
    request fails the sentence stands alone. */
 (function () {
@@ -15,6 +17,35 @@
       return !!(window.matchMedia && window.matchMedia("(hover: none) and (pointer: coarse)").matches &&
         Math.min(screen.width, screen.height) < 600);
     } catch (e) { return false; }
+  }
+
+  // Time zones of the 21 euro countries, France's overseas departments included because they use the euro.
+  // Europe/Busingen is left out on purpose: Germany's exclave on the Swiss side bills in francs.
+  var EURO_ZONES = ("Europe/Vienna Europe/Brussels Europe/Sofia Europe/Zagreb Asia/Nicosia Asia/Famagusta Europe/Nicosia " +
+    "Europe/Tallinn Europe/Helsinki Europe/Mariehamn Europe/Paris Europe/Berlin Europe/Athens Europe/Dublin Eire " +
+    "Europe/Rome Europe/Riga Europe/Vilnius Europe/Luxembourg Europe/Malta Europe/Amsterdam Europe/Monaco Europe/Andorra Europe/San_Marino Europe/Vatican Europe/Podgorica " +
+    "Europe/Lisbon Atlantic/Madeira Atlantic/Azores Portugal Europe/Bratislava Europe/Ljubljana Europe/Madrid Africa/Ceuta Atlantic/Canary " +
+    "Indian/Reunion Indian/Mayotte America/Martinique America/Guadeloupe America/Cayenne America/Marigot America/St_Barthelemy America/Miquelon").split(" ");
+  var EURO_REGIONS = "AT BE BG HR CY EE FI FR DE GR IE IT LV LT LU MT NL PT SK SI ES MC AD SM VA ME XK".split(" ");
+
+  // true for euro, false for dollar. The zone wins when it is a real place; only a missing or generic zone
+  // (UTC, Etc/*) hands the decision to the browser's language regions.
+  function inEurozone() {
+    var zone = "";
+    try { zone = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (e) {}
+    if (zone && !/^(UTC|GMT|Etc\/|Zulu|Universal|UCT|Greenwich)/i.test(zone)) return EURO_ZONES.indexOf(zone) >= 0;
+    var langs = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || ""];
+    for (var i = 0; i < langs.length; i++) {
+      var m = /^[A-Za-z]{2,3}(?:-[A-Za-z]{4})?-([A-Za-z]{2})(?:-|$)/.exec(langs[i]);
+      if (m) return EURO_REGIONS.indexOf(m[1].toUpperCase()) >= 0;
+    }
+    return false;
+  }
+
+  function currency() {
+    if (!inEurozone()) return;
+    var prices = document.querySelectorAll("[data-price]");
+    for (var i = 0; i < prices.length; i++) prices[i].textContent = prices[i].textContent.replace("$", "\u20ac");
   }
 
   function liveRegion(parent) {
@@ -141,6 +172,7 @@
     });
   }
 
+  currency();
   founding();
   if (isPhone()) phone(); else desktop();
 })();
