@@ -267,13 +267,16 @@
    table semantics for screen readers. */
 @media (max-width: 734px) {
   .compare-table, .compare-table thead, .compare-table tbody { display: block; }
-  .compare-table tr { display: grid; grid-template-columns: 3.75rem minmax(0, .75fr) minmax(0, 1.75fr); column-gap: var(--sp-2); }
-  .compare-table th, .compare-table td { display: block; padding: 0; border: 0; overflow-wrap: anywhere; }
+  .compare-table tr { display: grid; grid-template-columns: 3.75rem minmax(0, 1fr) 10.25rem; column-gap: var(--sp-3); }
+  .compare-table th, .compare-table td { display: block; padding: 0; border: 0; overflow-wrap: break-word; }
   .compare-table thead td { display: none; }
   .compare-table thead tr:first-child > * { border-top: 0; }
   .compare-table thead tr { padding: var(--sp-4) 0; border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
   .compare-table tbody tr { padding: var(--sp-4) 0; border-bottom: 1px solid var(--hairline); row-gap: var(--sp-2); }
   .compare-table tbody th { grid-column: 1 / -1; }
+}
+@media (max-width: 380px) {
+  .compare-table tr { column-gap: 6px; }
 }
 
 /* Hero headline: "call transcription" never splits at any width. From 1000px each phrase
