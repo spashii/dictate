@@ -2,9 +2,10 @@ import Foundation
 import VoiceCore
 
 extension Call {
-    /// What the menu and the pill call a call nobody titled: its app's call, or just Call.
+    /// What the menu and the pill call a call nobody titled: its app's call, or just Call. An
+    /// import is named by its file.
     var untitledName: String {
-        appName.map { "\($0) call" } ?? "Call"
+        fileName ?? appName.map { "\($0) call" } ?? "Call"
     }
 
     /// What the menu and the pill call it: its title, or what it is.
@@ -24,7 +25,8 @@ enum RecentCallLabel {
 
     static func lines(_ call: Call, time: (Date) -> String = { $0.formatted(date: .omitted, time: .shortened) }) -> Lines {
         let minutes = call.endedAt.map { " · \(max(1, Int($0.timeIntervalSince(call.startedAt) / 60))) min" } ?? ""
-        let state = call.status == .failed ? " · failed" : call.status.isLive ? " · recording" : ""
+        let live = call.fileName == nil ? "recording" : "importing"
+        let state = call.status == .failed ? " · failed" : call.status.isLive ? " · \(live)" : ""
         let detail = "\(call.untitledName), \(time(call.startedAt))\(minutes)\(state)"
         guard let title = call.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty else {
             return Lines(title: nil, detail: detail)

@@ -1,6 +1,7 @@
 import AppKit
 import KeyboardShortcuts
 import Observation
+import os
 import SwiftUI
 import VoiceCore
 
@@ -66,6 +67,10 @@ final class CallsModel {
     private(set) var stoppedCall: Call?
     /// The pill's Copy Transcript put the transcript on the clipboard.
     private(set) var stoppedCallCopied = false
+    /// How far each import being transcribed has got, 0 to 1 by whole percents, keyed by call
+    /// id; and the imports still waiting their turn.
+    private(set) var importProgress: [String: Double] = [:]
+    private(set) var importsWaiting: Set<String> = []
 
     @ObservationIgnored private weak var model: AppModel?
     @ObservationIgnored private var store: CallStore?
@@ -81,6 +86,12 @@ final class CallsModel {
     @ObservationIgnored private var stoppedPillEnds = ContinuousClock.now
     /// How long the pill offers a stopped call's transcript, at most.
     static let copyOffer: Duration = .seconds(5)
+    /// Imports run one file at a time, in the order they were added.
+    @ObservationIgnored private var importQueue: [PendingImport] = []
+    @ObservationIgnored private var importWorker: Task<Void, Never>?
+    @ObservationIgnored private var importRunning: (id: String, task: Task<Call?, Never>)?
+    /// Set once Dictate is quitting: the queue is left as it is for the next launch.
+    @ObservationIgnored private var importsStopped = false
     @ObservationIgnored private var following: Task<Void, Never>?
     @ObservationIgnored private var quieting: Task<Void, Never>?
     /// Titles are made one call at a time, in the order the calls ended.
@@ -89,6 +100,15 @@ final class CallsModel {
     @ObservationIgnored private var ollamaRequest: Task<String?, Never>?
     /// An Ollama model is naming a call, so the Mac is not quiet: nothing should restart it.
     private(set) var ollamaTitling = false
+    /// Recordings whose title is being made, for History's "Generating title\u{2026}".
+    private(set) var naming: Set<String> = []
+    /// Recordings with an explicit Generate or Regenerate Title waiting or running. Marked at the
+    /// click, so a job queued behind a slow one still shows and can't be queued twice.
+    private(set) var requested: Set<String> = []
+    func isNaming(_ ref: String) -> Bool { naming.contains(ref) || requested.contains(ref) }
+    /// Told a title the moment it is made, before the call leaves `naming`, so History can
+    /// show it without a frame of the date in between.
+    @ObservationIgnored var titled: (_ callID: String, _ title: String, _ replacing: String??) -> Void = { _, _, _ in }
     private static let quiet: Duration = .seconds(20)
 
     init() {
@@ -107,8 +127,14 @@ final class CallsModel {
     }
 
     #if DEBUG
+    /// The app-shots run shows a call whose title is being made.
+    func setNamingForSnapshots(_ ids: Set<String>) { naming = ids }
+
     /// The app-shots run fills the menu's Recent list without a database behind it.
     func setRecentForSnapshots(_ calls: [Call]) { recent = calls }
+
+    /// The app-shots run shows an import part way through its transcript.
+    func setImportProgressForSnapshots(_ progress: [String: Double]) { importProgress = progress }
 
     /// The app-shots run asks the prompt to show for an app without a detector.
     func promptForSnapshots(_ app: DetectedCall, model: AppModel) {
@@ -136,11 +162,15 @@ final class CallsModel {
         Task {
             do {
                 let store = try await Task.detached { try CallStore(url: Paths.database) }.value
-                let interrupted = try store.liveCalls().filter { call in
+                let live = try store.liveCalls().filter { call in
                     call.audioPath.map { FileManager.default.fileExists(atPath: $0) } ?? false
                 }
+                let interrupted = live.filter { $0.fileName == nil }
+                // An import that kept its copy is read again through the import queue, which
+                // shows its progress and lets it be cancelled or deleted.
+                let resumed = live.filter { $0.fileName != nil }
                 // Those with audio stay live until their rebuild finishes or fails them.
-                try store.failInterruptedCalls(except: Set(interrupted.map(\.id)))
+                try store.failInterruptedCalls(except: Set(live.map(\.id)))
                 self.store = store
                 // Before the rebuilds and conversions below, which would spend their time on
                 // calls about to be deleted. The store didn't exist when the app first pruned.
@@ -151,6 +181,11 @@ final class CallsModel {
                     Task { @MainActor in self.model?.notice(text) }
                 })
                 self.recorder = recorder
+                recorder.sweepPartials()
+                for call in resumed {
+                    importsWaiting.insert(call.id)
+                    importQueue.append(PendingImport(callID: call.id))
+                }
                 refreshRecent()
                 transcribing = true
                 for call in interrupted {
@@ -159,6 +194,7 @@ final class CallsModel {
                     if rebuilt != nil { title(call.id) }
                 }
                 transcribing = false
+                runImports()
                 refreshRecent()
                 // Calls that finished before audio was compressed, or whose conversion was
                 // cut off by quitting. Runs off the main thread.
@@ -190,6 +226,12 @@ final class CallsModel {
     func shutDown() async {
         detector?.stop()
         await recorder?.abandon()
+        // An import is cancelled without failing its row, and its worker is awaited, so whisper
+        // is idle when the model is unloaded. The next launch reads the stored copy again.
+        importsStopped = true
+        importQueue.removeAll()
+        importRunning?.task.cancel()
+        await importWorker?.value
     }
 
     /// Blend's devices.json, the connected inputs and the permission, read off the main
@@ -391,14 +433,30 @@ final class CallsModel {
     private func title(_ callID: String) {
         guard model?.preferences.titleCalls == true, let store else { return }
         let previous = titling
+        let asked = ContinuousClock.now
         titling = Task { [weak self] in
             await previous?.value
-            await self?.makeTitle(callID, store: store)
+            await self?.makeTitle(callID, store: store, since: asked)
         }
     }
 
-    private func makeTitle(_ callID: String, store: CallStore) async {
-        guard let model, model.preferences.titleCalls else { return }
+    /// An explicit Generate or Regenerate Title: the same model and the same queue, whatever the
+    /// recording's title or the automatic setting is. The old title stays unless a new one is made.
+    func generateTitle(_ kind: HistoryEntry.Kind, _ ref: String) {
+        guard let store, !isNaming(ref) else { return }
+        requested.insert(ref)
+        let previous = titling
+        let asked = ContinuousClock.now
+        titling = Task { [weak self] in
+            await previous?.value
+            defer { self?.requested.remove(ref) }
+            await self?.makeTitle(ref, kind: kind, force: true, store: store, since: asked)
+        }
+    }
+
+    private func makeTitle(_ callID: String, kind: HistoryEntry.Kind = .call, force: Bool = false, store: CallStore,
+                           since asked: ContinuousClock.Instant) async {
+        guard let model, force || model.preferences.titleCalls else { return }
         let choice = model.effectiveModel
         if case .ollama = choice { await model.refreshOllama() } else { model.appleModelState = AppleModel.state }
         let models = CallTitles.models(choice: choice, appleAvailable: model.appleModelAvailable,
@@ -407,35 +465,50 @@ final class CallsModel {
         let usesOllama: Bool
         if case .ollama = choice { usesOllama = true } else { usesOllama = false }
 
+        // Cheap and off the main actor, so a call that can't be titled never waits for a
+        // quiet Mac or takes whisper's memory, and never shows as being named.
+        guard await Task.detached(priority: .utility, operation: {
+            force ? CallTitler().canTitle(kind, callID, in: store) : CallTitler().isEligible(callID, in: store)
+        }).value else { return }
+        defer { naming.remove(callID) }
+        // What an explicit title may replace on screen: the one the recording has now.
+        let old: String?? = force ? .some(await Task.detached { (try? store.recordingTitle(kind, callID))?.title }.value) : nil
+
         if usesOllama {
-            // Cheap and off the main actor, so a call that can't be titled never waits for a
-            // quiet Mac or takes whisper's memory.
-            guard await Task.detached(priority: .utility, operation: {
-                CallTitler().isEligible(callID, in: store)
-            }).value else { return }
             // A dictation can start while whisper unloads, so the Mac is checked again after.
             var ready = false
             while !ready {
                 guard await TitleGate.waitUntilQuiet(activity: { model.activity }) else { return }
-                guard model.preferences.titleCalls, model.effectiveModel == choice else { return }
+                guard force || model.preferences.titleCalls, model.effectiveModel == choice else { return }
                 await model.currentPipeline().transcriber.unload()
                 ready = TitleGate.mayAsk(model.activity)
             }
         }
 
+        // Marked only once the model is asked: the wait for a quiet Mac shows nothing.
+        naming.insert(callID)
         let work = Task.detached(priority: .utility) {
-            await CallTitler().title(callID, in: store, models: models)
+            let timing: ModelTimings.Kind = usesOllama ? .ollama : .apple
+            if force {
+                return await CallTitler().timedRetitle(kind, callID, in: store, models: models, kind: timing, since: asked)
+            }
+            return await CallTitler().timedTitle(callID, in: store, models: models, kind: timing, since: asked)
         }
         if usesOllama {
             ollamaRequest = work
             ollamaTitling = true
         }
-        let titled = await withTaskCancellationHandler { await work.value } onCancel: { work.cancel() }
+        let made = await withTaskCancellationHandler { await work.value } onCancel: { work.cancel() }
         if usesOllama {
             ollamaRequest = nil
             ollamaTitling = false
         }
-        if titled != nil { model.refreshRecents() }
+        if let title = made {
+            // Out of the set first, so the row goes from "Generating title" to the title.
+            naming.remove(callID)
+            self.titled(callID, title, old)
+            model.refreshRecents()
+        }
     }
 
     /// A dictation is starting: whisper is about to load, and Ollama's model must not sit
@@ -514,7 +587,10 @@ final class CallsModel {
     /// Whether a call's chunks hold whisper. Dictation then skips the Ollama fix: the fix
     /// unloads whisper for Ollama's model, the call's next chunk reloads it, and the two
     /// together are more than the GPU has.
-    var usesWhisper: Bool { recording != nil || transcribing }
+    var usesWhisper: Bool { recording != nil || transcribing || isImporting }
+
+    /// A file is being transcribed or waits for its turn.
+    var isImporting: Bool { !importProgress.isEmpty || !importsWaiting.isEmpty }
 
     /// The app the prompt asks about: the first in a call that wasn't dismissed.
     var promptApp: DetectedCall? {
@@ -568,6 +644,139 @@ extension CallsModel: RecordingControl {
     nonisolated func stopRecording() async throws -> Call {
         guard let call = await stop() else { throw VoiceError.store("No call is being recorded.") }
         return call
+    }
+
+    nonisolated func importAudioFile(path: String) async throws -> CallRecorder.ImportStart {
+        try await importForAgent(path: path)
+    }
+}
+
+// MARK: Importing files
+
+private struct PendingImport {
+    let callID: String
+}
+
+extension CallsModel {
+    /// Imports the files in order, from History's menu or a drop, and returns the History id to
+    /// select: the last file that was new, else the one that was already there.
+    func importFiles(_ urls: [URL]) async -> String? {
+        guard let model, model.requireActivation() else { return nil }
+        guard recorder != nil else {
+            model.notice("Dictate is still starting.")
+            return nil
+        }
+        var fresh: String?
+        var existing: String?
+        for url in urls {
+            let source: URL
+            do {
+                source = try AudioImport.validate(path: url.path)
+            } catch {
+                model.notice("\(error)")
+                continue
+            }
+            do {
+                let start = try await beginImport(source)
+                if start.duplicate {
+                    model.notice("Already in History.")
+                    existing = "call:\(start.call.id)"
+                } else {
+                    fresh = "call:\(start.call.id)"
+                }
+            } catch {
+                model.notice("\(error)")
+            }
+        }
+        return fresh ?? existing
+    }
+
+    /// Starts an import for an agent. The call comes back at once; the gate is the only thing
+    /// that is said aloud.
+    func importForAgent(path: String) async throws -> CallRecorder.ImportStart {
+        guard let model else { throw VoiceError.store("Dictate is still starting.") }
+        try RecordingGate.check(model.activation)
+        let start = try await beginImport(try AudioImport.validate(path: path))
+        if !start.duplicate, let name = start.call.fileName {
+            model.notice("An agent imported \(name).")
+        }
+        return start
+    }
+
+    private func beginImport(_ source: URL) async throws -> CallRecorder.ImportStart {
+        guard let recorder else { throw VoiceError.store("Dictate is still starting.") }
+        let start = try await recorder.beginImport(source)
+        if !start.duplicate {
+            importsWaiting.insert(start.call.id)
+            importQueue.append(PendingImport(callID: start.call.id))
+            runImports()
+        }
+        return start
+    }
+
+    private func runImports() {
+        guard importWorker == nil else { return }
+        importWorker = Task {
+            await drainImports()
+            importWorker = nil
+        }
+    }
+
+    private func drainImports() async {
+        while !importQueue.isEmpty, !importsStopped {
+            let next = importQueue.removeFirst()
+            await transcribe(next)
+        }
+    }
+
+    private func transcribe(_ next: PendingImport) async {
+        guard let model, let recorder else { return }
+        let id = next.callID
+        importsWaiting.remove(id)
+        importProgress[id] = 0
+        let transcriber = model.currentPipeline().transcriber
+        let whisper = model.preferences.whisper
+        // Whisper reports far more often than a row needs; the main actor hears of a change
+        // only when the whole percent does.
+        let reported = OSAllocatedUnfairLock(initialState: 0)
+        let task = Task<Call?, Never> {
+            await recorder.transcribeImport(id, transcriber: transcriber, whisper: whisper) { [weak self] part in
+                let percent = Int(part * 100)
+                guard reported.withLock({ last in
+                    defer { last = percent }
+                    return percent != last
+                }) else { return }
+                Task { @MainActor in self?.importProgressed(id, Double(percent) / 100) }
+            }
+        }
+        importRunning = (id, task)
+        let ended = await task.value
+        importRunning = nil
+        importProgress[id] = nil
+        if ended?.status == .done { title(id) }
+        refreshRecent()
+        model.refreshRecents()
+    }
+
+    private func importProgressed(_ id: String, _ value: Double) {
+        guard let now = importProgress[id], value > now else { return }
+        importProgress[id] = value
+    }
+
+    /// Stops an import that waits or is being transcribed, so that deleting it is allowed.
+    func cancelImport(_ callID: String) async {
+        if let index = importQueue.firstIndex(where: { $0.callID == callID }) {
+            importQueue.remove(at: index)
+            importsWaiting.remove(callID)
+            try? store?.failCall(callID, error: "The import was cancelled.")
+        } else if let running = importRunning, running.id == callID {
+            running.task.cancel()
+            _ = await running.task.value
+            // The cancelled row is still transcribing, which a delete refuses.
+            if (try? store?.call(callID))?.status.isLive == true {
+                try? store?.failCall(callID, error: "The import was cancelled.")
+            }
+        }
     }
 }
 
@@ -717,6 +926,9 @@ struct CallMenuItems: View {
             Button((app == nil ? "Record a Call" : "Record This Call") + keys) { calls.recordFromMenu(app) }
                 .disabled(calls.starting)
         }
+        if calls.recording == nil, calls.isImporting, model.preferences.runPrompt {
+            Text("Whisper only while importing")
+        }
         if let warning = calls.warning {
             Text(warning)
         }
@@ -731,6 +943,7 @@ struct CallMenuItems: View {
 struct RecentCall: View {
     @Environment(CallsModel.self) private var calls
     let call: Call
+    private var symbol: String { call.fileName == nil ? "phone" : "waveform" }
 
     var body: some View {
         Button {
@@ -742,12 +955,11 @@ struct RecentCall: View {
         } label: {
             let lines = RecentCallLabel.lines(call)
             if let title = lines.title {
-                Label(title, systemImage: "phone")
+                Label(title, systemImage: symbol)
                 Text(lines.detail)
             } else {
-                Label(lines.detail, systemImage: "phone")
+                Label(lines.detail, systemImage: symbol)
             }
         }
-        .help("Click to copy the transcript")
     }
 }

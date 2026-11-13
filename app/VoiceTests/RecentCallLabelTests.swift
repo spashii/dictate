@@ -5,13 +5,14 @@ final class RecentCallLabelTests: XCTestCase {
     private let start = Date(timeIntervalSinceReferenceDate: 720_000_000)
 
     private func call(title: String? = nil, app: String? = "Slack", minutes: Double? = 32,
-                      status: Call.Status = .done) -> Call {
+                      status: Call.Status = .done, file: String? = nil) -> Call {
         var json: [String: Any] = [
             "id": "c", "startedAt": start.timeIntervalSinceReferenceDate, "appName": app as Any,
             "split": true, "status": status.rawValue, "tags": [String](),
         ]
         if let minutes { json["endedAt"] = start.addingTimeInterval(minutes * 60).timeIntervalSinceReferenceDate }
         if let title { json["title"] = title }
+        if let file { json["fileName"] = file }
         if app == nil { json.removeValue(forKey: "appName") }
         let data = try! JSONSerialization.data(withJSONObject: json)
         return try! JSONDecoder().decode(Call.self, from: data)
@@ -19,6 +20,13 @@ final class RecentCallLabelTests: XCTestCase {
 
     private func lines(_ call: Call) -> RecentCallLabel.Lines {
         RecentCallLabel.lines(call, time: { _ in "14:05" })
+    }
+
+    func testAnImportIsNamedByItsFileAndNeverRecording() {
+        XCTAssertEqual(lines(call(app: nil, status: .transcribing, file: "Interview with Alex.mp3")).detail,
+                       "Interview with Alex.mp3, 14:05 \u{00B7} 32 min \u{00B7} importing")
+        XCTAssertEqual(lines(call(app: nil, file: "Interview with Alex.mp3")).detail,
+                       "Interview with Alex.mp3, 14:05 \u{00B7} 32 min")
     }
 
     func testUntitledKeepsTodaysLine() {

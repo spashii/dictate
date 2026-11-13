@@ -64,6 +64,7 @@ Serve terminates TLS and connects from 127.0.0.1, so the token is what keeps oth
 | `search_transcripts` | full text over call segments and dictations; `query`, `limit` |
 | `tag_call` | `id`, `add`, `remove` |
 | `set_recording_title` | `id`, `title`: sets a call's or dictation's title, trimmed, up to 100 characters. It replaces any title, including one the user set, and is recorded as an edit that `undo_edit` reverts |
+| `import_audio_file` | `path` (absolute, or starting with `~/`): imports an audio or video file from this Mac as one call and returns it at once with `status` transcribing and `file_name`, for `wait_for_transcript` by its id. The transcript is one track (channel mix, no Me or Call labels). Types: m4a, mp3, wav, aif, aiff, aifc, caf, aac, flac, m4b, mp4, mov, m4v; up to 2 GB. A file imported before returns its earlier call with `already_imported` true. Only the app can, so `dictate-cli mcp` answers with an error |
 | `list_dictations` | dictations newest first; `since`, `limit` |
 | `get_dictation` | one dictation with raw and final text, timings and segments, and `fix_edits` when Fix the text before pasting ran: each edit's segment, span, replacement, key_term, offset, and rejected with the reason when it wasn't applied |
 | `start_recording`, `stop_recording` | record a call with the microphone and call audio chosen in Settings, Microphones, and stop it once the last words are transcribed; only the app can, so `dictate-cli mcp` answers with an error |
@@ -86,7 +87,7 @@ To follow a live call, take the cursor from `current_call`, then call `wait_for_
 
 `CallStore` (Core) keeps calls in `voice.sqlite` beside the dictations:
 
-- `calls`: id, started_at, ended_at, app_bundle_id, app_name, device_uid, split, audio_path, status (recording, transcribing, done, failed), title, title_source, error. `audio_path` names the call's WAV while it records and, once the transcript is complete, its .m4a. Times are seconds since 1970, as for dictations. `title_source` says who set the title: `auto`, `user` or `agent`, and null when nobody has. An automatic title only fills a call with neither a title nor a source. Dictations have the same two columns.
+- `calls`: id, started_at, ended_at, app_bundle_id, app_name, device_uid, split, audio_path, status (recording, transcribing, done, failed), title, title_source, file_name, error. `audio_path` names the call's WAV while it records and, once the transcript is complete, its .m4a. Times are seconds since 1970, as for dictations. `title_source` says who set the title: `auto`, `user` or `agent`, and null when nobody has. An automatic title only fills a call with neither a title nor a source. Dictations have the same two columns.
 - `call_segments`: id, call_id, channel (me, call, mix), start_ms and end_ms from the start of the call, text, avg_logprob, no_speech_prob, compression_ratio, created_at. The id is AUTOINCREMENT: it rises across all calls and is never reused, which makes it the wait cursor.
 - `call_tags`: call_id, tag (compared without case).
 - `transcript_search`: an FTS5 index over segment text and each dictation's final text, kept current by triggers on `call_segments` and `dictations`.

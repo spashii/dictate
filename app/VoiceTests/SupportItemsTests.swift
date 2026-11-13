@@ -28,3 +28,9 @@ final class SupportItemsTests: XCTestCase {
         XCTAssertEqual(items.first?.value, "App version: 1.0+dev&title=x\nmacOS: Version 26.0\n\n")
     }
 }
+
+extension SupportItemsTests {
+    func testVersionLine() {
+        XCTAssertEqual(SupportItem.versionTitle(appVersion: "0.15.0"), "Version 0.15.0")
+    }
+}

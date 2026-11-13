@@ -70,7 +70,10 @@ public final class Store: @unchecked Sendable {
     private let queue = DispatchQueue(label: "voice.store")
     private static let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
+    public let url: URL
+
     public init(url: URL) throws {
+        self.url = url
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         guard sqlite3_open(url.path, &db) == SQLITE_OK else {
             throw VoiceError.store("Can't open \(url.path).")

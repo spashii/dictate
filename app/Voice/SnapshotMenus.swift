@@ -20,6 +20,85 @@ extension Snapshots {
         return await drawMenu(ReplicaRow.rows(of: menu), dark: dark)
     }
 
+    // MARK: History + menu
+
+    /// History with the New menu open under its button, drawn from the real items the way the
+    /// menu bar menu is. AppKit opens a menu below the button with its left edge on the button's,
+    /// or against the window edge when it would run past it.
+    static func plusMenu(_ model: AppModel, store: CallStore, dark: Bool) async throws -> NSBitmapImageRep? {
+        let calls = CallsModel()
+        // A call app is open, so the menu offers "Record This Call".
+        calls.promptForSnapshots(DetectedCall(bundleID: "com.example.meeting", name: "Meeting"), model: model)
+        calls.setImportProgressForSnapshots(["interview": 0.42])
+        let window = try await historyWindow(model, HistoryModel(store: store), calls: calls, dark: dark)
+        let menu = NSHostingMenu(rootView: HistoryNewMenu(chooseFiles: {}).environment(model).environment(calls))
+        menu.update()
+        return await menuOver(window, menu, below: plusFrame, dark: dark)
+    }
+
+    /// A History row's right-click menu on the recording, open at the pointer.
+    static func rowMenu(_ model: AppModel, store: CallStore, recording id: String, at pointer: NSPoint,
+                        dark: Bool) async throws -> NSBitmapImageRep? {
+        model.setModelsForSnapshots(apple: .available, ollama: ["qwen3.5:9b", "gemma3:4b"], choice: .apple)
+        let calls = CallsModel()
+        let history = HistoryModel(store: store)
+        let window = try await historyWindow(model, history, calls: calls, dark: dark)
+        guard let entry = history.visible.first(where: { $0.id == id }) else {
+            throw VoiceError.store("The seeded recording is missing.")
+        }
+        let menu = NSHostingMenu(rootView: HistoryRowMenu(entry: entry, history: history).environment(model).environment(calls))
+        menu.update()
+        return await menuOver(window, menu, at: pointer, dark: dark)
+    }
+
+    private static func menuOver(_ window: NSBitmapImageRep?, _ menu: NSMenu, below button: NSRect, dark: Bool) async -> NSBitmapImageRep? {
+        let width = ReplicaRow.width(of: ReplicaRow.rows(of: menu))
+        let left = min(button.minX, (window?.size.width ?? 0) - 8 - width)
+        return await menuOver(window, menu, at: NSPoint(x: left, y: button.maxY + 4), dark: dark)
+    }
+
+    /// Draws the menu's replica with its top left at `point`, in points from the window's top left, as AppKit opens a menu at a click.
+    private static func menuOver(_ window: NSBitmapImageRep?, _ menu: NSMenu, at point: NSPoint, dark: Bool) async -> NSBitmapImageRep? {
+        let rows = ReplicaRow.rows(of: menu)
+        let width = ReplicaRow.width(of: rows), height = ReplicaRow.height(of: rows)
+        let margin: CGFloat = 36
+        let size = NSSize(width: width + margin * 2, height: height + margin * 2)
+        let view = MenuReplica(rows: rows, dark: dark).frame(width: width).padding(margin)
+            .background(Color(nsColor: .windowBackgroundColor))
+        guard let window,
+              let drawn = await capture(makeWindow(view, size: size, dark: dark, titled: false), size: size, titled: false),
+              let out = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: window.pixelsWide, pixelsHigh: window.pixelsHigh,
+                                         bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                         colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0),
+              let context = NSGraphicsContext(bitmapImageRep: out) else { return nil }
+        let windowSize = window.size
+        out.size = windowSize
+        // The panel's own margin holds the shadow.
+        let origin = NSPoint(x: point.x - margin, y: windowSize.height - point.y - height - margin)
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        context.cgContext.scaleBy(x: 2, y: 2)
+        window.draw(in: NSRect(origin: .zero, size: windowSize))
+        // The capture has a solid backing, so only the panel is kept, with the shadow drawn here.
+        let panel = NSBezierPath(roundedRect: NSRect(x: origin.x + margin, y: origin.y + margin, width: width, height: height),
+                                 xRadius: 10, yRadius: 10)
+        NSGraphicsContext.saveGraphicsState()
+        let shadow = NSShadow()
+        shadow.shadowColor = NSColor(white: 0, alpha: dark ? 0.5 : 0.25)
+        shadow.shadowBlurRadius = 10
+        shadow.shadowOffset = NSSize(width: 0, height: -5)
+        shadow.set()
+        NSColor.black.setFill()
+        panel.fill()
+        NSGraphicsContext.restoreGraphicsState()
+        NSGraphicsContext.saveGraphicsState()
+        panel.addClip()
+        drawn.draw(in: NSRect(origin: origin, size: size))
+        NSGraphicsContext.restoreGraphicsState()
+        NSGraphicsContext.restoreGraphicsState()
+        return out
+    }
+
     // MARK: Model settings
 
     static func modelSettings(_ model: AppModel, apple: AppleModelState, ollama: [String]?, choice: LocalModel, dark: Bool) async throws -> NSBitmapImageRep? {
@@ -31,7 +110,7 @@ extension Snapshots {
     /// show the whole tool list.
     static func agentsSettings(_ model: AppModel, dark: Bool) async throws -> NSBitmapImageRep? {
         model.agents.holdForSnapshots()
-        return try await settingsPane(model, .agents, AgentsPane(), size: NSSize(width: 1060, height: 1000), dark: dark)
+        return try await settingsPane(model, .agents, AgentsPane(), size: NSSize(width: 1060, height: 1300), dark: dark)
     }
 
     /// Settings, About, tall enough to show the update and What's new, collapsed to the last
@@ -41,7 +120,7 @@ extension Snapshots {
                                size: NSSize(width: 1060, height: expanded ? 1900 : 1400), dark: dark)
     }
 
-    private static func settingsPane<Pane: View>(_ model: AppModel, _ selection: MainPane, _ content: Pane,
+    static func settingsPane<Pane: View>(_ model: AppModel, _ selection: MainPane, _ content: Pane,
                                                  size: NSSize, dark: Bool) async throws -> NSBitmapImageRep? {
         let navigation = MainNavigation()
         navigation.selection = selection

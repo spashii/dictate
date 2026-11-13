@@ -36,9 +36,29 @@ enum Snapshots {
                 let history = HistoryModel(store: store)
                 let window = try await historyWindow(model, history, dark: dark)
                 await write(folder, "history-\(suffix)", window)
+                await write(folder, "history-search-\(suffix)",
+                            try await historyWindow(model, HistoryModel(store: store), search: "pilot", dark: dark))
+                for (name, width) in [("narrow", 260.0), ("wide", 400.0)] {
+                    await write(folder, "history-\(name)-list-\(suffix)",
+                                try await historyWindow(model, HistoryModel(store: store), listWidth: width, dark: dark))
+                }
+                await write(folder, "history-search-elsewhere-\(suffix)",
+                            try await historyWindow(model, HistoryModel(store: store), searchingAfter: "venue", dark: dark))
+                await write(folder, "history-naming-\(suffix)", try await namingWindow(model, store: store, dark: dark))
+                await write(folder, "transcript-hover-\(suffix)", try await transcriptHoverWindow(model, store: store, dark: dark))
+                await write(folder, "history-plus-menu-\(suffix)", try await plusMenu(model, store: store, dark: dark))
+                await write(folder, "history-title-menu-\(suffix)",
+                            try await rowMenu(model, store: store, recording: "call:rollout", at: NSPoint(x: 330, y: 234), dark: dark))
+                await write(folder, "history-title-menu-generate-\(suffix)",
+                            try await rowMenu(model, store: store, recording: "call:short", at: NSPoint(x: 330, y: 416), dark: dark))
+                await write(folder, "history-import-progress-\(suffix)",
+                            try await importWindow(model, store: store, selecting: "call:interview", dark: dark))
+                await write(folder, "history-import-detail-\(suffix)",
+                            try await importWindow(model, store: store, selecting: "call:memo", dark: dark))
                 // The site shows the list and the detail without the sidebar and the title bar.
                 await write(folder.appending(path: "site-tile"), "history-\(suffix)",
                             crop(window, x: 208, top: 52, width: 852, height: 300))
+                await write(folder, "keyterm-added-\(suffix)", try await keyTermAdded(model, history, dark: dark))
                 await write(folder, "recent-menu-\(suffix)", await recentMenu(model, store: store, dictations: dictationStore, dark: dark))
                 let both = ["qwen3.5:9b", "gemma3:4b"]
                 await write(folder, "model-settings-apple-\(suffix)",
@@ -56,6 +76,7 @@ enum Snapshots {
                 await write(folder, "agents-tools-\(suffix)", try await agentsSettings(model, dark: dark))
                 await write(folder, "welcome-\(suffix)", try await welcomeWindow(locked, dark: dark))
                 await write(folder, "about-\(suffix)", try await aboutWindow(model, dark: dark))
+                try await measureShots(model, into: folder, suffix: suffix, dark: dark)
                 await write(folder, "about-expanded-\(suffix)", try await aboutWindow(model, expanded: true, dark: dark))
                 model.updates.setAvailableForSnapshots(Self.fixtureUpdate)
                 await write(folder, "about-update-\(suffix)", try await aboutWindow(model, dark: dark))
@@ -128,21 +149,84 @@ enum Snapshots {
         return await capture(makeWindow(view, size: size, dark: dark, titled: false), size: size, titled: false)
     }
 
-    static func historyWindow(_ model: AppModel, _ history: HistoryModel, dark: Bool) async throws -> NSBitmapImageRep? {
+    static func historyWindow(_ model: AppModel, _ history: HistoryModel, calls: CallsModel = CallsModel(),
+                              selecting id: String = "call:rollout", search: String = "", listWidth: CGFloat? = nil, hover: Int? = nil, searchingAfter: String = "", dark: Bool) async throws -> NSBitmapImageRep? {
         let navigation = MainNavigation()
         navigation.selection = .history
         let size = NSSize(width: 1060, height: 680)
         let window = makeWindow(MainView(navigation: navigation, history: history).environment(model)
-            .environment(CallsModel()), size: size, dark: dark, titled: true)
+            .environment(calls).environment(\.snapshotHover, hover), size: size, dark: dark, titled: true)
+        history.search = search
         history.reload()
         for _ in 0..<40 where history.visible.isEmpty { try await Task.sleep(for: .milliseconds(100)) }
-        guard let call = history.visible.first(where: { $0.id == "call:rollout" }) else {
+        guard let call = history.visible.first(where: { $0.id == id }) else {
             throw VoiceError.store("The seeded call is missing.")
         }
         history.selection = call.id
         history.select(call.id)
         for _ in 0..<40 where history.detail == nil || history.waveform.isEmpty { try await Task.sleep(for: .milliseconds(100)) }
-        return await withSidebar(await capture(window, size: size, titled: true), model, .history, size: size, dark: dark)
+        if !searchingAfter.isEmpty {
+            history.search = searchingAfter
+            try await Task.sleep(for: .milliseconds(1500))
+        }
+        if let listWidth { widenList(window, to: listWidth) }
+        let toolbar = await toolbarFrames(window, height: size.height)
+        let sidebar = await withSidebar(await capture(window, size: size, titled: true), model, .history, size: size, dark: dark)
+        plusFrame = toolbar.plus ?? plusButton
+        let plus = withPlusButton(sidebar, size: size, dark: dark, frame: plusFrame)
+        return toolbar.search.map { withSearchField(plus, frame: $0, text: search.isEmpty ? searchingAfter : search, size: size, dark: dark) } ?? plus
+    }
+
+    /// Where History's New button sits in the window, in points from its top left: the toolbar button the bitmap draw puts at the
+    /// trailing edge.
+    /// The button as laid out in the last History window drawn, for the shots that hang something under it.
+    static var plusFrame = NSRect(x: 1016, y: 8, width: 36, height: 36)
+
+    static let plusButton = NSRect(x: 1016, y: 8, width: 36, height: 36)
+
+    /// A bitmap draw of the window leaves the toolbar's button without its round background and
+    /// greys its symbol, so the button is drawn over it the way the sidebar symbol is.
+    static func withPlusButton(_ window: NSBitmapImageRep?, size: NSSize, dark: Bool, frame placed: NSRect = plusButton) -> NSBitmapImageRep? {
+        guard let window,
+              let out = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: window.pixelsWide, pixelsHigh: window.pixelsHigh,
+                                         bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                         colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0),
+              let context = NSGraphicsContext(bitmapImageRep: out) else { return window }
+        out.size = size
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        context.cgContext.scaleBy(x: 2, y: 2)
+        window.draw(in: NSRect(origin: .zero, size: size))
+        let frame = NSRect(x: placed.minX, y: size.height - placed.maxY, width: placed.width, height: placed.height)
+        NSAppearance(named: dark ? .darkAqua : .aqua)?.performAsCurrentDrawingAppearance {
+            NSGraphicsContext.saveGraphicsState()
+            let shadow = NSShadow()
+            shadow.shadowColor = NSColor(white: 0, alpha: dark ? 0.35 : 0.12)
+            shadow.shadowBlurRadius = 4
+            shadow.shadowOffset = NSSize(width: 0, height: -1)
+            shadow.set()
+            (dark ? NSColor(white: 0.24, alpha: 1) : NSColor(white: 0.985, alpha: 1)).setFill()
+            NSBezierPath(roundedRect: frame, xRadius: frame.height / 2, yRadius: frame.height / 2).fill()
+            NSGraphicsContext.restoreGraphicsState()
+            (dark ? NSColor(white: 1, alpha: 0.16) : NSColor(white: 0, alpha: 0.1)).setStroke()
+            let ring = NSBezierPath(roundedRect: frame.insetBy(dx: 0.25, dy: 0.25), xRadius: frame.height / 2, yRadius: frame.height / 2)
+            ring.lineWidth = 0.5
+            ring.stroke()
+            if let symbol = NSImage(systemSymbolName: "tray.and.arrow.down", accessibilityDescription: nil)?
+                .withSymbolConfiguration(.init(pointSize: 14, weight: .regular)) {
+                let tint = dark ? NSColor(white: 1, alpha: 0.85) : NSColor(white: 0, alpha: 0.75)
+                let tinted = NSImage(size: symbol.size, flipped: false) { rect in
+                    symbol.draw(in: rect)
+                    tint.setFill()
+                    rect.fill(using: .sourceAtop)
+                    return true
+                }
+                tinted.draw(at: NSPoint(x: frame.midX - symbol.size.width / 2, y: frame.midY - symbol.size.height / 2),
+                            from: .zero, operation: .sourceOver, fraction: 1)
+            }
+        }
+        NSGraphicsContext.restoreGraphicsState()
+        return out
     }
 
     /// A bitmap draw of the window leaves the sidebar blank, so the real sidebar is drawn on
@@ -186,6 +270,13 @@ enum Snapshots {
         }
         NSGraphicsContext.restoreGraphicsState()
         return out
+    }
+
+    /// History with the import that is being transcribed or the finished one selected.
+    static func importWindow(_ model: AppModel, store: CallStore, selecting id: String, dark: Bool) async throws -> NSBitmapImageRep? {
+        let calls = CallsModel()
+        calls.setImportProgressForSnapshots(["interview": 0.42])
+        return try await historyWindow(model, HistoryModel(store: store), calls: calls, selecting: id, dark: dark)
     }
 
     /// Stands in for the desktop behind a pill, which floats over other apps.
@@ -353,10 +444,42 @@ enum Seed {
             (.me, "Ryan and the finance team have the numbers, so I will share my screen now."),
             (.call, "Great, and then we can talk about hiring for the next two quarters."),
         ])
-        _ = try calls.setAutoTitle("long", "Lakeside quarterly budget review with Ryan and the finance leads")
+        _ = try calls.setAutoTitle("long", "Lakeside budget review")
         try finished("short", "Meeting", "com.example.meeting", at(daysAgo: 1, 8, 10), minutes: 4, nil, [
             (.me, "Can you hear me now? I switched to the other headset."),
             (.call, "Yes, loud and clear."),
+        ])
+
+        // Two imports from today. The finished one is the day's first, the other was dropped a
+        // moment ago and is still being read, so it tops History.
+        func imported(_ id: String, _ name: String, _ start: Date, seconds: Int, status: Call.Status,
+                      _ lines: [String]) throws {
+            let audio = folder.appending(path: "\(id).wav")
+            try tone(audio, seconds: seconds, speech: (0..<(seconds / 20)).map { (Double($0) * 20 + 2, 7 + Double(($0 * 7) % 9)) })
+            _ = try calls.createCall(NewCall(id: id, startedAt: start, split: false, audioPath: audio.path, fileName: name,
+                                             endedAt: start.addingTimeInterval(Double(seconds)), status: status))
+            _ = try calls.appendSegments(id, lines.enumerated().map { index, text in
+                NewCallSegment(channel: .mix, startMs: index * 20_000 + 2_000, endMs: index * 20_000 + 16_000, text: text,
+                               avgLogprob: -0.2, noSpeechProb: 0.01, compressionRatio: 1.2)
+            })
+        }
+        let now = Date()
+        let dayStart = calendar.startOfDay(for: now)
+        try imported("memo", "New Recording 14.m4a", max(dayStart.addingTimeInterval(60), now.addingTimeInterval(-40 * 60)),
+                     seconds: 252, status: .done, [
+            "Notes from the Lakeside site visit, Tuesday morning.",
+            "The east wing is ready for the electricians, but the loading dock still needs a new door.",
+            "Alex wants a quote from two suppliers before we commit, so I will ask Northwind for the second one.",
+            "Parking is tight on weekdays. We should schedule deliveries before eight.",
+            "Next visit is in two weeks, once the flooring samples have arrived.",
+        ])
+        _ = try calls.setAutoTitle("memo", "Lakeside site visit notes")
+        try imported("interview", "Interview with Alex.mp3", max(dayStart.addingTimeInterval(120), now.addingTimeInterval(-90)),
+                     seconds: 24 * 60, status: .transcribing, [
+            "Thanks for making the time, Alex. Could you start by telling me how the pilot began?",
+            "Sure. It started small, with two teams at Northwind testing the new onboarding flow.",
+            "What changed after the first month?",
+            "Support tickets dropped, and people stopped asking where to find things.",
         ])
 
         func dictation(_ id: String, _ when: Date, seconds: Double, _ text: String) throws {

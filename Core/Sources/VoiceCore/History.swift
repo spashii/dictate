@@ -30,16 +30,49 @@ public struct HistoryEntry: Sendable, Identifiable, Equatable, Hashable {
     public var appName: String? = nil
     /// The title a person, an agent or the model gave it, which replaces the date as the row's main text.
     public var customTitle: String? = nil
+    /// The file an import was made from; nil for a recording.
+    public var fileName: String? = nil
+    /// Why a call failed; nil otherwise.
+    public var error: String? = nil
+    /// A call still recording or transcribing, so more words may come.
+    public var isLive = false
+    /// How many words it holds, counted on spaces: enough to say whether a title can be made.
+    public var words = 0
+
+    /// Whether a title can be made from its text.
+    public var canTitle: Bool { words >= CallTitles.minimumWords }
 
     /// What kind of recording it is, as the menu names a call: "Slack call", "Call" or "Dictation".
+    /// An import is named by its file.
     public var kindLabel: String {
         switch kind {
-        case .call: appName.map { "\($0) call" } ?? "Call"
+        case .call: fileName ?? appName.map { "\($0) call" } ?? "Call"
         case .dictation: "Dictation"
         }
     }
 
     public var id: String { "\(kind.rawValue):\(ref)" }
+
+    public init(kind: Kind, ref: String, at: Date, timeZone: String? = nil, duration: Double, title: String,
+                firstLine: String = "", changes: Int, hasText: Bool = true, audioPath: String? = nil,
+                appName: String? = nil, customTitle: String? = nil, fileName: String? = nil,
+                error: String? = nil, isLive: Bool = false) {
+        self.kind = kind
+        self.ref = ref
+        self.at = at
+        self.timeZone = timeZone
+        self.duration = duration
+        self.title = title
+        self.firstLine = firstLine
+        self.changes = changes
+        self.hasText = hasText
+        self.audioPath = audioPath
+        self.appName = appName
+        self.customTitle = customTitle
+        self.fileName = fileName
+        self.error = error
+        self.isLive = isLive
+    }
 }
 
 /// One dictation or call, line by line, with everything that changed its words.
@@ -153,13 +186,15 @@ extension CallStore {
                        OR coalesce(d.title, '') LIKE ?4 ESCAPE '\\')
                 ORDER BY d.created_at DESC LIMIT ?2
                 """, [Dictation.tooShort, limit, found, like]) { row in
-                HistoryEntry(kind: .dictation, ref: row.text(0), at: row.date(1), timeZone: row.string(4),
+                var entry = HistoryEntry(kind: .dictation, ref: row.text(0), at: row.date(1), timeZone: row.string(4),
                              duration: row.double(2), title: Self.preview(row.text(3)), firstLine: Self.preview(row.text(3)),
                              changes: row.int(7), audioPath: row.string(5), customTitle: row.string(6))
+                entry.words = row.text(3).split(whereSeparator: \.isWhitespace).count
+                return entry
             }
             let calls = try db.query("""
                 SELECT c.id, c.started_at, coalesce(c.ended_at, c.started_at) - c.started_at,
-                  coalesce(c.title, c.app_name || ' call', 'Call'), c.time_zone, c.audio_path,
+                  coalesce(c.title, c.file_name, c.app_name || ' call', 'Call'), c.time_zone, c.audio_path,
                   (SELECT count(*) FROM segment_retries r WHERE r.call_id = c.id AND r.kept = 1 AND r.changed = 1)
                   + (SELECT count(*) FROM edits e WHERE e.target LIKE 'call:' || c.id || '/segment:%'),
                   EXISTS (SELECT 1 FROM call_segments s WHERE s.call_id = c.id
@@ -167,18 +202,25 @@ extension CallStore {
                   (SELECT trim(coalesce(s.corrected_text, s.text)) FROM call_segments s WHERE s.call_id = c.id
                    AND trim(coalesce(s.corrected_text, s.text), ' ' || char(9, 10, 13)) <> ''
                    ORDER BY s.start_ms, s.id LIMIT 1),
-                  c.title, c.app_name
+                  c.title, c.app_name, c.file_name, c.error, c.status IN ('recording', 'transcribing'),
+                  (SELECT coalesce(sum(length(trim(coalesce(s.corrected_text, s.text)))
+                                       - length(replace(trim(coalesce(s.corrected_text, s.text)), ' ', '')) + 1), 0)
+                   FROM call_segments s WHERE s.call_id = c.id
+                   AND trim(coalesce(s.corrected_text, s.text), ' ' || char(9, 10, 13)) <> '')
                 FROM calls c WHERE \(Self.heardSomething("c"))
                   AND (?2 IS NULL OR c.id IN (SELECT value FROM json_each(?2))
-                       OR coalesce(c.title, '') LIKE ?3 ESCAPE '\\' OR EXISTS (
+                       OR coalesce(c.title, '') LIKE ?3 ESCAPE '\\' OR coalesce(c.file_name, '') LIKE ?3 ESCAPE '\\' OR EXISTS (
                          SELECT 1 FROM call_segments s WHERE s.call_id = c.id
                          AND coalesce(s.corrected_text, s.text) LIKE ?3 ESCAPE '\\'))
                 ORDER BY c.started_at DESC LIMIT ?1
                 """, [limit, found, like]) { row in
-                HistoryEntry(kind: .call, ref: row.text(0), at: row.date(1), timeZone: row.string(4),
+                var entry = HistoryEntry(kind: .call, ref: row.text(0), at: row.date(1), timeZone: row.string(4),
                              duration: row.double(2), title: row.text(3), firstLine: row.string(8).map(Self.preview) ?? "",
                              changes: row.int(6), hasText: row.int(7) != 0, audioPath: row.string(5), appName: row.string(10),
-                             customTitle: row.string(9))
+                             customTitle: row.string(9), fileName: row.string(11), error: row.string(12),
+                             isLive: row.int(13) != 0)
+                entry.words = row.int(14)
+                return entry
             }
             return Array((dictations + calls).sorted { $0.at > $1.at }.prefix(limit))
         }

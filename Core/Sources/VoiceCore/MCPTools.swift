@@ -37,6 +37,7 @@ extension MCPServer {
     public static let offByDefault: Set<String> = [
         "start_recording", "stop_recording", "correct_dictation", "correct_segment",
         "add_key_terms", "remove_key_terms", "tag_call", "undo_edit", "set_recording_title",
+        "import_audio_file",
     ]
 
     /// Every tool the server offers, in the order tools/list gives them.

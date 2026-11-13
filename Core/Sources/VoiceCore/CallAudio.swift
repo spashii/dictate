@@ -21,13 +21,18 @@ public enum CallAudio {
     /// behind but the WAV, which this never changes.
     ///
     /// Reads and writes the whole file, so call it off the main thread.
-    public static func encode(_ wav: URL) throws -> URL {
+    ///
+    /// `stereoAtMost` is for an imported file, which can have any number of channels: one with
+    /// more is kept as two (all channels averaged into both sides), since
+    /// the encoder takes no such layout, and one above 48 kHz is brought down to it, since a file the
+    /// encoder refuses would be tried again at every launch.
+    public static func encode(_ wav: URL, stereoAtMost: Bool = false) throws -> URL {
         let output = wav.deletingPathExtension().appendingPathExtension("m4a")
         // Whatever is here is what an earlier attempt left when the app quit mid-write; the
         // call's path still names the WAV, so nothing refers to it.
         try? FileManager.default.removeItem(at: output)
         do {
-            let source = try write(wav, to: output)
+            let source = try write(wav, to: output, stereoAtMost: stereoAtMost)
             try verify(output, against: source)
         } catch {
             try? FileManager.default.removeItem(at: output)
@@ -43,18 +48,26 @@ public enum CallAudio {
         let sampleRate: Double
     }
 
-    private static func write(_ wav: URL, to output: URL) throws -> Source {
+    /// The encoder refuses 96 kbps and up at 96 kHz, so an import above this is brought down.
+    static let importSampleRate = 48_000.0
+
+    private static func write(_ wav: URL, to output: URL, stereoAtMost: Bool) throws -> Source {
         let input = try AVAudioFile(forReading: wav)
         let format = input.processingFormat
         guard input.length > 0 else { throw VoiceError.audio("The WAV holds no audio.") }
+        let channels = stereoAtMost ? min(Int(format.channelCount), 2) : Int(format.channelCount)
+        let rate = stereoAtMost ? min(format.sampleRate, importSampleRate) : format.sampleRate
         let settings: [String: Any] = [
             AVFormatIDKey: kAudioFormatMPEG4AAC,
-            AVSampleRateKey: format.sampleRate,
-            AVNumberOfChannelsKey: Int(format.channelCount),
-            AVEncoderBitRateKey: bitRatePerChannel * Int(format.channelCount),
+            AVSampleRateKey: rate,
+            AVNumberOfChannelsKey: channels,
+            AVEncoderBitRateKey: bitRatePerChannel * channels,
         ]
         let file = try AVAudioFile(forWriting: output, settings: settings, commonFormat: .pcmFormatFloat32,
                                    interleaved: false)
+        let reduced = Int(format.channelCount) > channels || rate != format.sampleRate
+        let mixFormat = AVAudioFormat(standardFormatWithSampleRate: format.sampleRate, channels: AVAudioChannelCount(channels))!
+        let converter = rate == format.sampleRate ? nil : AVAudioConverter(from: mixFormat, to: file.processingFormat)
         let step = AVAudioFrameCount(format.sampleRate)
         while input.framePosition < input.length {
             guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: step) else {
@@ -62,12 +75,42 @@ public enum CallAudio {
             }
             try input.read(into: buffer, frameCount: step)
             guard buffer.frameLength > 0 else { break }
-            try file.write(from: buffer)
+            guard reduced else {
+                try file.write(from: buffer)
+                continue
+            }
+            guard let mixed = AVAudioPCMBuffer(pcmFormat: mixFormat, frameCapacity: buffer.frameLength),
+                  let from = buffer.floatChannelData, let to = mixed.floatChannelData else {
+                throw VoiceError.audio("Out of memory while converting the call's audio.")
+            }
+            mixed.frameLength = buffer.frameLength
+            let count = Int(format.channelCount)
+            for side in 0..<channels {
+                // Beyond stereo every channel feeds both sides, so centre dialogue is heard in both ears;
+                // 5.1's low-frequency channel (the fourth) is left out, as it holds no speech.
+                let members = count > 2 ? Array(0..<count).filter { count != 6 || $0 != 3 } : [side]
+                for frame in 0..<Int(buffer.frameLength) {
+                    to[side][frame] = members.reduce(Float(0)) { $0 + from[$1][frame] } / Float(members.count)
+                }
+            }
+            guard let converter else {
+                try file.write(from: mixed)
+                continue
+            }
+            let capacity = AVAudioFrameCount(Double(mixed.frameLength) * rate / format.sampleRate) + 64
+            guard let converted = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: capacity) else {
+                throw VoiceError.audio("Out of memory while converting the call's audio.")
+            }
+            let feed = OneShot(mixed, ends: false)
+            var failure: NSError?
+            converter.convert(to: converted, error: &failure) { _, status in feed.next(status) }
+            if let failure { throw failure }
+            if converted.frameLength > 0 { try file.write(from: converted) }
         }
         // The encoder writes its last packets and the file's index when it closes.
         file.close()
-        return Source(seconds: Double(input.length) / format.sampleRate, channels: format.channelCount,
-                      sampleRate: format.sampleRate)
+        return Source(seconds: Double(input.length) / format.sampleRate, channels: AVAudioChannelCount(channels),
+                      sampleRate: rate)
     }
 
     static func verify(_ output: URL, against source: Source) throws {

@@ -66,7 +66,8 @@ struct MainView: View {
             MainSidebar(navigation: navigation)
                 .navigationSplitViewColumnWidth(min: 170, ideal: 200, max: 260)
         } detail: {
-            let pane = policy.landing(for: navigation.selection ?? .history)
+            let wanted = navigation.selection ?? .history
+            let pane = policy.landing(for: wanted.shown(developerMode: model.preferences.developerMode) ? wanted : .about)
             Group {
                 switch pane {
                 case .welcome: WelcomePane()
@@ -76,10 +77,15 @@ struct MainView: View {
                 case .microphones: MicrophonesPane()
                 case .model: ModelPane()
                 case .agents: AgentsPane()
+                case .advanced: AdvancedPane()
                 case .about: AboutPane()
                 }
             }
             .navigationTitle(pane.title)
+        }
+        // Advanced goes away with Developer mode; About takes its place in the sidebar too.
+        .onChange(of: model.preferences.developerMode) {
+            if navigation.selection == .advanced, !model.preferences.developerMode { navigation.selection = .about }
         }
         .onAppear {
             model.refreshDevices()
@@ -118,7 +124,7 @@ struct MainSidebar: View {
                 }
             }
             Section("Settings") {
-                ForEach(MainPane.settings.filter(policy.reaches)) { row($0) }
+                ForEach(MainPane.settings.filter { policy.reaches($0) && $0.shown(developerMode: model.preferences.developerMode) }) { row($0) }
             }
         }
         .listStyle(.sidebar)

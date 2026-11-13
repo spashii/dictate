@@ -30,16 +30,16 @@ import Testing
 
     @Test func anExistingInstallKeepsEveryToolItHadOnAndGetsANewOneOff() {
         let store = defaults()
-        #expect(AgentSettings.disabledTools(in: store, existingInstall: true) == ["set_recording_title"])
-        #expect(store.stringArray(forKey: AgentSettings.disabledToolsKey) == ["set_recording_title"])
-        #expect(AgentSettings.disabledTools(in: store, existingInstall: false) == ["set_recording_title"])
+        #expect(AgentSettings.disabledTools(in: store, existingInstall: true) == ["import_audio_file", "set_recording_title"])
+        #expect(store.stringArray(forKey: AgentSettings.disabledToolsKey) == ["import_audio_file", "set_recording_title"])
+        #expect(AgentSettings.disabledTools(in: store, existingInstall: false) == ["import_audio_file", "set_recording_title"])
     }
 
     @Test func aStoredChoiceWinsExceptForToolsItNeverSaw() {
         let store = defaults()
         store.set(["list_calls"], forKey: AgentSettings.disabledToolsKey)
-        #expect(AgentSettings.disabledTools(in: store, existingInstall: false) == ["list_calls", "set_recording_title"])
-        #expect(store.stringArray(forKey: AgentSettings.disabledToolsKey) == ["list_calls", "set_recording_title"])
+        #expect(AgentSettings.disabledTools(in: store, existingInstall: false) == ["import_audio_file", "list_calls", "set_recording_title"])
+        #expect(store.stringArray(forKey: AgentSettings.disabledToolsKey) == ["import_audio_file", "list_calls", "set_recording_title"])
     }
 
     @Test func aToolTurnedOnStaysOnAcrossLaunches() {
@@ -89,7 +89,7 @@ import Testing
         #expect(AgentSettings.disabledToolsForReading(in: store) == MCPServer.offByDefault)
         #expect(store.stringArray(forKey: AgentSettings.disabledToolsKey) == nil)
         store.set(["get_call"], forKey: AgentSettings.disabledToolsKey)
-        #expect(AgentSettings.disabledToolsForReading(in: store) == ["get_call", "set_recording_title"])
+        #expect(AgentSettings.disabledToolsForReading(in: store) == ["get_call", "import_audio_file", "set_recording_title"])
         #expect(store.stringArray(forKey: AgentSettings.seenToolsKey) == nil)
     }
 

@@ -8,7 +8,7 @@ import FoundationModels
 /// and how its answer is cleaned. Pure, so the app and the tests share one definition.
 public enum CallTitles {
     public static let instructions = """
-        You title recorded calls. Reply with only a title of 3 to 7 words that says what the call \
+        You title recorded calls. Reply with only a title of 3 or 4 words that says what the call \
         was about, in the language of the transcript. Name the project, company or person when the \
         transcript makes them clear. No quotes, no trailing punctuation, nothing else.
         """
@@ -60,6 +60,17 @@ public enum CallTitles {
             } ?? segment.channel.label
             lines.append(name.map { "\($0): \(text)" } ?? text)
         }
+        return trimmed(lines, words: words)
+    }
+
+    /// A dictation's text as the model sees it, under the same minimum and the same budget.
+    public static func excerpt(text: String) -> String? {
+        let lines = text.split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        return trimmed(lines, words: lines.reduce(0) { $0 + $1.split(whereSeparator: \.isWhitespace).count })
+    }
+
+    private static func trimmed(_ lines: [String], words: Int) -> String? {
         guard words >= minimumWords else { return nil }
         let full = lines.joined(separator: "\n")
         let budget = budget(for: full)
@@ -125,8 +136,8 @@ public enum CallTitles {
         line = line.split(whereSeparator: \.isWhitespace).joined(separator: " ")
 
         guard !line.isEmpty, line.contains(where: \.isLetter),
-              line.count <= 80,
-              line.split(separator: " ").count <= 10 else { return nil }
+              line.count <= 48,
+              line.split(separator: " ").count <= 5 else { return nil }
         let lowered = line.lowercased().replacingOccurrences(of: "\u{2019}", with: "'")
         if refusals.contains(where: { lowered.hasPrefix($0) }) { return nil }
         return line
@@ -236,42 +247,88 @@ public struct CallTitler: Sendable {
     /// Whether a title could be made for the call now: it has none, nobody set one, and there
     /// is enough transcript. Cheap, so the app can ask before it frees memory for a model.
     public func isEligible(_ callID: String, in store: CallStore) -> Bool {
-        guard let call = try? store.call(callID), call.title == nil, call.titleSource == nil,
-              let segments = try? store.segments(callID) else { return false }
-        return CallTitles.excerpt(segments, speakers: call.speakers) != nil
+        guard let call = try? store.call(callID), call.title == nil, call.titleSource == nil else { return false }
+        return Self.excerpt(.call, callID, in: store) != nil
+    }
+
+    /// Whether there is enough text to title the recording on request, whatever its title is now.
+    public func canTitle(_ kind: HistoryEntry.Kind, _ ref: String, in store: CallStore) -> Bool {
+        Self.excerpt(kind, ref, in: store) != nil
+    }
+
+    static func excerpt(_ kind: HistoryEntry.Kind, _ ref: String, in store: CallStore) -> String? {
+        switch kind {
+        case .call:
+            guard let call = try? store.call(ref), let segments = try? store.segments(ref) else { return nil }
+            return CallTitles.excerpt(segments, speakers: call.speakers)
+        case .dictation:
+            guard let dictation = try? store.dictation(ref) else { return nil }
+            return CallTitles.excerpt(text: dictation.finalText)
+        }
     }
 
     /// The title stored, or nil when none was: the call already has one, is too short, no
     /// model gave a usable answer, or a person named it while the model was working.
     public func title(_ callID: String, in store: CallStore, models: [any TitleModel]) async -> String? {
-        guard !models.isEmpty else { return nil }
+        await attempt(callID, in: store, models: models).title
+    }
+
+    /// An explicit request: replaces any title, a person's or an agent's included, and stores
+    /// the new one as automatic. Nil, with the old title kept, when there is too little text,
+    /// no model answered usably, or the title changed while the model worked.
+    public func retitle(_ kind: HistoryEntry.Kind, _ ref: String, in store: CallStore,
+                        models: [any TitleModel]) async -> String? {
+        await attempt(kind, ref, force: true, in: store, models: models).title
+    }
+
+    /// `failed`: no model answered, because each one threw or the store did.
+    func attempt(_ callID: String, in store: CallStore, models: [any TitleModel]) async -> (title: String?, failed: Bool) {
+        await attempt(.call, callID, force: false, in: store, models: models)
+    }
+
+    func attempt(_ kind: HistoryEntry.Kind, _ ref: String, force: Bool, in store: CallStore,
+                 models: [any TitleModel]) async -> (title: String?, failed: Bool) {
+        guard !models.isEmpty else { return (nil, false) }
+        var answered = false
+        var errored = false
         do {
-            guard let call = try store.call(callID), call.title == nil, call.titleSource == nil,
-                  let excerpt = CallTitles.excerpt(try store.segments(callID), speakers: call.speakers)
-            else { return nil }
+            guard let before = try store.recordingTitle(kind, ref),
+                  force || (before.title == nil && before.source == nil),
+                  let excerpt = Self.excerpt(kind, ref, in: store)
+            else { return (nil, false) }
             let prompt = CallTitles.prompt(for: excerpt)
             for model in models {
                 let raw: String
                 do {
                     raw = try await model.title(instructions: CallTitles.instructions, prompt: prompt)
                 } catch {
-                    if Task.isCancelled { return nil }
+                    if Task.isCancelled { return (nil, false) }
+                    errored = true
                     // The error type only: a model's message can quote the transcript.
                     Self.log.error("\(model.name, privacy: .public) failed: \(String(describing: type(of: error)), privacy: .public)")
                     continue
                 }
                 // A dictation started and took the model's turn: the answer is dropped.
-                if Task.isCancelled { return nil }
+                if Task.isCancelled { return (nil, false) }
+                answered = true
                 guard let title = CallTitles.sanitize(raw) else {
                     Self.log.error("\(model.name, privacy: .public) answered with no usable title")
                     continue
                 }
-                // False when a person or an agent named the call in the meantime.
-                return try store.setAutoTitle(callID, title) ? title : nil
+                // Nothing is written when a person or an agent named it in the meantime.
+                if force {
+                    let written = try store.renameChecked(kind, ref, to: title, source: .auto,
+                                                          expecting: (before.title, before.source))
+                    return (written.applied ? title : nil, false)
+                }
+                guard let now = try store.recordingTitle(kind, ref), now.title == before.title,
+                      now.source == before.source else { return (nil, false) }
+                return (try store.setAutoTitle(ref, title) ? title : nil, false)
             }
         } catch {
+            errored = true
             Self.log.error("titling failed: \(String(describing: type(of: error)), privacy: .public)")
         }
-        return nil
+        return (nil, errored && !answered)
     }
 }

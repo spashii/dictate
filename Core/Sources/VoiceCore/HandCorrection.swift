@@ -79,10 +79,12 @@ extension HistoryDetail {
 
 extension CallStore {
     /// Replaces the selected words with `replacement`, stores the result as a correction by
-    /// the person, and proposes key terms from it as an agent's correction would. Nil when
-    /// nothing changed.
+    /// the person, and, with `suggest`, proposes key terms from it as an agent's correction
+    /// would. Nil when nothing changed. History adds the terms itself through
+    /// `KeyTermSuggestions.correct`, so it passes false.
     @discardableResult
-    public func correct(_ request: HandCorrection, to replacement: String, known: [String]) throws -> Edit? {
+    public func correct(_ request: HandCorrection, to replacement: String, known: [String],
+                        suggest: Bool = true) throws -> Edit? {
         let text: String
         switch request.target {
         case .dictation(let id):
@@ -118,7 +120,7 @@ extension CallStore {
         case .segment(let call, let id):
             edit = try correctSegment(call, id, text: corrected, client: Edit.personClient).1
         }
-        _ = try? suggestKeyTerms(from: edit, known: known)
+        if suggest { _ = try? suggestKeyTerms(from: edit, known: known) }
         return edit
     }
 }

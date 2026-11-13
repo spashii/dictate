@@ -114,7 +114,7 @@ final class AppModel {
         }
         if let calls {
             activity.callRecording = calls.recording != nil || calls.starting
-            activity.callTranscribing = calls.transcribing
+            activity.callTranscribing = calls.transcribing || calls.isImporting
             activity.callAppInCall = !calls.detected.isEmpty
             activity.titling = calls.ollamaTitling
         }
@@ -506,24 +506,39 @@ final class AppModel {
                 ?? (inputLost ? "\(lost) and heard nothing before it did." : "Heard nothing."))
             return
         }
-        let start = ContinuousClock.now
-        let pasted = await Paster.paste(dictation.finalText)
-        let elapsed = ContinuousClock.now - start
-        store?.setPasteTime(dictation.id, ms: Int(elapsed.components.seconds * 1000 + elapsed.components.attoseconds / 1_000_000_000_000_000))
+        // Cmd+V in Dictate's own window would land in History's search field, so the text is
+        // copied and the notice starts with that.
+        let ownWindow = !PasteDecision.pastes(frontmostPID: NSWorkspace.shared.frontmostApplication?.processIdentifier,
+                                             ownPID: ProcessInfo.processInfo.processIdentifier)
+        let pasted: Bool
+        if ownWindow {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(dictation.finalText, forType: .string)
+            pasted = true
+        } else {
+            let start = ContinuousClock.now
+            pasted = await Paster.paste(dictation.finalText)
+            let elapsed = ContinuousClock.now - start
+            store?.setPasteTime(dictation.id, ms: Int(elapsed.components.seconds * 1000 + elapsed.components.attoseconds / 1_000_000_000_000_000))
+        }
         let changes = Self.changes(dictation)
+        let copied = ownWindow ? "Copied. " : ""
         if let writeError {
             // Ahead of the rest: the recording is missing its end, and this says why.
-            show("Couldn't keep writing the recording, so only what came before was transcribed: \(writeError)")
+            show(copied + "Couldn't keep writing the recording, so only what came before was transcribed: \(writeError)")
         } else if !pasted {
             show("Copied. Allow Dictate in Accessibility to paste for you.", action: .allowAccessibility)
         } else if let error = dictation.error {
-            show("Pasted Whisper's text. Fix the text before pasting failed: \(error)")
+            show((ownWindow ? "Copied Whisper's text. " : "Pasted Whisper's text. ") + "Fix the text before pasting failed: \(error)")
             await refreshOllama()
         } else if inputLost {
-            show("\(lost) and pasted what it heard before.")
+            show("\(lost) and \(ownWindow ? "copied" : "pasted") what it heard before.")
         } else if fellBackToDefault {
-            show("The chosen microphone isn't connected, so the default one recorded.")
+            show(copied + "The chosen microphone isn't connected, so the default one recorded.")
+        } else if ownWindow && changes.isEmpty {
+            show("Copied.")
         } else if !changes.isEmpty {
+            // In Dictate's own window the text is on the clipboard too; the edits are what is worth showing.
             showEdits(changes)
         } else {
             phase = .idle

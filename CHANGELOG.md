@@ -7,6 +7,20 @@ the entry for VERSION into the update feed, which Sparkle shows before installin
 stops when VERSION has no entry here.
 -->
 
+## 0.15.0 (unreleased)
+
+- A button in History's toolbar starts a dictation, records a call or imports an audio file.
+- Drop an audio or video file on History to transcribe it on your Mac. It gets a title like a call and shows up in search.
+- Agents can import an audio file by its path. The tool is off until you turn it on in Settings, Agents.
+- History has one Search field in the title row. It finds recordings and marks the words in the one you open.
+- Correct a name in History and it becomes a key term. Undo is right there.
+- Call titles are three or four words. A recording shows Generating title… while its title is made.
+- Right-click a recording to generate its title, or regenerate it.
+- History rows and transcript lines line up better. The play button no longer covers the time.
+- Settings, Model greys out what needs an intelligence model when none can run. It says why.
+- The menu shows the version below Check for Updates.
+- Developer mode in About adds Advanced, with charts of how long the models take.
+
 ## 0.14.2 (2026-11-13)
 
 - What’s new shows the last three releases. View more shows the rest.

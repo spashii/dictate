@@ -1,36 +1,32 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 import VoiceCore
 
 /// The list and the selected entry, read from the database off the main thread.
 @MainActor @Observable
 final class HistoryModel {
-    enum Filter: String, CaseIterable, Identifiable {
-        case all = "All"
-        case dictations = "Dictations"
-        case calls = "Calls"
-
-        var id: String { rawValue }
-    }
+    typealias Filter = HistoryFilter
 
     private var entries: [HistoryEntry] = []
     var filter: Filter = .all
-    var search = ""
+    /// One field filters the list and, in the open recording, marks where the words are.
+    var search = "" {
+        didSet { if search != oldValue { rebuildMatches(restart: true) } }
+    }
     var selection: HistoryEntry.ID?
     /// The row whose title is being edited, and the recording a Delete is waiting on.
     var renaming: HistoryEntry.ID?
     var pendingDelete: HistoryEntry?
     /// Told after a rename or delete, so the menu bar's recent items follow.
     @ObservationIgnored var changed: () -> Void = {}
+    /// Stops an import that is waiting or being transcribed, which a delete has to do first.
+    @ObservationIgnored var beforeDelete: (String) async -> Void = { _ in }
     private(set) var detail: HistoryDetail?
     /// The detail's blocks, made once when it loads instead of on every redraw.
     private(set) var blocks: [DisplayBlock] = []
-    /// The words searched for inside the open recording, and where each is: a stretch of one
-    /// block's text, as TextKit counts it. Searching walks each block's string once; nothing
-    /// is laid out per match.
-    var findText = "" {
-        didSet { if findText != oldValue { rebuildMatches(restart: true) } }
-    }
+    /// Where the search words are inside the open recording: a stretch of one block's text, as
+    /// TextKit counts it. Searching walks each block's string once; nothing is laid out per match.
     struct FindMatch: Equatable {
         let block: Int
         let range: Range<Int>
@@ -55,14 +51,19 @@ final class HistoryModel {
     }
 
     var visible: [HistoryEntry] {
-        switch filter {
-        case .all: entries
-        case .dictations: entries.filter { $0.kind == .dictation }
-        case .calls: entries.filter { $0.kind == .call }
-        }
+        filter == .all ? entries : entries.filter(filter.includes)
     }
 
-    var selected: HistoryEntry? { visible.first { $0.id == selection } }
+    var selected: HistoryEntry? { entry(selection) }
+
+    /// The recording that was open when the list last held it. While a search is set it stays
+    /// open even if the search drops it from the list, and the list shows it again when the search clears.
+    @ObservationIgnored private var held: HistoryEntry?
+
+    private func entry(_ id: HistoryEntry.ID?) -> HistoryEntry? {
+        if let row = visible.first(where: { $0.id == id }) { return row }
+        return search.isEmpty || held?.id != id ? nil : held
+    }
 
     var activeMatch: FindMatch? { matches.indices.contains(currentMatch) ? matches[currentMatch] : nil }
 
@@ -79,7 +80,7 @@ final class HistoryModel {
     }
 
     private func rebuildMatches(restart: Bool) {
-        let needle = findText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let needle = search.trimmingCharacters(in: .whitespacesAndNewlines)
         var found: [FindMatch] = []
         if !needle.isEmpty {
             for block in blocks {
@@ -103,21 +104,52 @@ final class HistoryModel {
     /// so a refresh while someone reads or listens changes nothing they are looking at, unless
     /// the selected entry itself changed (an agent corrected it) and nothing is playing.
     func reload() {
+        Task { await refresh() }
+    }
+
+    private func refresh() async {
         let query = search
         let limit = limit
-        Task {
-            let store = await openStore()
-            let read = (try? await Task.detached { try store?.historyEntries(limit: limit, matching: query) ?? [] }.value) ?? []
+        let store = await openStore()
+        var read = (try? await Task.detached { try store?.historyEntries(limit: limit, matching: query) ?? [] }.value) ?? []
+        guard query == search else { return }
+        // The open recording came from a search that reached past the newest page. Clearing the
+        // search must not drop it, so the page grows until it is read in, as `reveal` does.
+        while let open = held, open.id == selection, !read.contains(where: { $0.id == open.id }), read.count >= limit {
+            self.limit += Self.page
+            let wider = self.limit
+            read = (try? await Task.detached { try store?.historyEntries(limit: wider, matching: query) ?? [] }.value) ?? []
             guard query == search else { return }
-            let before = selected
-            guard read != entries else { return }
-            entries = read
-            if detail == nil || !visible.contains(where: { $0.id == selection }) {
-                keepSelection()
-            } else if let before, let now = selected, before != now {
-                refreshDetail()
-            }
         }
+        let before = selected
+        // An import's words arrive without its row changing, so its open detail is read again
+        // on every reload while it runs.
+        if read == entries {
+            if selected?.isLive == true, selected?.fileName != nil { refreshDetail() }
+            return
+        }
+        entries = read
+        if let now = visible.first(where: { $0.id == selection }) { held = now }
+        if detail == nil || (selected == nil) {
+            keepSelection()
+        } else if let before, let now = selected, before != now || (now.isLive && now.fileName != nil) {
+            refreshDetail()
+        }
+    }
+
+    /// Reads the list again and opens the entry with this id, which a filter or a search that
+    /// would hide it is dropped for.
+    func reveal(_ id: String) async {
+        if filter == .dictations || filter == .calls { filter = .all }
+        search = ""
+        await refresh()
+        // An older entry than the loaded page is read in by growing the page.
+        while !visible.contains(where: { $0.id == id }), entries.count >= limit {
+            limit += Self.page
+            await refresh()
+        }
+        guard visible.contains(where: { $0.id == id }) else { return }
+        selection = id
     }
 
     /// Reads the next page when the last row is reached and the last read was full.
@@ -141,7 +173,7 @@ final class HistoryModel {
     func select(_ id: HistoryEntry.ID?) {
         loading?.cancel()
         player.stop()
-        guard let entry = visible.first(where: { $0.id == id }) else {
+        guard let entry = entry(id) else {
             detail = nil
             blocks = []
             rebuildMatches(restart: true)
@@ -149,6 +181,7 @@ final class HistoryModel {
             waveform = []
             return
         }
+        held = entry
         loads += 1
         generations += 1
         let generation = generations
@@ -193,24 +226,48 @@ final class HistoryModel {
     /// False for a dictation whose pasted text differs from the transcript shown.
     var canCorrect: Bool { detail?.canCorrect ?? false }
 
-    /// Stores the correction the way an agent's is stored, then reads the recording again.
-    /// Returns what went wrong, if anything.
-    func save(_ request: HandCorrection, to text: String, known: [String]) async -> String? {
-        guard let store = await openStore() else { return "Couldn't open the history." }
+    /// Stores the correction, adds the key terms it proposes, then reads the recording again.
+    func save(_ request: HandCorrection, to text: String, settings: PreferencesKeyTerms) async -> CorrectionOutcome {
+        guard let store = await openStore() else { return .failed("Couldn't open the history.") }
+        let service = KeyTermSuggestions(store: store, settings: settings)
+        let result: HandCorrectionResult
         do {
-            try await Task.detached { try store.correct(request, to: text, known: known) }.value
+            result = try await service.correct(request, to: text)
         } catch {
-            return "\(error)"
+            return .failed("\(error)")
         }
         refreshDetail()
         reload()
-        return nil
+        if !result.added.isEmpty {
+            let added = result.added
+            let pending = UndoPending(added)
+            return .added(KeyTermAddition(terms: added.map(\.term), undo: {
+                let undone = Set(await service.undo(pending.terms).undone.map(\.term))
+                return pending.keep { !undone.contains($0.term) }
+            }))
+        }
+        if !result.refused.isEmpty { return .note(KeyTermConfirmation.full(result.refused)) }
+        return result.failed == nil ? .saved : .note(KeyTermConfirmation.addFailed)
     }
 
     /// Starts editing a row's title in place.
     func beginRename(_ entry: HistoryEntry) {
         selection = entry.id
         renaming = entry.id
+    }
+
+    /// Shows a title the model just made, ahead of the reload that reads it from the database.
+    /// An automatic title never goes over a row that has one (a rename may have landed first);
+    /// an explicit one does, only while the row still has the title it had when the job began.
+    func show(title: String, forRecording ref: String, replacing old: String?? = nil) {
+        guard let index = entries.firstIndex(where: { $0.ref == ref }) else { return }
+        if let old {
+            guard entries[index].customTitle == old else { return }
+        } else {
+            guard entries[index].customTitle == nil else { return }
+        }
+        entries[index].customTitle = title
+        entries[index].title = title
     }
 
     /// Gives the recording the title, or takes it away when it is blank.
@@ -234,6 +291,7 @@ final class HistoryModel {
         let next = index.flatMap { list.indices.contains($0 + 1) ? list[$0 + 1].id : ($0 > 0 ? list[$0 - 1].id : nil) }
         Task {
             guard let store = await openStore() else { return }
+            if entry.fileName != nil { await beforeDelete(entry.ref) }
             do {
                 try await Task.detached { try store.deleteRecording(entry.kind, entry.ref) }.value
             } catch {
@@ -264,11 +322,15 @@ final class HistoryModel {
                 return (detail, DisplayBlock.make(detail, generation: generation))
             }.value
             guard let read, opened == loads, selection == entry.id else { return }
+            // Nothing new since the last read: the blocks, and what is selected in them, stay.
+            guard read.0 != detail else { return }
+            let kept = DisplayBlock.keeping(blocks, in: read.1)
             player.lineAt = { seconds in read.0.line(at: seconds)?.id }
             detail = read.0
-            blocks = read.1
+            if held?.id == read.0.entry.id { held = read.0.entry }
+            blocks = kept
             rebuildMatches(restart: false)
-            blockOfLine = Dictionary(read.1.flatMap { block in block.lines.map { ($0.id, block.id) } },
+            blockOfLine = Dictionary(kept.flatMap { block in block.lines.map { ($0.id, block.id) } },
                                      uniquingKeysWith: { first, _ in first })
         }
     }
@@ -308,15 +370,87 @@ final class HistoryModel {
     }
 }
 
+/// The toolbar's search field: the native `NSSearchField`, with Return for the next match and Shift-Return for the previous.
+/// `focusRequest` focuses it when it changes.
+private struct HistorySearchField: NSViewRepresentable {
+    @Binding var text: String
+    let focusRequest: Int
+    let step: (Int) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeNSView(context: Context) -> NSSearchField {
+        let field = NSSearchField()
+        field.placeholderString = "Search"
+        field.setAccessibilityLabel("Search")
+        field.sendsSearchStringImmediately = true
+        field.sendsWholeSearchString = false
+        field.delegate = context.coordinator
+        field.target = context.coordinator
+        field.action = #selector(Coordinator.changed(_:))
+        return field
+    }
+
+    func updateNSView(_ field: NSSearchField, context: Context) {
+        context.coordinator.parent = self
+        if field.stringValue != text { field.stringValue = text }
+        if context.coordinator.focusRequest != focusRequest {
+            context.coordinator.focusRequest = focusRequest
+            field.window?.makeFirstResponder(field)
+        }
+    }
+
+    @MainActor final class Coordinator: NSObject, NSSearchFieldDelegate {
+        var parent: HistorySearchField
+        var focusRequest: Int
+
+        init(_ parent: HistorySearchField) {
+            self.parent = parent
+            focusRequest = parent.focusRequest
+        }
+
+        @objc func changed(_ field: NSSearchField) { parent.text = field.stringValue }
+
+        func controlTextDidChange(_ notification: Notification) {
+            if let field = notification.object as? NSSearchField { parent.text = field.stringValue }
+        }
+
+        func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
+            switch selector {
+            case #selector(NSResponder.insertNewline(_:)):
+                parent.step(NSEvent.modifierFlags.contains(.shift) ? -1 : 1)
+                return true
+            case #selector(NSResponder.cancelOperation(_:)):
+                control.stringValue = ""
+                parent.text = ""
+                return true
+            default:
+                return false
+            }
+        }
+    }
+}
+
 /// History: the list of recordings, and the selected one's transcript with its play bar.
 struct HistoryPane: View {
     @Environment(AppModel.self) private var model
+    @Environment(CallsModel.self) private var calls
     let history: HistoryModel
+    @State private var dropTargeted = false
+    @State private var searchFocus = 0
 
     var body: some View {
         @Bindable var history = history
         HSplitView {
             HistoryList(history: history)
+                .overlay {
+                    if dropTargeted {
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(Color.accentColor, lineWidth: 2)
+                            .padding(4)
+                            .allowsHitTesting(false)
+                    }
+                }
                 .frame(minWidth: 260, idealWidth: 320, maxWidth: 400)
             Group {
                 // The detail on show stays until the next is read; see HistoryModel.select.
@@ -328,8 +462,53 @@ struct HistoryPane: View {
             }
             .frame(minWidth: 380, maxWidth: .infinity)
         }
+        .dropDestination(for: URL.self) { urls, _ in
+            let supported = ImportDrop.supported(urls)
+            guard !supported.isEmpty else {
+                model.notice(ImportDrop.refusal)
+                return false
+            }
+            importFiles(supported, refusing: supported.count < urls.count)
+            return true
+        } isTargeted: { dropTargeted = $0 }
+        .toolbar {
+            // SwiftUI's own search field is always laid out last in the toolbar, so the New button
+            // could never sit after it.
+            ToolbarItem(placement: .primaryAction) {
+                HistorySearchField(text: $history.search, focusRequest: searchFocus,
+                                   step: { history.stepMatch($0) })
+                    .frame(width: 240)
+            }
+            if #available(macOS 26, *) {
+                ToolbarSpacer(.fixed, placement: .primaryAction)
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    HistoryNewMenu(chooseFiles: chooseFiles)
+                } label: {
+                    Label("New", systemImage: "tray.and.arrow.down")
+                }
+                .menuIndicator(.hidden)
+                .help("New")
+            }
+        }
+        .background {
+            // Shortcuts with no place of their own on screen.
+            Group {
+                Button("Import Audio File\u{2026}") { chooseFiles() }.keyboardShortcut("o")
+                Button("Search") { searchFocus += 1 }.keyboardShortcut("f", modifiers: .command)
+                Button("Next match") { history.stepMatch(1) }.keyboardShortcut("g", modifiers: .command)
+                Button("Previous match") { history.stepMatch(-1) }.keyboardShortcut("g", modifiers: [.command, .shift])
+                Button("Previous match") { history.stepMatch(-1) }.keyboardShortcut(.return, modifiers: .shift)
+            }
+            .frame(width: 0, height: 0)
+            .opacity(0)
+            .accessibilityHidden(true)
+        }
         .onAppear {
             history.changed = { model.refreshRecents() }
+            history.beforeDelete = { [calls] id in await calls.cancelImport(id) }
+            calls.titled = { [history] id, title, old in history.show(title: title, forRecording: id, replacing: old) }
             history.reload()
         }
         .onKeyPress(keys: [.delete], phases: .down) { press in
@@ -362,28 +541,50 @@ struct HistoryPane: View {
         .onChange(of: history.filter) { history.keepSelection() }
         .onChange(of: history.selection) { _, id in history.select(id) }
     }
+
+    private func importFiles(_ urls: [URL], refusing: Bool = false) {
+        Task {
+            let id = await calls.importFiles(urls)
+            if refusing { model.notice(ImportDrop.refusal) }
+            guard let id else { return }
+            await history.reveal(id)
+        }
+    }
+
+    /// The open panel, as a sheet on the window when there is one.
+    private func chooseFiles() {
+        guard model.requireActivation() else { return }
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = AudioImport.supportedExtensions.sorted().compactMap { UTType(filenameExtension: $0) }
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.prompt = "Import"
+        let chosen: (NSApplication.ModalResponse) -> Void = { response in
+            guard response == .OK else { return }
+            importFiles(panel.urls)
+        }
+        if let window = NSApp.keyWindow ?? NSApp.mainWindow {
+            panel.beginSheetModal(for: window, completionHandler: chosen)
+        } else {
+            chosen(panel.runModal())
+        }
+    }
 }
 
 private struct HistoryList: View {
     @Bindable var history: HistoryModel
+    @Environment(CallsModel.self) private var calls
 
     var body: some View {
         VStack(spacing: 0) {
-            TextField("Search", text: $history.search)
-                .textFieldStyle(.roundedBorder)
-                .padding(.horizontal, 12)
-                .padding(.top, 12)
-            Picker("Show", selection: $history.filter) {
-                ForEach(HistoryModel.Filter.allCases) { Text($0.rawValue).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
+            FilterSegments(selection: $history.filter)
             .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.top, 12)
+            .padding(.bottom, 10)
             if history.visible.isEmpty {
                 if history.search.isEmpty {
                     ContentUnavailableView("Nothing yet", systemImage: "clock",
-                                           description: Text("Dictations and calls you record show up here."))
+                                           description: Text("Dictations, calls and imports show up here."))
                 } else {
                     ContentUnavailableView.search(text: history.search)
                 }
@@ -391,15 +592,13 @@ private struct HistoryList: View {
                 ScrollViewReader { proxy in
                     List(history.visible, selection: $history.selection) { entry in
                         HistoryRow(entry: entry, renaming: history.renaming == entry.id,
+                                   importState: ImportRowState.of(entry, progress: calls.importProgress[entry.ref],
+                                                                  waiting: calls.importsWaiting.contains(entry.ref)),
+                                   naming: calls.isNaming(entry.ref),
                                    commit: { history.rename(entry, to: $0) }, cancel: { history.renaming = nil })
                             .equatable()
                             .onAppear { history.loadMoreIfNeeded(at: entry) }
-                            .contextMenu {
-                                Button("Copy") { Task { await history.copy(entry) } }
-                                Button("Rename") { history.beginRename(entry) }
-                                Divider()
-                                Button("Delete\u{2026}", role: .destructive) { history.pendingDelete = entry }
-                            }
+                            .contextMenu { HistoryRowMenu(entry: entry, history: history) }
                             .accessibilityAction(named: "Rename") { history.beginRename(entry) }
                             .accessibilityAction(named: "Delete") { history.pendingDelete = entry }
                     }
@@ -413,52 +612,202 @@ private struct HistoryList: View {
                     .onChange(of: history.renaming) { _, id in
                         if let id { proxy.scrollTo(id) }
                     }
+                    // A title that was just made is read now, not at the next refresh.
+                    .onChange(of: calls.naming) { history.reload() }
+                    .onChange(of: calls.requested) { history.reload() }
                 }
             }
         }
     }
 }
 
+/// A History row's right-click menu, shared with the app-shots replica of it.
+struct HistoryRowMenu: View {
+    let entry: HistoryEntry
+    let history: HistoryModel
+    @Environment(CallsModel.self) private var calls
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        Button("Copy") { Task { await history.copy(entry) } }
+        Button("Rename") { history.beginRename(entry) }
+        // Generate Title, or Regenerate Title once the recording has one; when the chosen model
+        // can't run, the reason sits disabled under it.
+        let item = TitleRequest.item(
+            hasTitle: entry.customTitle != nil, canTitle: entry.canTitle && !entry.isLive,
+            busy: calls.isNaming(entry.ref),
+            chosen: model.effectiveModel, apple: model.appleModelState, ollamaModels: model.ollamaModels)
+        Button(item.label) { calls.generateTitle(entry.kind, entry.ref) }
+            .disabled(!item.enabled)
+        if let hint = item.hint {
+            Button(hint) {}.disabled(true)
+        }
+        Divider()
+        Button("Delete\u{2026}", role: .destructive) { history.pendingDelete = entry }
+    }
+}
+
+/// The All, Dictations and Calls control. SwiftUI's segmented Picker keeps its natural width on
+/// macOS, so this is the AppKit control with its segments stretched across the column.
+private struct FilterSegments: NSViewRepresentable {
+    @Binding var selection: HistoryModel.Filter
+
+    func makeNSView(context: Context) -> StretchedSegments {
+        let control = StretchedSegments(labels: HistoryModel.Filter.allCases.map(\.rawValue),
+                                         trackingMode: .selectOne, target: context.coordinator,
+                                         action: #selector(Coordinator.changed(_:)))
+        control.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        control.setAccessibilityLabel("Show")
+        return control
+    }
+
+    func updateNSView(_ control: StretchedSegments, context: Context) {
+        context.coordinator.parent = self
+        control.selectedSegment = HistoryModel.Filter.allCases.firstIndex(of: selection) ?? 0
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView control: StretchedSegments, context: Context) -> CGSize? {
+        CGSize(width: proposal.width ?? control.fittingSize.width, height: control.fittingSize.height)
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    /// AppKit's own distribution leaves the segments at the width of the first layout when the
+    /// column is dragged, so they are sized whenever the control's width changes: equal, as in
+    /// Finder, unless the longest label doesn't fit an equal share, then in proportion to the labels.
+    final class StretchedSegments: NSSegmentedControl {
+        override func setFrameSize(_ size: NSSize) {
+            super.setFrameSize(size)
+            let weights = (0..<segmentCount).map { (label(forSegment: $0) ?? "").size(withAttributes: [.font: font]).width + 20 }
+            let total = weights.reduce(0, +)
+            guard total > 0 else { return }
+            let share = (size.width - 4) / CGFloat(segmentCount)
+            if let widest = weights.max(), widest <= share {
+                for index in 0..<segmentCount { setWidth(share.rounded(.down), forSegment: index) }
+                return
+            }
+            let scale = max(1, (size.width - 4) / total)
+            for (index, weight) in weights.enumerated() { setWidth((weight * scale).rounded(.down), forSegment: index) }
+        }
+    }
+
+    @MainActor final class Coordinator: NSObject {
+        var parent: FilterSegments
+        init(_ parent: FilterSegments) { self.parent = parent }
+        @objc func changed(_ sender: NSSegmentedControl) {
+            let all = Array(HistoryModel.Filter.allCases)
+            if all.indices.contains(sender.selectedSegment) { parent.selection = all[sender.selectedSegment] }
+        }
+    }
+}
+
+/// The items of the toolbar's New menu, shared with the app-shots replica of the open menu.
+struct HistoryNewMenu: View {
+    @Environment(AppModel.self) private var model
+    @Environment(CallsModel.self) private var calls
+    let chooseFiles: () -> Void
+
+    var body: some View {
+        Button(model.isRecording ? "Stop Dictation" : "New Dictation") { model.toggle() }
+            .disabled(model.isWorking)
+        let app = calls.detected.first
+        Button(calls.recording != nil ? "Stop Recording" : app == nil ? "Record a Call" : "Record This Call") {
+            if calls.recording != nil {
+                Task { await calls.stop() }
+            } else {
+                calls.recordFromMenu(app)
+            }
+        }
+        .disabled(calls.starting)
+        Divider()
+        Button("Import Audio File\u{2026}") { chooseFiles() }
+    }
+}
+
 private struct HistoryRow: View, @MainActor Equatable {
     let entry: HistoryEntry
     let renaming: Bool
+    let importState: ImportRowState?
+    /// The row's call is being named, which is only said for a call without a title.
+    let naming: Bool
     let commit: (String) -> Void
     let cancel: () -> Void
 
-    static func == (a: Self, b: Self) -> Bool { a.entry == b.entry && a.renaming == b.renaming }
+    static func == (a: Self, b: Self) -> Bool {
+        a.entry == b.entry && a.renaming == b.renaming && a.importState == b.importState && a.naming == b.naming
+    }
 
     var body: some View {
         let date = HistoryTime.title(start: entry.at, zone: entry.timeZone)
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: entry.kind == .call ? "phone" : "mic")
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: entry.fileName != nil ? "waveform" : entry.kind == .call ? "phone" : "mic")
                 .foregroundStyle(.secondary)
                 .frame(width: 18)
-                .padding(.top, 1)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     if renaming {
-                        RenameField(initial: entry.customTitle ?? "", prompt: date, commit: commit, cancel: cancel)
+                        RenameField(initial: entry.customTitle ?? "", prompt: entry.fileName ?? date, commit: commit, cancel: cancel)
+                    } else if namingNow {
+                        Text(RowNaming.label).foregroundStyle(.secondary).lineLimit(1)
+                            .transition(.opacity)
                     } else {
-                        Text(entry.customTitle ?? date).fontWeight(.semibold).lineLimit(1)
-                        if entry.customTitle == nil, let zone = entry.originalZoneLabel {
+                        Text(entry.customTitle ?? entry.fileName ?? date).fontWeight(.semibold).lineLimit(1)
+                            // A file name keeps its extension; a title reads from its start.
+                            .truncationMode(entry.customTitle == nil && entry.fileName != nil ? .middle : .tail)
+                            .transition(.opacity)
+                        if entry.customTitle == nil, entry.fileName == nil, let zone = entry.originalZoneLabel {
                             Text(zone).font(.caption).foregroundStyle(.secondary)
                         }
                     }
                     Spacer(minLength: 4)
-                    Text(HistoryTime.elapsed(entry.duration)).monospacedDigit().foregroundStyle(.secondary)
+                    if ImportRowState.showsDuration(entry) {
+                        Text(HistoryTime.elapsed(entry.duration)).monospacedDigit().foregroundStyle(.secondary)
+                    }
                 }
-                Text(secondLine(date: date))
-                    .lineLimit(1)
-                    .foregroundStyle(.secondary)
+                if case .transcribing(let part) = importState {
+                    // The text's height is kept, so the row doesn't change size while it works.
+                    Text(" ")
+                        .lineLimit(1)
+                        .hidden()
+                        .frame(maxWidth: .infinity)
+                        .overlay(alignment: .leading) {
+                            HStack(spacing: 6) {
+                                // A title replaced the file name above, so the name moves here.
+                                if entry.customTitle != nil, let name = entry.fileName {
+                                    Text(name).lineLimit(1).truncationMode(.middle).foregroundStyle(.secondary)
+                                }
+                                ProgressView(value: part).controlSize(.small).frame(minWidth: 40)
+                                    .accessibilityLabel("Transcribing")
+                            }
+                        }
+                } else {
+                    Text(secondLine(date: date))
+                        .lineLimit(1)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .padding(.vertical, 3)
-        .help(entry.customTitle ?? date)
+        .animation(.easeInOut(duration: 0.25), value: namingNow)
+        .animation(.easeInOut(duration: 0.25), value: entry.customTitle)
+        .help(entry.customTitle ?? entry.fileName ?? date)
+    }
+
+    private var namingNow: Bool {
+        naming && RowNaming.shows(entry, naming: [entry.ref], importState: importState)
     }
 
     /// A renamed recording shows what it was, then its date and time; one without a name
     /// shows what it was, and the first words.
     private func secondLine(date: String) -> String {
+        if entry.fileName != nil {
+            switch importState {
+            case .waiting: return [entry.customTitle == nil ? nil : entry.kindLabel, "Waiting"].compactMap { $0 }.joined(separator: " \u{00B7} ")
+            case .failed(let reason): return reason
+            default: break
+            }
+            if entry.customTitle == nil { return entry.firstLine.isEmpty ? date : entry.firstLine }
+        }
         let preview = entry.firstLine.isEmpty ? entry.title : entry.firstLine
         if entry.customTitle != nil {
             return [entry.kind == .call ? entry.kindLabel : nil,
@@ -508,7 +857,7 @@ private struct RenameField: View {
 extension HistoryEntry {
     /// What a confirmation calls it: the title it was given, or what it is and when.
     var deletionName: String {
-        customTitle ?? "\(kindLabel) from \(HistoryTime.title(start: at, zone: timeZone))"
+        customTitle ?? fileName ?? "\(kindLabel) from \(HistoryTime.title(start: at, zone: timeZone))"
     }
 }
 
@@ -526,45 +875,56 @@ private struct HistoryDetailView: View {
         // Read here, so a change of line redraws this body, and a tick of the clock does not.
         let playingLine = player.playingLine
         let playingBlock = history.blockID(ofLine: playingLine)
-        let isCall = detail.entry.kind == .call
+        let isImport = detail.entry.fileName != nil
+        // A file is one track: no speaker column, so the words start next to the time.
+        let isCall = detail.entry.kind == .call && !isImport
         // The list's copy of the entry is the one a rename changes.
         let entry = history.selected ?? detail.entry
         let date = HistoryTime.title(start: entry.at, zone: entry.timeZone)
         VStack(spacing: 0) {
-            HStack(alignment: .top) {
+            HStack(alignment: .top, spacing: 8) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(entry.customTitle ?? date)
+                    Text(entry.customTitle ?? entry.fileName ?? date)
                         .font(.title3.weight(.semibold))
                         .lineLimit(2)
-                    Text([entry.kindLabel, entry.customTitle == nil ? nil : date, HistoryTime.elapsed(entry.duration)]
+                        .truncationMode(entry.customTitle == nil && entry.fileName != nil ? .middle : .tail)
+                    // An untitled file is already named by its title, so its subtitle starts at the date.
+                    Text([entry.fileName != nil && entry.customTitle == nil ? nil : entry.kindLabel,
+                          entry.customTitle == nil && entry.fileName == nil ? nil : date,
+                          ImportRowState.showsDuration(entry) ? HistoryTime.elapsed(entry.duration) : nil]
                         .compactMap { $0 }.joined(separator: " \u{00B7} "))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 12)
-                FindBar(history: history)
-                Menu {
-                    Picker("Time", selection: $preferences.historyTimes) {
-                        ForEach(HistoryTimeMode.allCases) { Text($0.title).tag($0) }
+                // Centred on the title's first line, whatever the second line holds.
+                HStack(spacing: 8) {
+                    MatchSteppers(history: history)
+                    Menu {
+                        Picker("Time", selection: $preferences.historyTimes) {
+                            ForEach(HistoryTimeMode.allCases) { Text($0.title).tag($0) }
+                        }
+                        .pickerStyle(.inline)
+                        .disabled(isImport)
+                        Divider()
+                        Toggle("Show corrections", isOn: $preferences.showCorrections)
+                        Divider()
+                        Button("Save As\u{2026}") { history.saveAudio(detail.entry) }
+                            .disabled(detail.entry.audioFile == nil)
+                        Button("Copy") { Task { await history.copy(detail.entry) } }
+                            .disabled(!detail.entry.hasText)
+                        Divider()
+                        Button("Rename") { history.beginRename(entry) }
+                        Button("Delete\u{2026}", role: .destructive) { history.pendingDelete = entry }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
                     }
-                    .pickerStyle(.inline)
-                    Divider()
-                    Toggle("Show corrections", isOn: $preferences.showCorrections)
-                    Divider()
-                    Button("Save As\u{2026}") { history.saveAudio(detail.entry) }
-                        .disabled(detail.entry.audioFile == nil)
-                    Button("Copy") { Task { await history.copy(detail.entry) } }
-                        .disabled(!detail.entry.hasText)
-                    Divider()
-                    Button("Rename") { history.beginRename(entry) }
-                    Button("Delete\u{2026}", role: .destructive) { history.pendingDelete = entry }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .help("More")
                 }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .fixedSize()
-                .help("More")
+                .frame(height: 24)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
@@ -573,7 +933,7 @@ private struct HistoryDetailView: View {
                 ScrollView {
                     if blocks.isEmpty {
                         ContentUnavailableView("No transcript", systemImage: "text.alignleft",
-                                               description: Text("Nothing was transcribed for this recording."))
+                                               description: Text(emptyDescription(entry)))
                             .padding(.top, 60)
                     }
                     // Lazy, with a row's work done when the recording opened: scrolling only
@@ -584,14 +944,15 @@ private struct HistoryDetailView: View {
                             // others compare equal and are not redrawn when it moves.
                             TranscriptBlockView(block: block, isCall: isCall,
                                                 playing: block.id == playingBlock ? playingLine : nil,
-                                                times: preferences.historyTimes,
+                                                // The clock times of an import would count from the moment it was imported.
+                                                times: isImport ? .elapsed : preferences.historyTimes,
                                                 showCorrections: preferences.showCorrections,
                                                 play: { player.play(from: $0) },
                                                 correctable: detail.canCorrect,
                                                 find: history.matchesByBlock[block.id] ?? [],
                                                 activeFind: history.activeIndex(inBlock: block.id),
                                                 draft: { history.correction(in: $0, range: $1) },
-                                                save: { await history.save($0, to: $1, known: KeyTerms.parse(preferences.keyTerms)) })
+                                                save: { await history.save($0, to: $1, settings: PreferencesKeyTerms(preferences: preferences)) })
                                 .equatable()
                         }
                         if preferences.showCorrections {
@@ -603,11 +964,24 @@ private struct HistoryDetailView: View {
                 }
                 // A new recording starts at the top; the swap is still one step.
                 .id(detail.entry.id)
+                .onAppear {
+                    Task {
+                        await Task.yield()
+                        if let block = history.activeMatch?.block { proxy.scrollTo(block, anchor: .center) }
+                    }
+                }
                 .onChange(of: history.currentMatch) {
                     if let block = history.activeMatch?.block { proxy.scrollTo(block, anchor: .center) }
                 }
-                .onChange(of: history.findText) {
+                .onChange(of: history.search) {
                     if let block = history.activeMatch?.block { proxy.scrollTo(block, anchor: .center) }
+                }
+                // The new recording's scroll view is made in this same pass, so the scroll waits a turn.
+                .onChange(of: detail.entry.id) {
+                    Task {
+                        await Task.yield()
+                        if let block = history.activeMatch?.block { proxy.scrollTo(block, anchor: .center) }
+                    }
                 }
                 .onChange(of: playingBlock) { _, id in
                     guard player.isPlaying, let id else { return }
@@ -620,21 +994,29 @@ private struct HistoryDetailView: View {
     }
 }
 
-/// The search inside the open recording: a field with the count and steppers. Return and Cmd+G
-/// go to the next match, Shift+Return and Shift+Cmd+G to the one before, and Cmd+F comes here.
-private struct FindBar: View {
-    @Bindable var history: HistoryModel
-    @FocusState private var focused: Bool
+extension HistoryDetailView {
+    /// What an empty transcript means: for a file, why it failed or that it is still being made.
+    fileprivate func emptyDescription(_ entry: HistoryEntry) -> String {
+        if entry.fileName != nil {
+            if let reason = entry.error { return reason }
+            if entry.isLive { return "Words appear here as the file is transcribed." }
+        }
+        return "Nothing was transcribed for this recording."
+    }
+}
+
+/// Where the search is in the open recording: the count and the steppers, shown while it has a match.
+private struct MatchSteppers: View {
+    let history: HistoryModel
 
     var body: some View {
-        HStack(spacing: 6) {
-            if !history.findText.isEmpty {
-                Text(history.matches.isEmpty ? "No matches" : "\(history.currentMatch + 1) of \(history.matches.count)")
+        if !history.matches.isEmpty {
+            HStack(spacing: 6) {
+                Text("\(history.currentMatch + 1) of \(history.matches.count)")
                     .font(.callout)
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
-                    .accessibilityLabel(history.matches.isEmpty ? "No matches"
-                                        : "Match \(history.currentMatch + 1) of \(history.matches.count)")
+                    .accessibilityLabel("Match \(history.currentMatch + 1) of \(history.matches.count)")
                 Button { history.stepMatch(-1) } label: { Image(systemName: "chevron.up") }
                     .help("Previous match")
                     .accessibilityLabel("Previous match")
@@ -642,29 +1024,9 @@ private struct FindBar: View {
                     .help("Next match")
                     .accessibilityLabel("Next match")
             }
-            TextField("Find", text: $history.findText)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 170)
-                .focused($focused)
-                .onSubmit { history.stepMatch(1) }
-                .onExitCommand {
-                    history.findText = ""
-                    focused = false
-                }
-                .accessibilityLabel("Find in this recording")
-            // Shortcuts with no place of their own on screen.
-            Group {
-                Button("Previous match") { history.stepMatch(-1) }.keyboardShortcut(.return, modifiers: .shift)
-                Button("Next match") { history.stepMatch(1) }.keyboardShortcut("g", modifiers: .command)
-                Button("Previous match") { history.stepMatch(-1) }.keyboardShortcut("g", modifiers: [.command, .shift])
-                Button("Find") { focused = true }.keyboardShortcut("f", modifiers: .command)
-            }
-            .frame(width: 0, height: 0)
-            .opacity(0)
-            .accessibilityHidden(true)
+            .buttonStyle(.borderless)
+            .controlSize(.small)
         }
-        .buttonStyle(.borderless)
-        .controlSize(.small)
     }
 }
 
@@ -682,16 +1044,18 @@ private struct TranscriptBlockView: View, @MainActor Equatable {
     let times: HistoryTimeMode
     let showCorrections: Bool
     let play: (Double) -> Void
-    /// The correction for words at a range of the block's text, and its storing; nil from
-    /// save when it worked, else what went wrong.
+    /// The correction for words at a range of the block's text, and its storing.
     /// False when what is drawn isn't the stored text, so a correction would change the wrong words.
     let correctable: Bool
     /// The found words in this block, and which of them is the one stepped to.
     let find: [Range<Int>]
     let activeFind: Int?
     let draft: (DisplayBlock, Range<Int>) -> HandCorrection?
-    let save: (HandCorrection, String) async -> String?
+    let save: (HandCorrection, String) async -> CorrectionOutcome
     @State private var hovered = false
+    #if DEBUG
+    @Environment(\.snapshotHover) private var snapshotHover
+    #endif
     /// The words a drag selected, in the block's text; a right click or a key corrects the
     /// words under the pointer or the line when nothing is selected.
     @State private var selection: Range<Int>?
@@ -707,21 +1071,31 @@ private struct TranscriptBlockView: View, @MainActor Equatable {
             && a.showCorrections == b.showCorrections
     }
 
+    private var showsPlay: Bool {
+        #if DEBUG
+        return hovered || snapshotHover == block.id
+        #else
+        return hovered
+        #endif
+    }
+
     var body: some View {
         let time = times == .clock ? block.clock : block.elapsed
         HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Text(time)
-                .font(.system(size: 12).monospacedDigit())
-                .foregroundStyle(.tertiary)
-                .frame(width: 64, alignment: .trailing)
-                .overlay(alignment: .leading) {
-                    if hovered {
-                        Image(systemName: "play.circle.fill")
-                            .font(.system(size: 14))
-                            .foregroundStyle(.tint)
-                            .offset(y: -1)
-                    }
-                }
+            // The play mark has a slot of its own before the time, always reserved, so a long
+            // clock time never runs under it and nothing moves on hover.
+            HStack(alignment: .firstTextBaseline, spacing: 0) {
+                Image(systemName: "play.circle.fill")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.tint)
+                    .frame(width: 16, alignment: .leading)
+                    .opacity(showsPlay ? 1 : 0)
+                    .accessibilityHidden(true)
+                Text(time)
+                    .font(.system(size: 12).monospacedDigit())
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 56, alignment: .trailing)
+            }
             if isCall {
                 Text(block.showsSpeaker ? block.speaker ?? "" : "")
                     .fontWeight(.semibold)
@@ -766,7 +1140,7 @@ private struct TranscriptBlockView: View, @MainActor Equatable {
         .padding(.horizontal, 12)
         .padding(.vertical, 3)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(hovered ? Color.primary.opacity(0.05) : .clear, in: RoundedRectangle(cornerRadius: 6))
+        .background(showsPlay ? Color.primary.opacity(0.05) : .clear, in: RoundedRectangle(cornerRadius: 6))
         .contentShape(Rectangle())
         .onHover { hovered = $0 }
         .onTapGesture {
@@ -784,7 +1158,12 @@ private struct TranscriptBlockView: View, @MainActor Equatable {
         }
         .onChange(of: block.generation) {
             selection = nil
-            editing = nil
+            // A correction being saved or confirmed outlives the redraw it causes.
+            if let held = editing, !held.anchor.closesOnRefresh {
+                if let layout = textLayout() { editing?.rect = layout.rect(of: held.anchor.range) }
+            } else {
+                editing = nil
+            }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(block.spokenLabel(times))
@@ -832,11 +1211,11 @@ extension TranscriptBlockView {
     private func begin(_ range: Range<Int>, layout: BlockTextLayout) {
         hoveredMark = nil
         guard correctable else {
-            editing = Editing(request: nil, rect: layout.rect(of: range))
+            editing = Editing(request: nil, rect: layout.rect(of: range), anchor: CorrectionAnchor(range: range))
             return
         }
         guard let request = draft(block, range) else { return }
-        editing = Editing(request: request, rect: layout.rect(of: range))
+        editing = Editing(request: request, rect: layout.rect(of: range), anchor: CorrectionAnchor(range: range))
     }
 
     /// The layout for the row's current width, made when first needed.
@@ -870,19 +1249,23 @@ private struct Editing: Identifiable {
     let id = UUID()
     /// Nil when the recording can't be corrected, and the popover says so.
     let request: HandCorrection?
-    let rect: CGRect
+    var rect: CGRect
+    var anchor: CorrectionAnchor
 }
 
 /// The popover that corrects the selected words.
 private struct CorrectionEditorHost: ViewModifier {
     @Binding var editing: Editing?
-    let save: (HandCorrection, String) async -> String?
+    let save: (HandCorrection, String) async -> CorrectionOutcome
 
     func body(content: Content) -> some View {
         content.popover(item: $editing, attachmentAnchor: .rect(.rect(editing?.rect ?? .zero)), arrowEdge: .bottom) { item in
             if let request = item.request {
                 CorrectionEditor(original: request.selected,
                                  save: { await save(request, $0) },
+                                 holding: { text, on in
+                                     if on { editing?.anchor.hold(replacement: text) } else { editing?.anchor.release() }
+                                 },
                                  done: { editing = nil })
             } else {
                 Text("Fix the text before pasting changed this dictation, so its words can't be corrected here.")
@@ -895,16 +1278,21 @@ private struct CorrectionEditorHost: ViewModifier {
 
 private struct CorrectionEditor: View {
     let original: String
-    let save: (String) async -> String?
+    let save: (String) async -> CorrectionOutcome
+    /// Tells the popover its correction is saving (true) or failed to (false).
+    let holding: (String, Bool) -> Void
     let done: () -> Void
     @State private var text: String
     @State private var error: String?
+    @State private var note: CorrectionOutcome?
     @State private var saving = false
     @FocusState private var focused: Bool
 
-    init(original: String, save: @escaping (String) async -> String?, done: @escaping () -> Void) {
+    init(original: String, save: @escaping (String) async -> CorrectionOutcome,
+         holding: @escaping (String, Bool) -> Void, done: @escaping () -> Void) {
         self.original = original
         self.save = save
+        self.holding = holding
         self.done = done
         _text = State(initialValue: original)
     }
@@ -912,6 +1300,14 @@ private struct CorrectionEditor: View {
     private var changed: Bool { text.trimmingCharacters(in: .whitespacesAndNewlines) != original }
 
     var body: some View {
+        switch note {
+        case .added(let addition): KeyTermConfirmation(message: addition.message, undo: addition.undo, done: done)
+        case .note(let message): KeyTermConfirmation(message: message, undo: nil, done: done)
+        default: form
+        }
+    }
+
+    private var form: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 TextField("Corrected text", text: $text)
@@ -934,10 +1330,18 @@ private struct CorrectionEditor: View {
     private func commit() {
         guard changed, !saving else { return }
         saving = true
+        let replacement = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        holding(replacement, true)
         Task {
-            error = await save(text)
+            let outcome = await save(text)
             saving = false
-            if error == nil { done() }
+            switch outcome {
+            case .failed(let message):
+                error = message
+                holding(replacement, false)
+            case .saved: done()
+            case .added, .note: note = outcome
+            }
         }
     }
 }

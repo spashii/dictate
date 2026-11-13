@@ -40,6 +40,8 @@ public struct Call: Sendable, Codable, Identifiable, Equatable {
     public var title: String?
     /// Who set `title`; nil when nobody has.
     public var titleSource: TitleSource? = nil
+    /// The name of the file an import was made from; nil for a recording.
+    public var fileName: String? = nil
     public var error: String?
     public var tags: [String]
     /// What the two sides of a split call are called, left then right, when neither is me:
@@ -100,11 +102,18 @@ public struct NewCall: Sendable {
     /// Who gave `title`; nil means a person when there is one.
     public var titleSource: TitleSource?
     public var speakers: [String]?
+    /// Set for an import: the file's name, its SHA-256, and when its audio ends if that is known.
+    public var fileName: String?
+    public var fileHash: String?
+    public var endedAt: Date?
+    public var status: Call.Status
 
     public init(id: String = UUID().uuidString, startedAt: Date = Date(),
                 timeZone: String = TimeZone.current.identifier, appBundleID: String? = nil,
                 appName: String? = nil, deviceUID: String? = nil, split: Bool, audioPath: String? = nil,
-                title: String? = nil, titleSource: TitleSource? = nil, speakers: [String]? = nil) {
+                title: String? = nil, titleSource: TitleSource? = nil, speakers: [String]? = nil,
+                fileName: String? = nil, fileHash: String? = nil, endedAt: Date? = nil,
+                status: Call.Status = .recording) {
         self.id = id
         self.startedAt = startedAt
         self.timeZone = timeZone
@@ -116,6 +125,10 @@ public struct NewCall: Sendable {
         self.title = title
         self.titleSource = titleSource
         self.speakers = speakers
+        self.fileName = fileName
+        self.fileHash = fileHash
+        self.endedAt = endedAt
+        self.status = status
     }
 }
 
