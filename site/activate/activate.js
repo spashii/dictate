@@ -208,7 +208,7 @@
 
   // Spots left, shown under the email field. If the request fails the line stays hidden.
   fetch(API + "/api/activate/founding").then((r) => (r.ok ? r.json() : null)).then((j) => {
-    if (j && Number.isInteger(j.left) && j.left >= 0) { $("founding").textContent = `${j.left} of 50 founding spots left`; $("founding").hidden = false; }
+    if (j && Number.isInteger(j.left) && j.left >= 0) { $("founding").textContent = `${j.left} ${j.left === 1 ? "spot" : "spots"} left`; $("founding").hidden = false; }
   }).catch(() => {});
 
   if (!/^[A-Za-z0-9_-]{16,64}$/.test(nonce)) {
