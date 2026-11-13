@@ -1,19 +1,19 @@
 # What's new in Dictate
 
 <!--
-One entry per release, newest first: "## VERSION (YYYY-MM-DD)", then one "- " line per change,
-written for the person using Dictate. Settings, About shows this file, and tools/release.sh puts
+One entry per release, newest first: "## VERSION (YYYY-MM-DD)", then one "- " line per change:
+a **short headline** and a sentence or two, written for the person using Dictate. Group related
+changes into one line. Settings, About shows this file, and tools/release.sh puts
 the entry for VERSION into the update feed, which Sparkle shows before installing. release.sh
 stops when VERSION has no entry here.
 -->
 
-## 0.15.1 (unreleased)
+## 0.15.2 (unreleased)
 
-- Settings, Setup has Data retention. Keep audio recordings deletes audio after 7 days and Keep history deletes history after 30 days.
-- Developer mode keeps everything. Turning it off asks before it deletes anything.
-- A recording whose audio is gone shows Audio deleted where the player was.
-- The Record this call? prompt says Ask before you record.
-- Retry unsure segments is now Retry unsure words.
+- **Data retention.** Settings, Setup deletes audio after 7 days and history after 30 days unless you choose otherwise. Developer mode keeps everything, and asks before deleting when you turn it off.
+- **Audio deleted.** A recording whose audio is gone says so in History where the player was.
+- **Ask before you record.** The Record this call? prompt now says it.
+- **Retry unsure words.** Retry unsure segments has a new name.
 
 ## 0.15.1 (2026-11-13)
 
@@ -21,73 +21,58 @@ stops when VERSION has no entry here.
 
 ## 0.15.0 (2026-11-13)
 
-- History has a New menu in the toolbar: New Dictation, Record a Call and Import Audio File…
-- Drop an audio or video file on History to transcribe it on your Mac. It gets a title like a call and shows up in search.
-- Agents can import an audio file by its path. The tool is off until you turn it on in Settings, Agents.
-- History has one Search field in the title row. It finds recordings and marks the words in the one you open.
-- Correct a name in History and it becomes a key term. You can undo it right away.
-- Call titles are three or four words. A recording shows Generating title… while its title is made.
-- Right-click a recording and choose Generate Title to name it again.
-- History rows and transcript lines line up better. The play button no longer covers the time.
-- Settings, Model greys out what needs an intelligence model when none can run. It says why.
-- The menu shows the version below Check for Updates.
-- Developer mode in About adds Advanced, with charts of how long the models take.
+- **Import audio files.** Drop an audio or video file on History, or choose Import Audio File… from the New menu. Agents can import too, once you turn their tool on.
+- **One search for History.** It sits in the toolbar and finds recordings and the words inside them.
+- **Corrections become key terms.** Fix a name in a transcript and Dictate remembers it.
+- **Shorter call titles.** Three or four words. Right-click any recording to generate a new one.
+- **Developer mode.** Turn it on in About to see how long titles, fixes and retries take.
 
 ## 0.14.2 (2026-11-13)
 
-- What’s new shows the last three releases. View more shows the rest.
+- **What’s new in About.** It shows the last three releases, and View more shows the rest.
 
 ## 0.14.1 (2026-11-13)
 
-- Settings, Model now has two groups. Speech holds the speech model and Retry unsure segments. Intelligence holds one model for fixing text and for call titles.
-- Apple Intelligence is the default Intelligence model, and you can always open the picker.
-- Add a title to each call automatically is on by default.
-- About shows when an update is available and what's new.
-- Dictate is now in early access.
+- **Two model groups.** Settings, Model has Speech for the speech model and Retry unsure segments, and Intelligence for fixing text and call titles.
+- **Apple Intelligence by default.** It is the default Intelligence model, and the picker is always open.
+- **Titles on by default.** Each call gets a title automatically.
+- **Updates in About.** It shows when an update is available and what’s new.
+- **Early access.** Dictate is now in early access.
 
 ## 0.14.0 (2026-11-13)
 
-- Calls get a short title from their transcript when they end, written by a model on your Mac. An automatic title never replaces a name you give a call.
-- Fix the text before pasting can use Apple Intelligence on Macs that have it, as well as Ollama. Choose the model in Settings, Model.
-- History shows the call app first, then the title.
-- Agents can give a recording a title. The tool is off until you turn it on in Settings, Agents.
+- **Call titles.** A model on your Mac names each call when it ends, and never replaces a name you gave it. History shows the call app first, then the title.
+- **Apple Intelligence for fixes.** Fix the text before pasting can use it on Macs that have it, or Ollama. Choose in Settings, Model.
+- **Agents can title recordings.** The tool is off until you turn it on in Settings, Agents.
 
 ## 0.13.1 (2026-11-13)
 
-- The download opens on a window that shows where to drag Dictate.
+- **A clearer download.** The disk image opens on a window that shows where to drag Dictate.
 
 ## 0.13.0 (2026-11-13)
 
-- Activate Dictate once with your email.
-- Rename and delete recordings in History.
-- Select words in History to correct them. A corrected name is offered as a key term.
-- Cmd+F searches inside the open recording.
-- The menu shows your five newest recordings.
-- When another app has secure keyboard input on, the menu names that app and says the shortcuts are paused.
-- Settings, Microphones says whether Blend Mic is installed.
+- **Activation.** Activate Dictate once with your email.
+- **Edit History.** Rename and delete recordings, and select words to correct them. A corrected name is offered as a key term. Cmd+F searches inside the open recording.
+- **Newest recordings in the menu.** It lists your five newest.
+- **Secure keyboard input.** When another app has it on, the menu names that app and says the shortcuts are paused.
+- **Blend Mic status.** Settings, Microphones says whether it is installed.
 
 ## 0.12.1 (2026-11-12)
 
-- Me is blue and Call is purple in transcripts.
-- On speakers, the other side of the call no longer shows up under Me.
-- History search looks inside every transcript.
-- History works with VoiceOver and the keyboard. Press Return on a block to play from there.
-- Long calls open and play faster in History.
-- The Agents settings show the setup to paste into an agent app, with your token filled in. They warn when other machines can reach the server.
-- Settings, Microphones names each microphone and explains the call audio choice.
+- **Clearer transcripts.** Me is blue and Call is purple. On speakers, the other side of the call no longer shows up under Me.
+- **Better History.** Search looks inside every transcript, long calls open and play faster, and VoiceOver and the keyboard work. Press Return on a block to play from there.
+- **Agent setup.** Settings, Agents shows what to paste into an agent app with your token filled in, and warns when other machines can reach the server.
+- **Microphone names.** Settings, Microphones names each microphone and explains the call audio choice.
 
 ## 0.12.0 (2026-11-12)
 
-- Voice is now Dictate. Your recordings and settings move over on their own.
-- One window for History and Settings, opened from the menu or with Cmd+,.
-- Dictate records the other side of a call straight from the call app, without Blend Mic. Allow call audio once in Setup.
-- History has search and one block per speaker turn. Corrected words are underlined. You can play from any line and save the audio with Save As.
-- History shows the time of day for each recording, and its time zone when that differs from yours.
-- Suggested key terms leave out everyday English words.
-- Settings, Agents turns each tool on or off and sets the address and token. On new installs, tools that record or change anything start off.
-- The live pill fades while the pointer is over it.
-- Recordings that heard nothing stay out of History.
+- **Voice is now Dictate.** Your recordings and settings move over on their own.
+- **One window.** History and Settings share it. Open it from the menu or with Cmd+,.
+- **Calls without Blend Mic.** Dictate records the other side straight from the call app. Allow call audio once in Setup.
+- **A better History.** It has search and one block per speaker turn, underlines corrected words, plays from any line and saves audio with Save As. Each recording shows its time of day, and its time zone when that differs from yours.
+- **Agent tools.** Settings, Agents turns each tool on or off and sets the address and token. On new installs, tools that record or change anything start off.
+- **Smaller touches.** Suggested key terms leave out everyday English words, the live pill fades while the pointer is over it, and recordings that heard nothing stay out of History.
 
 ## 0.11.0 (2026-11-09)
 
-- The menu has Check for Updates, Report an Issue and View on GitHub.
+- **Menu links.** The menu has Check for Updates, Report an Issue and View on GitHub.
