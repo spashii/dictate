@@ -7,7 +7,7 @@ the entry for VERSION into the update feed, which Sparkle shows before installin
 stops when VERSION has no entry here.
 -->
 
-## 0.15.0 (unreleased)
+## 0.15.0 (2026-11-13)
 
 - A button in History's toolbar starts a dictation, records a call or imports an audio file.
 - Drop an audio or video file on History to transcribe it on your Mac. It gets a title like a call and shows up in search.
