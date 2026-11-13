@@ -246,7 +246,7 @@
 .get .steps li { display: grid; grid-template-columns: 1.5em 1fr; counter-increment: step; }
 .get .steps li::before { content: counter(step) "."; font-variant-numeric: tabular-nums; }
 .get .steps li + li { margin-top: 0; }
-.get .meta > span { text-wrap: balance; }
+.get .meta > span { text-wrap: wrap; }
 
 /* And more: one line per item between hairlines, the same rule the Questions list draws, so the list
    sits quietly between the cards above and the FAQ below. */
