@@ -489,9 +489,10 @@ struct HistoryPane: View {
                 Menu {
                     HistoryNewMenu(chooseFiles: chooseFiles)
                 } label: {
-                    Label("New", systemImage: "plus")
+                    Label("New", systemImage: "tray.and.arrow.down")
                 }
                 .menuIndicator(.hidden)
+                .help("New")
             }
         }
         .background {
