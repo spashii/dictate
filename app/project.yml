@@ -77,6 +77,9 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.spashii.voice
         # The file is Dictate.app. The bundle id stays, so settings, permissions and updates carry over.
         PRODUCT_NAME: Dictate
+        # FoundationModels exists from macOS 26 and the app runs on 15: linked weakly, it is
+        # absent there and the code only reaches it behind an availability check.
+        OTHER_LDFLAGS: ["$(inherited)", "-weak_framework", "FoundationModels"]
         # Voice/AppIcon.icon is an Icon Composer icon. actool compiles it into Assets.car
         # for macOS 26 and an AppIcon.icns for macOS 15; XcodeGen types it wrapper.icon,
         # which Xcode still routes to actool.
