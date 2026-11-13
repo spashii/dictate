@@ -47,6 +47,27 @@ public struct HistoryEntry: Sendable, Identifiable, Equatable, Hashable {
     }
 
     public var id: String { "\(kind.rawValue):\(ref)" }
+
+    public init(kind: Kind, ref: String, at: Date, timeZone: String? = nil, duration: Double, title: String,
+                firstLine: String = "", changes: Int, hasText: Bool = true, audioPath: String? = nil,
+                appName: String? = nil, customTitle: String? = nil, fileName: String? = nil,
+                error: String? = nil, isLive: Bool = false) {
+        self.kind = kind
+        self.ref = ref
+        self.at = at
+        self.timeZone = timeZone
+        self.duration = duration
+        self.title = title
+        self.firstLine = firstLine
+        self.changes = changes
+        self.hasText = hasText
+        self.audioPath = audioPath
+        self.appName = appName
+        self.customTitle = customTitle
+        self.fileName = fileName
+        self.error = error
+        self.isLive = isLive
+    }
 }
 
 /// One dictation or call, line by line, with everything that changed its words.

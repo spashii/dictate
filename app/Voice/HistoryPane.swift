@@ -1,17 +1,12 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 import VoiceCore
 
 /// The list and the selected entry, read from the database off the main thread.
 @MainActor @Observable
 final class HistoryModel {
-    enum Filter: String, CaseIterable, Identifiable {
-        case all = "All"
-        case dictations = "Dictations"
-        case calls = "Calls"
-
-        var id: String { rawValue }
-    }
+    typealias Filter = HistoryFilter
 
     private var entries: [HistoryEntry] = []
     var filter: Filter = .all
@@ -22,6 +17,8 @@ final class HistoryModel {
     var pendingDelete: HistoryEntry?
     /// Told after a rename or delete, so the menu bar's recent items follow.
     @ObservationIgnored var changed: () -> Void = {}
+    /// Stops an import that is waiting or being transcribed, which a delete has to do first.
+    @ObservationIgnored var beforeDelete: (String) async -> Void = { _ in }
     private(set) var detail: HistoryDetail?
     /// The detail's blocks, made once when it loads instead of on every redraw.
     private(set) var blocks: [DisplayBlock] = []
@@ -55,11 +52,7 @@ final class HistoryModel {
     }
 
     var visible: [HistoryEntry] {
-        switch filter {
-        case .all: entries
-        case .dictations: entries.filter { $0.kind == .dictation }
-        case .calls: entries.filter { $0.kind == .call }
-        }
+        filter == .all ? entries : entries.filter(filter.includes)
     }
 
     var selected: HistoryEntry? { visible.first { $0.id == selection } }
@@ -103,21 +96,33 @@ final class HistoryModel {
     /// so a refresh while someone reads or listens changes nothing they are looking at, unless
     /// the selected entry itself changed (an agent corrected it) and nothing is playing.
     func reload() {
+        Task { await refresh() }
+    }
+
+    private func refresh() async {
         let query = search
         let limit = limit
-        Task {
-            let store = await openStore()
-            let read = (try? await Task.detached { try store?.historyEntries(limit: limit, matching: query) ?? [] }.value) ?? []
-            guard query == search else { return }
-            let before = selected
-            guard read != entries else { return }
-            entries = read
-            if detail == nil || !visible.contains(where: { $0.id == selection }) {
-                keepSelection()
-            } else if let before, let now = selected, before != now {
-                refreshDetail()
-            }
+        let store = await openStore()
+        let read = (try? await Task.detached { try store?.historyEntries(limit: limit, matching: query) ?? [] }.value) ?? []
+        guard query == search else { return }
+        let before = selected
+        guard read != entries else { return }
+        entries = read
+        if detail == nil || !visible.contains(where: { $0.id == selection }) {
+            keepSelection()
+        } else if let before, let now = selected, before != now {
+            refreshDetail()
         }
+    }
+
+    /// Reads the list again and opens the entry with this id, which a filter or a search that
+    /// would hide it is dropped for.
+    func reveal(_ id: String) async {
+        if filter == .dictations || filter == .calls { filter = .all }
+        search = ""
+        await refresh()
+        guard visible.contains(where: { $0.id == id }) else { return }
+        selection = id
     }
 
     /// Reads the next page when the last row is reached and the last read was full.
@@ -234,6 +239,7 @@ final class HistoryModel {
         let next = index.flatMap { list.indices.contains($0 + 1) ? list[$0 + 1].id : ($0 > 0 ? list[$0 - 1].id : nil) }
         Task {
             guard let store = await openStore() else { return }
+            if entry.fileName != nil { await beforeDelete(entry.ref) }
             do {
                 try await Task.detached { try store.deleteRecording(entry.kind, entry.ref) }.value
             } catch {
@@ -311,12 +317,22 @@ final class HistoryModel {
 /// History: the list of recordings, and the selected one's transcript with its play bar.
 struct HistoryPane: View {
     @Environment(AppModel.self) private var model
+    @Environment(CallsModel.self) private var calls
     let history: HistoryModel
+    @State private var dropTargeted = false
 
     var body: some View {
         @Bindable var history = history
         HSplitView {
             HistoryList(history: history)
+                .overlay {
+                    if dropTargeted {
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(Color.accentColor, lineWidth: 2)
+                            .padding(4)
+                            .allowsHitTesting(false)
+                    }
+                }
                 .frame(minWidth: 260, idealWidth: 320, maxWidth: 400)
             Group {
                 // The detail on show stays until the next is read; see HistoryModel.select.
@@ -328,8 +344,48 @@ struct HistoryPane: View {
             }
             .frame(minWidth: 380, maxWidth: .infinity)
         }
+        .dropDestination(for: URL.self) { urls, _ in
+            let supported = ImportDrop.supported(urls)
+            guard !supported.isEmpty else {
+                model.notice(ImportDrop.refusal)
+                return false
+            }
+            importFiles(supported)
+            return true
+        } isTargeted: { dropTargeted = $0 }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    Button(model.isRecording ? "Stop Dictation" : "New Dictation") { model.toggle() }
+                        .disabled(model.isWorking)
+                    Button(calls.recording != nil ? "Stop Recording" : "Record a Call") {
+                        if calls.recording != nil {
+                            Task { await calls.stop() }
+                        } else {
+                            calls.recordFromMenu(calls.detected.first)
+                        }
+                    }
+                    .disabled(calls.starting)
+                    Divider()
+                    Button("Import Audio File\u{2026}") { chooseFiles() }
+                } label: {
+                    Label("New", systemImage: "plus")
+                }
+                .menuIndicator(.hidden)
+                .help("New")
+            }
+        }
+        .background {
+            // Cmd+O has no place of its own on screen.
+            Button("Import Audio File\u{2026}") { chooseFiles() }
+                .keyboardShortcut("o")
+                .frame(width: 0, height: 0)
+                .opacity(0)
+                .accessibilityHidden(true)
+        }
         .onAppear {
             history.changed = { model.refreshRecents() }
+            history.beforeDelete = { [calls] id in await calls.cancelImport(id) }
             history.reload()
         }
         .onKeyPress(keys: [.delete], phases: .down) { press in
@@ -362,10 +418,36 @@ struct HistoryPane: View {
         .onChange(of: history.filter) { history.keepSelection() }
         .onChange(of: history.selection) { _, id in history.select(id) }
     }
+
+    private func importFiles(_ urls: [URL]) {
+        Task {
+            guard let id = await calls.importFiles(urls) else { return }
+            await history.reveal(id)
+        }
+    }
+
+    /// The open panel, as a sheet on the window when there is one.
+    private func chooseFiles() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = AudioImport.supportedExtensions.sorted().compactMap { UTType(filenameExtension: $0) }
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.prompt = "Import"
+        let chosen: (NSApplication.ModalResponse) -> Void = { response in
+            guard response == .OK else { return }
+            importFiles(panel.urls)
+        }
+        if let window = NSApp.keyWindow ?? NSApp.mainWindow {
+            panel.beginSheetModal(for: window, completionHandler: chosen)
+        } else {
+            chosen(panel.runModal())
+        }
+    }
 }
 
 private struct HistoryList: View {
     @Bindable var history: HistoryModel
+    @Environment(CallsModel.self) private var calls
 
     var body: some View {
         VStack(spacing: 0) {
@@ -383,7 +465,7 @@ private struct HistoryList: View {
             if history.visible.isEmpty {
                 if history.search.isEmpty {
                     ContentUnavailableView("Nothing yet", systemImage: "clock",
-                                           description: Text("Dictations and calls you record show up here."))
+                                           description: Text("Dictations, calls and files you import show up here."))
                 } else {
                     ContentUnavailableView.search(text: history.search)
                 }
@@ -391,6 +473,8 @@ private struct HistoryList: View {
                 ScrollViewReader { proxy in
                     List(history.visible, selection: $history.selection) { entry in
                         HistoryRow(entry: entry, renaming: history.renaming == entry.id,
+                                   importState: ImportRowState.of(entry, progress: calls.importProgress[entry.ref],
+                                                                  waiting: calls.importsWaiting.contains(entry.ref)),
                                    commit: { history.rename(entry, to: $0) }, cancel: { history.renaming = nil })
                             .equatable()
                             .onAppear { history.loadMoreIfNeeded(at: entry) }
@@ -422,15 +506,18 @@ private struct HistoryList: View {
 private struct HistoryRow: View, @MainActor Equatable {
     let entry: HistoryEntry
     let renaming: Bool
+    let importState: ImportRowState?
     let commit: (String) -> Void
     let cancel: () -> Void
 
-    static func == (a: Self, b: Self) -> Bool { a.entry == b.entry && a.renaming == b.renaming }
+    static func == (a: Self, b: Self) -> Bool {
+        a.entry == b.entry && a.renaming == b.renaming && a.importState == b.importState
+    }
 
     var body: some View {
         let date = HistoryTime.title(start: entry.at, zone: entry.timeZone)
         HStack(alignment: .top, spacing: 8) {
-            Image(systemName: entry.kind == .call ? "phone" : "mic")
+            Image(systemName: entry.fileName != nil ? "waveform" : entry.kind == .call ? "phone" : "mic")
                 .foregroundStyle(.secondary)
                 .frame(width: 18)
                 .padding(.top, 1)
@@ -445,11 +532,21 @@ private struct HistoryRow: View, @MainActor Equatable {
                         }
                     }
                     Spacer(minLength: 4)
-                    Text(HistoryTime.elapsed(entry.duration)).monospacedDigit().foregroundStyle(.secondary)
+                    if ImportRowState.showsDuration(entry) {
+                        Text(HistoryTime.elapsed(entry.duration)).monospacedDigit().foregroundStyle(.secondary)
+                    }
                 }
-                Text(secondLine(date: date))
-                    .lineLimit(1)
-                    .foregroundStyle(.secondary)
+                if case .transcribing(let part) = importState {
+                    // The text's height is kept, so the row doesn't change size while it works.
+                    Text(" ")
+                        .lineLimit(1)
+                        .hidden()
+                        .overlay { ProgressView(value: part).controlSize(.small).accessibilityLabel("Transcribing") }
+                } else {
+                    Text(secondLine(date: date))
+                        .lineLimit(1)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .padding(.vertical, 3)
@@ -459,6 +556,11 @@ private struct HistoryRow: View, @MainActor Equatable {
     /// A renamed recording shows what it was, then its date and time; one without a name
     /// shows what it was, and the first words.
     private func secondLine(date: String) -> String {
+        switch importState {
+        case .waiting: return "Waiting"
+        case .failed(let reason): return reason
+        default: break
+        }
         let preview = entry.firstLine.isEmpty ? entry.title : entry.firstLine
         if entry.customTitle != nil {
             return [entry.kind == .call ? entry.kindLabel : nil,
@@ -526,7 +628,9 @@ private struct HistoryDetailView: View {
         // Read here, so a change of line redraws this body, and a tick of the clock does not.
         let playingLine = player.playingLine
         let playingBlock = history.blockID(ofLine: playingLine)
-        let isCall = detail.entry.kind == .call
+        let isImport = detail.entry.fileName != nil
+        // A file is one track: no speaker column, so the words start next to the time.
+        let isCall = detail.entry.kind == .call && !isImport
         // The list's copy of the entry is the one a rename changes.
         let entry = history.selected ?? detail.entry
         let date = HistoryTime.title(start: entry.at, zone: entry.timeZone)
@@ -540,6 +644,11 @@ private struct HistoryDetailView: View {
                         .compactMap { $0 }.joined(separator: " \u{00B7} "))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+                    if isImport {
+                        Text("A file is one track, so it has no Me and Call labels.")
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
                 }
                 Spacer(minLength: 12)
                 FindBar(history: history)
@@ -573,7 +682,7 @@ private struct HistoryDetailView: View {
                 ScrollView {
                     if blocks.isEmpty {
                         ContentUnavailableView("No transcript", systemImage: "text.alignleft",
-                                               description: Text("Nothing was transcribed for this recording."))
+                                               description: Text(emptyDescription(entry)))
                             .padding(.top, 60)
                     }
                     // Lazy, with a row's work done when the recording opened: scrolling only
@@ -617,6 +726,17 @@ private struct HistoryDetailView: View {
             Divider()
             PlayBar(player: player, waveform: history.waveform, duration: detail.entry.duration)
         }
+    }
+}
+
+extension HistoryDetailView {
+    /// What an empty transcript means: for a file, why it failed or that it is still being made.
+    fileprivate func emptyDescription(_ entry: HistoryEntry) -> String {
+        if entry.fileName != nil {
+            if let reason = entry.error { return reason }
+            if entry.isLive { return "Words appear here as the file is transcribed." }
+        }
+        return "Nothing was transcribed for this recording."
     }
 }
 

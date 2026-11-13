@@ -147,6 +147,7 @@ targets:
       - path: Voice/LockPolicy.swift
       - path: Voice/MainPane.swift
       - path: Voice/HistoryDisplay.swift
+      - path: Voice/HistoryImport.swift
       - path: Voice/SecureInput.swift
       - path: Voice/LocalModelChoice.swift
       - path: Voice/RecentCallLabel.swift

@@ -1,6 +1,7 @@
 import AppKit
 import KeyboardShortcuts
 import Observation
+import os
 import SwiftUI
 import VoiceCore
 
@@ -66,6 +67,10 @@ final class CallsModel {
     private(set) var stoppedCall: Call?
     /// The pill's Copy Transcript put the transcript on the clipboard.
     private(set) var stoppedCallCopied = false
+    /// How far each import being transcribed has got, 0 to 1 by whole percents, keyed by call
+    /// id; and the imports still waiting their turn.
+    private(set) var importProgress: [String: Double] = [:]
+    private(set) var importsWaiting: Set<String> = []
 
     @ObservationIgnored private weak var model: AppModel?
     @ObservationIgnored private var store: CallStore?
@@ -81,6 +86,10 @@ final class CallsModel {
     @ObservationIgnored private var stoppedPillEnds = ContinuousClock.now
     /// How long the pill offers a stopped call's transcript, at most.
     static let copyOffer: Duration = .seconds(5)
+    /// Imports run one file at a time, in the order they were added.
+    @ObservationIgnored private var importQueue: [PendingImport] = []
+    @ObservationIgnored private var importWorker: Task<Void, Never>?
+    @ObservationIgnored private var importRunning: (id: String, task: Task<Call?, Never>)?
     @ObservationIgnored private var following: Task<Void, Never>?
     @ObservationIgnored private var quieting: Task<Void, Never>?
     /// Titles are made one call at a time, in the order the calls ended.
@@ -514,7 +523,10 @@ final class CallsModel {
     /// Whether a call's chunks hold whisper. Dictation then skips the Ollama fix: the fix
     /// unloads whisper for Ollama's model, the call's next chunk reloads it, and the two
     /// together are more than the GPU has.
-    var usesWhisper: Bool { recording != nil || transcribing }
+    var usesWhisper: Bool { recording != nil || transcribing || isImporting }
+
+    /// A file is being transcribed or waits for its turn.
+    var isImporting: Bool { !importProgress.isEmpty || !importsWaiting.isEmpty }
 
     /// The app the prompt asks about: the first in a call that wasn't dismissed.
     var promptApp: DetectedCall? {
@@ -568,6 +580,132 @@ extension CallsModel: RecordingControl {
     nonisolated func stopRecording() async throws -> Call {
         guard let call = await stop() else { throw VoiceError.store("No call is being recorded.") }
         return call
+    }
+
+    nonisolated func importAudioFile(path: String) async throws -> CallRecorder.ImportStart {
+        try await importForAgent(path: path)
+    }
+}
+
+// MARK: Importing files
+
+private struct PendingImport {
+    let callID: String
+    let source: URL
+}
+
+extension CallsModel {
+    /// Imports the files in order, from History's menu or a drop, and returns the History id to
+    /// select: the last file that was new, else the one that was already there.
+    func importFiles(_ urls: [URL]) async -> String? {
+        guard let model, model.requireActivation() else { return nil }
+        guard recorder != nil else {
+            model.notice("Dictate is still starting.")
+            return nil
+        }
+        var fresh: String?
+        var existing: String?
+        for url in urls {
+            let source: URL
+            do {
+                source = try AudioImport.validate(path: url.path)
+            } catch {
+                model.notice("\(error)")
+                continue
+            }
+            do {
+                let start = try await beginImport(source)
+                if start.duplicate {
+                    model.notice("Already in History.")
+                    existing = "call:\(start.call.id)"
+                } else {
+                    fresh = "call:\(start.call.id)"
+                }
+            } catch {
+                model.notice("\(error)")
+            }
+        }
+        return fresh ?? existing
+    }
+
+    /// Starts an import for an agent. The call comes back at once; the gate is the only thing
+    /// that is said aloud.
+    func importForAgent(path: String) async throws -> CallRecorder.ImportStart {
+        guard let model else { throw VoiceError.store("Dictate is still starting.") }
+        try RecordingGate.check(model.activation)
+        return try await beginImport(try AudioImport.validate(path: path))
+    }
+
+    private func beginImport(_ source: URL) async throws -> CallRecorder.ImportStart {
+        guard let recorder else { throw VoiceError.store("Dictate is still starting.") }
+        let start = try await recorder.beginImport(source)
+        if !start.duplicate {
+            importsWaiting.insert(start.call.id)
+            importQueue.append(PendingImport(callID: start.call.id, source: source))
+            runImports()
+        }
+        return start
+    }
+
+    private func runImports() {
+        guard importWorker == nil else { return }
+        importWorker = Task {
+            await drainImports()
+            importWorker = nil
+        }
+    }
+
+    private func drainImports() async {
+        while !importQueue.isEmpty {
+            let next = importQueue.removeFirst()
+            await transcribe(next)
+        }
+    }
+
+    private func transcribe(_ next: PendingImport) async {
+        guard let model, let recorder else { return }
+        let id = next.callID
+        importsWaiting.remove(id)
+        importProgress[id] = 0
+        let transcriber = model.currentPipeline().transcriber
+        let whisper = model.preferences.whisper
+        // Whisper reports far more often than a row needs; the main actor hears of a change
+        // only when the whole percent does.
+        let reported = OSAllocatedUnfairLock(initialState: 0)
+        let task = Task<Call?, Never> {
+            await recorder.transcribeImport(id, from: next.source, transcriber: transcriber, whisper: whisper) { [weak self] part in
+                let percent = Int(part * 100)
+                guard reported.withLock({ last in
+                    defer { last = percent }
+                    return percent != last
+                }) else { return }
+                Task { @MainActor in self?.importProgressed(id, Double(percent) / 100) }
+            }
+        }
+        importRunning = (id, task)
+        let ended = await task.value
+        importRunning = nil
+        importProgress[id] = nil
+        if ended?.status == .done { title(id) }
+        refreshRecent()
+        model.refreshRecents()
+    }
+
+    private func importProgressed(_ id: String, _ value: Double) {
+        guard let now = importProgress[id], value > now else { return }
+        importProgress[id] = value
+    }
+
+    /// Stops an import that waits or is being transcribed, so that deleting it is allowed.
+    func cancelImport(_ callID: String) async {
+        if let index = importQueue.firstIndex(where: { $0.callID == callID }) {
+            importQueue.remove(at: index)
+            importsWaiting.remove(callID)
+            try? store?.failCall(callID, error: "The import was cancelled.")
+        } else if let running = importRunning, running.id == callID {
+            running.task.cancel()
+            _ = await running.task.value
+        }
     }
 }
 

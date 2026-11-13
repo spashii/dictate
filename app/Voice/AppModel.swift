@@ -114,7 +114,7 @@ final class AppModel {
         }
         if let calls {
             activity.callRecording = calls.recording != nil || calls.starting
-            activity.callTranscribing = calls.transcribing
+            activity.callTranscribing = calls.transcribing || calls.isImporting
             activity.callAppInCall = !calls.detected.isEmpty
             activity.titling = calls.ollamaTitling
         }
