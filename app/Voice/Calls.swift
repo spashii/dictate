@@ -195,6 +195,8 @@ final class CallsModel {
                     if rebuilt != nil { title(call.id) }
                 }
                 transcribing = false
+                // Rebuilt calls are finished now, so Until transcribed may take their audio.
+                model.applyRetention()
                 runImports()
                 refreshRecent()
                 // Calls that finished before audio was compressed, or whose conversion was
@@ -847,10 +849,12 @@ struct CallPromptView: View {
                 }
                 Spacer(minLength: 4)
                 Button("Not now") { calls.notNow(app) }
+                    .font(.system(size: 12, weight: .medium))
                     .controlSize(.small)
                 // No default action: the panel never takes focus from the call, so Return
                 // goes to the call app, and a highlighted button would suggest otherwise.
                 Button("Record") { calls.recordFromMenu(app) }
+                    .font(.system(size: 12, weight: .medium))
                     .controlSize(.small)
             }
         }

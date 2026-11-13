@@ -516,7 +516,7 @@ struct AboutPane: View {
                 }
             }
             Section {
-                Toggle("Developer mode", isOn: Binding(get: { preferences.developerMode }, set: { model.setDeveloperMode($0) }))
+                Toggle("Developer mode", isOn: Binding(get: { _ = model.retentionRevision; return preferences.developerMode }, set: { model.setDeveloperMode($0) }))
             }
             Section {
                 Link(destination: URL(string: "https://spashii.github.io/dictate/")!) {

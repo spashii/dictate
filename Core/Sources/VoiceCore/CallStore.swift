@@ -189,11 +189,12 @@ public final class CallStore: @unchecked Sendable {
     /// went.
     @discardableResult
     public func prune(before date: Date) throws -> Int {
-        try queue.sync {
+        // Files go after the queue is released, so a long pass never blocks a reader.
+        let (count, doomed): (Int, [String]) = try queue.sync {
             let old = "started_at < ? AND status NOT IN ('recording', 'transcribing')"
             // The app prunes after every dictation; a lookup first keeps the common case from
             // taking the write lock.
-            guard try !db.query("SELECT 1 FROM calls WHERE \(old) LIMIT 1", [date], { _ in 1 }).isEmpty else { return 0 }
+            guard try !db.query("SELECT 1 FROM calls WHERE \(old) LIMIT 1", [date], { _ in 1 }).isEmpty else { return (0, []) }
             // Read in the transaction that deletes the rows, so the files are exactly theirs.
             let rows = try db.transaction { () -> [String?] in
                 let paths = try db.query("SELECT audio_path FROM calls WHERE \(old)", [date]) { $0.string(0) }
@@ -214,11 +215,10 @@ public final class CallStore: @unchecked Sendable {
             }
             // Only files no remaining call points at are safe to delete.
             let kept = Set(try db.query("SELECT audio_path FROM calls WHERE audio_path IS NOT NULL") { $0.text(0) })
-            for path in Set(rows.compactMap { $0 }) where !kept.contains(path) {
-                try? FileManager.default.removeItem(atPath: path)
-            }
-            return rows.count
+            return (rows.count, Set(rows.compactMap { $0 }).filter { !kept.contains($0) })
         }
+        for path in doomed { try? FileManager.default.removeItem(atPath: path) }
+        return count
     }
 
     /// How many calls `prune(before:)` would delete.
@@ -258,16 +258,17 @@ public final class CallStore: @unchecked Sendable {
     /// file was deleted.
     @discardableResult
     public func clearAudio(_ callID: String) throws -> Bool {
-        try queue.sync {
+        let doomed: String? = try queue.sync {
             try db.transaction {
                 guard let path = try db.query("SELECT audio_path FROM calls WHERE id = ?", [callID], { $0.string(0) }).first ?? nil
-                else { return false }
+                else { return nil }
                 try db.run("UPDATE calls SET audio_path = NULL WHERE id = ?", [callID])
                 let shared = try !db.query("SELECT 1 FROM calls WHERE audio_path = ? LIMIT 1", [path], { _ in 1 }).isEmpty
-                guard !shared, FileManager.default.fileExists(atPath: path) else { return false }
-                return (try? FileManager.default.removeItem(atPath: path)) != nil
+                return shared ? nil : path
             }
         }
+        guard let doomed, FileManager.default.fileExists(atPath: doomed) else { return false }
+        return (try? FileManager.default.removeItem(atPath: doomed)) != nil
     }
 
     /// A call is still being made, failed, or has words in it. Only a finished call with

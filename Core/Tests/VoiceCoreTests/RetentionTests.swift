@@ -114,7 +114,9 @@ private final class Bench {
 
     @discardableResult
     func dictation(_ id: String, ageDays: Double = 0, error: String? = nil, imported: Bool = false,
-                   audio: URL? = nil, text: String = "Alex asked about the Northwind budget") throws -> URL {
+                   audio: URL? = nil, text: String? = nil) throws -> URL {
+        // A failed transcription saved no text; pass `text` with an error for a failed fix step.
+        let text = text ?? (error == nil ? "Alex asked about the Northwind budget" : "")
         let audio = try audio ?? file(id)
         var row = Dictation(
             id: id, createdAt: Date().addingTimeInterval(-ageDays * day), audioPath: audio.path, duration: 3,
@@ -241,6 +243,30 @@ private final class Bench {
 
         #expect(bench.has(recent))
         #expect(bench.has(old))
+    }
+
+    @Test func aDictationWithTextAndAFixErrorCountsAsTranscribed() throws {
+        let fixFailed = try bench.dictation("fix-failed", ageDays: 0, error: "Fix failed", text: "Alex met Northwind")
+        let transcribeFailed = try bench.dictation("transcribe-failed", ageDays: 0, error: "Whisper failed")
+        let policy = RetentionPolicy(audio: .untilTranscribed, transcripts: .forever)
+
+        let preview = RetentionSweep.preview(policy, dictations: bench.store, calls: bench.calls)
+        let counts = RetentionSweep.run(policy, dictations: bench.store, calls: bench.calls)
+
+        #expect(preview == counts)
+        #expect(counts == RetentionCounts(recordings: 0, audioOnly: 1))
+        #expect(!bench.has(fixFailed))
+        #expect(bench.has(transcribeFailed))
+    }
+
+    @Test func aStoppedSweepLeavesAudioAlone() throws {
+        let audio = try bench.dictation("fresh")
+
+        let counts = RetentionSweep.run(RetentionPolicy(audio: .untilTranscribed, transcripts: .forever),
+                                        dictations: bench.store, calls: bench.calls, shouldContinue: { false })
+
+        #expect(counts.isEmpty)
+        #expect(bench.has(audio))
     }
 
     @Test func aFailedCallKeepsItsAudioWhateverItsAge() throws {

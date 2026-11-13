@@ -80,6 +80,10 @@ final class AppModel {
     @ObservationIgnored private var store: Store?
     @ObservationIgnored private var sweeping = false
     @ObservationIgnored private var sweepAgain = false
+    @ObservationIgnored private var sweepNow: Date?
+    @ObservationIgnored private var sweptPolicy: RetentionPolicy?
+    /// Bumped when the policy changes, so a running sweep under the old one stops early.
+    @ObservationIgnored private let sweepGeneration = OSAllocatedUnfairLock(initialState: 0)
     @ObservationIgnored private var pipeline: Pipeline?
     @ObservationIgnored private var pipelineModel: WhisperModel?
     @ObservationIgnored private var startTask: Task<Bool, Never>?
@@ -182,8 +186,9 @@ final class AppModel {
         applyLock()
         do {
             store = try Store(url: Paths.database)
-            applyRetention()
+            // Read before the sweep starts: a long prune holds the store.
             recent = store?.recent(5) ?? []
+            applyRetention()
         } catch {
             show("Can't open the history: \(error)")
         }
@@ -336,22 +341,30 @@ final class AppModel {
     }
 
     /// Deletes what the retention choices allow, off the main thread. Never two sweeps at
-    /// once: a request during a sweep runs one more after it.
-    func applyRetention() {
+    /// once: a request during a sweep runs one more after it. `now` is the moment a
+    /// confirmation counted at, so what goes matches the numbers shown.
+    func applyRetention(now: Date? = nil) {
         let targets = calls?.retentionTargets
         guard store != nil || targets != nil else { return }
         calls?.setDeletesAudioWhenDone(preferences.retention.audio == .untilTranscribed)
+        let policy = preferences.retention
+        if let sweptPolicy, sweptPolicy != policy { sweepGeneration.withLock { $0 += 1 } }
+        sweptPolicy = policy
         if sweeping {
             sweepAgain = true
+            sweepNow = now ?? sweepNow
             return
         }
         sweeping = true
-        let policy = preferences.retention
         let dictations = store
+        let generation = sweepGeneration.withLock { $0 }
+        let generations = sweepGeneration
+        let at = now ?? Date()
         Task {
             let counts = await Task.detached(priority: .utility) {
                 RetentionSweep.run(policy, dictations: dictations, calls: targets?.store,
-                                   deleteCallAudio: targets?.deleteAudio)
+                                   deleteCallAudio: targets?.deleteAudio, now: at,
+                                   shouldContinue: { generations.withLock { $0 } == generation })
             }.value
             sweeping = false
             if !counts.isEmpty {
@@ -361,7 +374,9 @@ final class AppModel {
             }
             if sweepAgain {
                 sweepAgain = false
-                applyRetention()
+                let next = sweepNow
+                sweepNow = nil
+                applyRetention(now: next)
             }
         }
     }
@@ -369,12 +384,12 @@ final class AppModel {
     private static let retentionLog = Logger(subsystem: "io.github.spashii.voice", category: "retention")
 
     /// What a policy would delete now, counted off the main thread; empty before any database is open.
-    private func retentionPreview(_ policy: RetentionPolicy) async -> RetentionCounts {
+    private func retentionPreview(_ policy: RetentionPolicy, now: Date) async -> RetentionCounts {
         let targets = calls?.retentionTargets
         let dictations = store
         guard dictations != nil || targets != nil else { return RetentionCounts() }
         return await Task.detached(priority: .userInitiated) {
-            RetentionSweep.preview(policy, dictations: dictations, calls: targets?.store)
+            RetentionSweep.preview(policy, dictations: dictations, calls: targets?.store, now: now)
         }.value
     }
 
@@ -405,14 +420,15 @@ final class AppModel {
         let policy = RetentionPolicy.effective(audio: choices.audio, transcripts: choices.transcripts,
                                                developerMode: developerMode)
         Task {
-            let counts = await retentionPreview(policy)
+            let now = Date()
+            let counts = await retentionPreview(policy, now: now)
             if !counts.isEmpty, !(await confirm(alert(counts, policy))) {
                 retentionRevision += 1
                 return
             }
             preferences.retentionChoices = choices
             preferences.developerMode = developerMode
-            applyRetention()
+            applyRetention(now: now)
         }
     }
 
@@ -587,6 +603,7 @@ final class AppModel {
                 }
                 recent = store.recent(5)
             }
+            applyRetention()
         }
     }
 
@@ -597,8 +614,8 @@ final class AppModel {
     }
 
     private func finish(_ dictation: Dictation, inputLost: Bool = false, writeError: String? = nil) async {
-        applyRetention()
         recent = store?.recent(5) ?? recent
+        applyRetention()
         let lost = "The microphone went away, so Dictate stopped"
         guard !dictation.finalText.isEmpty else {
             show(writeError.map { "Couldn't write the recording: \($0)" }

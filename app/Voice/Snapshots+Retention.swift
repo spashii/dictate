@@ -4,17 +4,10 @@ import SwiftUI
 import VoiceCore
 
 /// The shots of the Data retention settings, the Developer mode confirmation and a recording
-/// whose audio is gone. Nothing here launches the app's retention run or touches a real store:
-/// the stored choices are set on the preferences and put back as they were.
+/// whose audio is gone. Nothing here launches the app's retention run or touches a real store,
+/// and Preferences does not save these choices while the shots run.
 extension Snapshots {
     static func retentionShots(_ model: AppModel, store: CallStore, into folder: URL, suffix: String, dark: Bool) async throws {
-        let defaults = UserDefaults.standard
-        let developerMode = model.preferences.developerMode
-        let choices = RetentionChoices.load(from: defaults)
-        defer {
-            model.preferences.retentionChoices = choices
-            model.preferences.developerMode = developerMode
-        }
         let size = NSSize(width: 1060, height: 680)
 
         model.preferences.retentionChoices = RetentionChoices()

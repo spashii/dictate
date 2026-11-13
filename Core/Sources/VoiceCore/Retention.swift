@@ -21,6 +21,9 @@ public struct RetentionPolicy: Equatable, Sendable {
         self.transcripts = transcripts
     }
 
+    /// Nothing can qualify for deletion, so a pass has no reason to read the databases.
+    var keepsEverything: Bool { audio == .forever && transcripts == .forever }
+
     public static let keepEverything = RetentionPolicy(audio: .forever, transcripts: .forever)
     public static let defaultAudio = AudioRetention.sevenDays
     public static let defaultTranscripts = TranscriptRetention.thirtyDays
@@ -127,6 +130,7 @@ public enum RetentionSweep {
 
     public static func preview(_ policy: RetentionPolicy, dictations: Store?, calls: CallStore?,
                                now: Date = Date()) -> RetentionCounts {
+        if policy.keepsEverything { return RetentionCounts() }
         let cut = Cutoffs(policy, now: now)
         var counts = RetentionCounts()
         if let dictations {
@@ -148,13 +152,16 @@ public enum RetentionSweep {
     /// deletes under a running compression.
     @discardableResult
     public static func run(_ policy: RetentionPolicy, dictations: Store?, calls: CallStore?,
-                           deleteCallAudio: ((String) -> Bool)? = nil, now: Date = Date()) -> RetentionCounts {
+                           deleteCallAudio: ((String) -> Bool)? = nil, now: Date = Date(),
+                           shouldContinue: () -> Bool = { true }) -> RetentionCounts {
+        if policy.keepsEverything { return RetentionCounts() }
         let cut = Cutoffs(policy, now: now)
         var counts = RetentionCounts()
         if let before = cut.transcripts {
             if let dictations { counts.recordings += dictations.prune(before: before) }
             if let calls { counts.recordings += (try? calls.prune(before: before)) ?? 0 }
         }
+        guard shouldContinue() else { return counts }
         if let dictations {
             counts.audioOnly += dictations.deleteAudio(finishedBefore: cut.finishedAudio, anyBefore: cut.anyAudio)
         }
@@ -162,7 +169,10 @@ public enum RetentionSweep {
             let delete = deleteCallAudio ?? { (try? calls.clearAudio($0)) ?? false }
             let ids = (try? calls.callsWithAudio(finishedBefore: cut.finishedAudio, anyBefore: cut.anyAudio,
                                                  keptFrom: nil)) ?? []
-            for call in ids where delete(call.id) { counts.audioOnly += 1 }
+            for call in ids {
+                guard shouldContinue() else { break }
+                if delete(call.id) { counts.audioOnly += 1 }
+            }
         }
         return counts
     }

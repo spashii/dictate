@@ -232,18 +232,19 @@ public final class Store: @unchecked Sendable {
     /// imported ones. Returns how many went.
     @discardableResult
     public func prune(before date: Date) -> Int {
-        queue.sync {
+        // Files go after the queue is released, so a long pass never blocks a reader.
+        let (count, doomed): (Int, [String]) = queue.sync {
             var statement: OpaquePointer?
             guard sqlite3_prepare_v2(
                 db, "SELECT audio_path FROM dictations WHERE created_at < ? AND \(Self.notImported)", -1,
-                &statement, nil) == SQLITE_OK else { return 0 }
+                &statement, nil) == SQLITE_OK else { return (0, []) }
             sqlite3_bind_double(statement, 1, date.timeIntervalSince1970)
             var paths: [String] = []
             while sqlite3_step(statement) == SQLITE_ROW {
                 if let path = sqlite3_column_text(statement, 0) { paths.append(String(cString: path)) }
             }
             sqlite3_finalize(statement)
-            guard !paths.isEmpty else { return 0 }
+            guard !paths.isEmpty else { return (0, []) }
             // Foreign keys are off in SQLite by default, so the segments go explicitly.
             do {
                 try exec("BEGIN")
@@ -264,14 +265,15 @@ public final class Store: @unchecked Sendable {
                 try exec("COMMIT")
             } catch {
                 try? exec("ROLLBACK")
-                return 0
+                return (0, [])
             }
             // A retry can point a newer row at the same recording, so only files that no
             // remaining row references are safe to delete.
             let kept = referencedAudioPaths()
-            for path in Set(paths) where !kept.contains(path) { try? FileManager.default.removeItem(atPath: path) }
-            return paths.count
+            return (paths.count, Set(paths).filter { !kept.contains($0) })
         }
+        for path in doomed { try? FileManager.default.removeItem(atPath: path) }
+        return count
     }
 
     /// How many rows `prune(before:)` would delete.
@@ -302,11 +304,9 @@ public final class Store: @unchecked Sendable {
     /// dictation before `anyBefore`.
     @discardableResult
     func deleteAudio(finishedBefore: Date, anyBefore: Date) -> Int {
-        queue.sync {
-            let files = audioFilesOnQueue(finishedBefore: finishedBefore, anyBefore: anyBefore, keptFrom: nil)
-            for path in Set(files) { try? FileManager.default.removeItem(atPath: path) }
-            return files.count
-        }
+        let files = queue.sync { audioFilesOnQueue(finishedBefore: finishedBefore, anyBefore: anyBefore, keptFrom: nil) }
+        for path in Set(files) { try? FileManager.default.removeItem(atPath: path) }
+        return files.count
     }
 
     /// The audio paths, one per row, that `deleteAudio` would remove. `keptFrom` leaves out
@@ -315,33 +315,42 @@ public final class Store: @unchecked Sendable {
         queue.sync { audioFilesOnQueue(finishedBefore: finishedBefore, anyBefore: anyBefore, keptFrom: keptFrom) }
     }
 
+    /// A dictation counts as transcribed when it has raw text: a failed fix step sets an error
+    /// on a transcript that was saved, and only a real failure leaves the text empty.
+    private static let transcribed = "(error IS NULL OR raw_text <> '')"
+
     private func audioFilesOnQueue(finishedBefore: Date, anyBefore: Date, keptFrom: Date?) -> [String] {
-        // 2 for rows a transcript deletion removes first, 1 for the rows in the set, 0 for
-        // the rest, which keep any file they share with a row in the set.
-        var statement: OpaquePointer?
-        guard sqlite3_prepare_v2(db, """
-            SELECT audio_path, CASE
-              WHEN ?3 IS NOT NULL AND created_at < ?3 AND \(Self.notImported) THEN 2
-              WHEN \(Self.notImported) AND ((error IS NULL AND created_at < ?1) OR created_at < ?2) THEN 1
-              ELSE 0 END
-            FROM dictations
-            """, -1, &statement, nil) == SQLITE_OK else { return [] }
-        defer { sqlite3_finalize(statement) }
-        sqlite3_bind_double(statement, 1, finishedBefore.timeIntervalSince1970)
-        sqlite3_bind_double(statement, 2, anyBefore.timeIntervalSince1970)
-        if let keptFrom { sqlite3_bind_double(statement, 3, keptFrom.timeIntervalSince1970) } else { sqlite3_bind_null(statement, 3) }
-        var inSet: [String] = []
-        var shared: Set<String> = []
-        while sqlite3_step(statement) == SQLITE_ROW {
-            guard let text = sqlite3_column_text(statement, 0) else { continue }
-            let path = String(cString: text)
-            switch sqlite3_column_int(statement, 1) {
-            case 1: inSet.append(path)
-            case 0: shared.insert(path)
-            default: break
-            }
+        // ?3 marks rows a transcript deletion removes first. The rows in the set are read by
+        // date, so history older than the cutoffs is never scanned, and only their paths are
+        // checked for another row that keeps the file.
+        let removedFirst = "(?3 IS NOT NULL AND created_at < ?3 AND \(Self.notImported))"
+        let inSet = "(\(Self.notImported) AND ((\(Self.transcribed) AND created_at < ?1) OR created_at < ?2))"
+        func prepare(_ sql: String) -> OpaquePointer? {
+            var statement: OpaquePointer?
+            guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return nil }
+            sqlite3_bind_double(statement, 1, finishedBefore.timeIntervalSince1970)
+            sqlite3_bind_double(statement, 2, anyBefore.timeIntervalSince1970)
+            if let keptFrom { sqlite3_bind_double(statement, 3, keptFrom.timeIntervalSince1970) } else { sqlite3_bind_null(statement, 3) }
+            return statement
         }
-        return inSet.filter { !shared.contains($0) && FileManager.default.fileExists(atPath: $0) }
+        guard let statement = prepare("""
+            SELECT DISTINCT audio_path FROM dictations WHERE \(inSet) AND NOT \(removedFirst)
+            """) else { return [] }
+        var candidates: [String] = []
+        while sqlite3_step(statement) == SQLITE_ROW {
+            if let text = sqlite3_column_text(statement, 0) { candidates.append(String(cString: text)) }
+        }
+        sqlite3_finalize(statement)
+        candidates = candidates.filter { FileManager.default.fileExists(atPath: $0) }
+        guard !candidates.isEmpty, let other = prepare("""
+            SELECT 1 FROM dictations WHERE audio_path = ?4 AND NOT \(inSet) AND NOT \(removedFirst) LIMIT 1
+            """) else { return [] }
+        defer { sqlite3_finalize(other) }
+        return candidates.filter { path in
+            sqlite3_reset(other)
+            sqlite3_bind_text(other, 4, path, -1, Self.transient)
+            return sqlite3_step(other) != SQLITE_ROW
+        }
     }
 
     /// NULL origins need their own test: `origin <> 'imported'` is not true for NULL.

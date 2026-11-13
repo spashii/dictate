@@ -28,7 +28,7 @@ final class Preferences {
     var whisperModel: WhisperModel { didSet { save(whisperModel.rawValue, "whisperModel") } }
     /// What the two retention pickers stored; nil until a picker is touched, so the default can
     /// follow Developer mode.
-    var retentionChoices: RetentionChoices { didSet { retentionChoices.save(to: .standard) } }
+    var retentionChoices: RetentionChoices { didSet { if savesRetention { retentionChoices.save(to: .standard) } } }
     /// Decodes the segments whisper was least sure of a second time, worst first. No further
     /// retry starts once the retries so far took half the first decode's time; the one in
     /// progress finishes. On by default.
@@ -38,7 +38,16 @@ final class Preferences {
     /// Whether History shows each retry and fix under its line, beside the underlined words.
     var showCorrections: Bool { didSet { UserDefaults.standard.set(showCorrections, forKey: "showCorrections") } }
     /// Shows Advanced in the sidebar, and nothing else.
-    var developerMode: Bool { didSet { UserDefaults.standard.set(developerMode, forKey: "developerMode") } }
+    var developerMode: Bool { didSet { if savesRetention { UserDefaults.standard.set(developerMode, forKey: "developerMode") } } }
+    /// The app-shots run changes these to draw each state and must not leave them in the
+    /// person's own settings.
+    private var savesRetention: Bool {
+        #if DEBUG
+        return Snapshots.folder == nil
+        #else
+        return true
+        #endif
+    }
     /// What the automatic deletion may remove right now: nothing while Developer mode is on.
     var retention: RetentionPolicy {
         .effective(audio: retentionChoices.audio, transcripts: retentionChoices.transcripts, developerMode: developerMode)
