@@ -12,7 +12,7 @@ struct MCPRouter: Sendable {
         Mac's owner and "Call:" is everyone else. To follow a live call, call wait_for_transcript \
         again and again, each time passing the cursor it returned, until ended is true. Corrections, \
         key-term changes and tag changes are recorded as edits: list_edits shows them, undo_edit \
-        reverts one.
+        reverts one. An imported file's transcript is one track, with no "Me:" or "Call:" labels.
         """
 
     /// Each message in a batch can be a 60 s wait, so a batch is kept short.
@@ -300,6 +300,19 @@ struct MCPRouter: Sendable {
             let call = try await recording.stopRecording()
             return try Self.json(try Self.plain(call))
 
+        case "import_audio_file":
+            guard let recording else { throw ToolError(recordingUnavailable) }
+            let url: URL
+            do {
+                url = try AudioImport.validate(path: try args.require("path"))
+            } catch let error as AudioImportError {
+                throw ToolError(error.description)
+            }
+            let start = try await recording.importAudioFile(path: url.path)
+            var object = try Self.plain(start.call)
+            object["already_imported"] = start.duplicate
+            return try Self.json(object)
+
         default:
             throw RPCError(-32602, "No tool \(name).")
         }
@@ -383,6 +396,11 @@ struct MCPRouter: Sendable {
                   "title": ["type": "string", "maxLength": maxTitleLength,
                             "description": "A short title."]],
                  required: ["id", "title"], readOnly: false),
+            tool("import_audio_file",
+                 "Import an audio or video file from this Mac and transcribe it as one track. It returns the new call at once while the file is transcribed: follow it with wait_for_transcript by its id. A file is one track, so its segments have no Me or Call labels. Supported: m4a, mp3, wav, aif, aiff, aifc, caf, aac, flac, m4b, mp4, mov and m4v, up to 2 GB. A file imported before returns its earlier call with already_imported true.",
+                 ["path": ["type": "string",
+                           "description": "Absolute path to an audio or video file on this Mac, or one starting with ~/."]],
+                 required: ["path"], readOnly: false),
             tool("list_dictations", "List dictations newest first with their final text.",
                  ["since": since, "limit": limit(20, 200)]),
             tool("get_dictation", "Get one dictation by id with its raw and final text, timings and segments.",

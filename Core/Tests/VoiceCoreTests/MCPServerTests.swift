@@ -103,7 +103,7 @@ private struct Fixture {
                                "search_transcripts", "tag_call", "list_dictations", "get_dictation",
                                "start_recording", "stop_recording", "correct_dictation", "correct_segment",
                                "list_key_terms", "add_key_terms", "remove_key_terms", "list_key_term_suggestions",
-                               "list_edits", "undo_edit", "set_recording_title"])
+                               "list_edits", "undo_edit", "set_recording_title", "import_audio_file"])
         #expect(try await fixture.rpc("ping")["result"] != nil)
         let unknown = try await fixture.rpc("prompts/get")
         #expect((unknown["error"] as? [String: Any])?["code"] as? Int == -32601)

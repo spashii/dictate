@@ -36,14 +36,14 @@ public enum AudioImport {
         let url = URL(fileURLWithPath: expanded).standardizedFileURL.resolvingSymlinksInPath()
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
-            throw AudioImportError("No file at \(path).")
+            throw AudioImportError("No file at \(expanded).")
         }
         let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
         guard !isDirectory.boolValue, attributes?[.type] as? FileAttributeType == .typeRegular else {
-            throw AudioImportError("\(path) is not a file.")
+            throw AudioImportError("\(expanded) is not a file.")
         }
         guard FileManager.default.isReadableFile(atPath: url.path) else {
-            throw AudioImportError("Dictate can't read \(path).")
+            throw AudioImportError("Dictate can't read \(expanded).")
         }
         guard supportedExtensions.contains(url.pathExtension.lowercased()) else {
             throw AudioImportError("Only audio and video files can be imported.")
