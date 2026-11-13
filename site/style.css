@@ -300,8 +300,6 @@
    the flat tiers keep the card's inner padding so all three names start at the same height, and the last one
    drops its outside padding to end on the page edge. Below 735px it is one column in the same order. */
 .tiers { margin-top: var(--sp-6); display: grid; gap: var(--sp-8); }
-.tiers + p { margin-top: var(--sp-8); }
-.compare .measure { text-wrap: pretty; }
 .tier p { margin: 0; }
 .tier .apps { margin-top: var(--sp-2); }
 .tier .fig { margin-top: var(--sp-4); font-size: 48px; line-height: 1; font-weight: 600; letter-spacing: -.03em; font-variant-numeric: lining-nums tabular-nums; white-space: nowrap; }
