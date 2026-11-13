@@ -262,30 +262,61 @@
 .more-list { list-style: none; padding: 0; border-top: 1px solid var(--hairline); }
 .more-list li { padding: var(--sp-3) 0; border-bottom: 1px solid var(--hairline); }
 
-/* How it compares: a plain table in body text. Dictate's column is drawn exactly like the other two.
-   th is 400 because browsers make it bold. Hairlines between rows match the Questions list. */
-.compare-table { width: 100%; border-collapse: collapse; margin-top: var(--sp-6); text-align: left; }
-.compare p + .compare-table, .compare-table + p { margin-top: var(--sp-6); }
-.compare-table th, .compare-table td { font-weight: 400; text-align: left; vertical-align: top; padding: var(--sp-4) var(--sp-4) var(--sp-4) 0; border-bottom: 1px solid var(--hairline); }
-.compare-table thead tr:first-child > * { border-top: 1px solid var(--hairline); }
-.compare-table tr > :last-child { padding-right: 0; }
-.compare-table .apps { display: block; }
+/* How it compares: a grid of three columns where every cell is a full statement, so it reads across on a
+   computer and down as three blocks on a phone. Dictate sits on one raised surface (the ::before), drawn
+   with the same ring and shadow as the hero's windows. The price is the first row and its figure is the
+   largest type here. The roles in the HTML keep the table semantics while the display changes. */
+.compare-table { position: relative; display: grid; grid-template-columns: 1.2fr 1fr 1fr; width: 100%; margin-top: var(--sp-7); text-align: left; }
+.compare-table thead, .compare-table tbody, .compare-table tr { display: contents; }
+.compare-table caption { display: none; }
+.compare-table::before { content: ""; grid-column: 1; grid-row: 1 / span 7; background: var(--surface); border-radius: var(--radius-card); box-shadow: var(--app-float); }
+.compare-table th, .compare-table td { display: block; font-weight: 400; text-align: left; padding: var(--sp-4) var(--sp-6); min-width: 0; }
+.compare-table .lbl { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.compare-table thead th { padding-top: var(--sp-6); padding-bottom: var(--sp-2); }
+.compare-table .name { display: flex; align-items: center; gap: var(--sp-4); min-height: 64px; font-size: var(--size-h3); line-height: var(--leading-h3); letter-spacing: -.01em; font-weight: 600; }
+.compare-table .name img { flex: none; width: 64px; height: 64px; border-radius: 15px; box-shadow: 0 6px 16px -6px rgba(0,0,0,.35), 0 0 0 1px rgba(0,0,0,.08); }
+.compare-table .apps { display: block; margin-top: var(--sp-2); }
+.compare-table tr.price td { padding-top: var(--sp-4); padding-bottom: var(--sp-6); }
+.compare-table .fig { display: block; font-size: 36px; line-height: 1.05; letter-spacing: -.03em; font-weight: 600; font-variant-numeric: lining-nums tabular-nums; }
+.compare-table .c-dictate .fig { font-size: clamp(56px, 6vw, 72px); letter-spacing: -.04em; }
+.compare-table .note { display: block; margin-top: var(--sp-3); }
+.compare-table .get { margin-top: var(--sp-5); }
+.compare-table tbody tr:not(.price) td { border-top: 1px solid var(--hairline); margin: 0 var(--sp-6); padding-left: 0; padding-right: 0; }
+.compare-table tbody tr:last-child td { padding-bottom: var(--sp-6); }
+.compare-table .c-dictate { grid-column: 1; grid-row: var(--r); }
+.compare-table .c-cloud { grid-column: 2; grid-row: var(--r); }
+.compare-table .c-local { grid-column: 3; grid-row: var(--r); }
+.compare-table thead tr { --r: 1; }
+.compare-table tbody tr:nth-child(1) { --r: 2; }
+.compare-table tbody tr:nth-child(2) { --r: 3; }
+.compare-table tbody tr:nth-child(3) { --r: 4; }
+.compare-table tbody tr:nth-child(4) { --r: 5; }
+.compare-table tbody tr:nth-child(5) { --r: 6; }
+.compare-table tbody tr:nth-child(6) { --r: 7; }
+.compare-table + p { margin-top: var(--sp-8); }
 
-/* Below 735 px the table keeps its three columns as a grid: the headings on top, then each question on its
-   own full-width line with its marks beneath, aligned under the headings. The roles in the HTML keep the
-   table semantics for screen readers. */
-@media (max-width: 734px) {
-  .compare-table, .compare-table thead, .compare-table tbody { display: block; }
-  .compare-table tr { display: grid; grid-template-columns: 3.75rem minmax(0, 1fr) 10.25rem; column-gap: var(--sp-3); }
-  .compare-table th, .compare-table td { display: block; padding: 0; border: 0; overflow-wrap: break-word; }
-  .compare-table thead td { display: none; }
-  .compare-table thead tr:first-child > * { border-top: 0; }
-  .compare-table thead tr { padding: var(--sp-4) 0; border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
-  .compare-table tbody tr { padding: var(--sp-4) 0; border-bottom: 1px solid var(--hairline); row-gap: var(--sp-2); }
-  .compare-table tbody th { grid-column: 1 / -1; }
+@media (max-width: 1000px) and (min-width: 735px) {
+  .compare-table th, .compare-table td { padding-left: var(--sp-5); padding-right: var(--sp-5); }
+  .compare-table tbody tr:not(.price) td { margin: 0 var(--sp-5); padding-left: 0; padding-right: 0; }
+  .compare-table .fig { font-size: 28px; }
 }
-@media (max-width: 380px) {
-  .compare-table tr { column-gap: 6px; }
+@media (max-width: 734px) {
+  .compare-table { grid-template-columns: minmax(0, 1fr); margin-top: var(--sp-6); }
+  .compare-table .c-dictate, .compare-table .c-cloud, .compare-table .c-local { grid-column: 1; }
+  .compare-table .c-cloud { grid-row: calc(var(--r) + 7); }
+  .compare-table .c-local { grid-row: calc(var(--r) + 14); }
+  .compare-table .c-dictate { padding-left: var(--sp-5); padding-right: var(--sp-5); }
+  .compare-table .c-cloud, .compare-table .c-local { padding-left: 0; padding-right: 0; }
+  .compare-table tbody tr:not(.price) .c-dictate { margin: 0 var(--sp-5); padding-left: 0; padding-right: 0; }
+  .compare-table tbody tr:not(.price) .c-cloud, .compare-table tbody tr:not(.price) .c-local { margin: 0; }
+  .compare-table thead th { padding-top: var(--sp-5); padding-bottom: 0; }
+  .compare-table thead .c-cloud, .compare-table thead .c-local { padding-top: var(--sp-8); }
+  .compare-table .name { min-height: 0; }
+  .compare-table .c-dictate .name { min-height: 64px; }
+  .compare-table tr.price td { padding-top: var(--sp-4); padding-bottom: var(--sp-5); }
+  .compare-table .fig { font-size: 36px; }
+  .compare-table .c-dictate .fig { font-size: 56px; }
+  .compare-table tbody tr:last-child .c-cloud, .compare-table tbody tr:last-child .c-local { padding-bottom: var(--sp-2); }
 }
 
 /* Hero headline: "call transcription" never splits at any width. From 1000px each phrase
