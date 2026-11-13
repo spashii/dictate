@@ -182,7 +182,6 @@ struct ModelPane: View {
                 }
                 Toggle(isOn: $preferences.titleCalls) {
                     Text("Title calls")
-                    Text("When a call ends, the model names it from the transcript.")
                 }
                 LocalModelRow()
             }

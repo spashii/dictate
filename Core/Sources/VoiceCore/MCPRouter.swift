@@ -191,7 +191,7 @@ struct MCPRouter: Sendable {
             // A blank title would clear the stored one; clearing is the person's to do in History.
             guard let given = try args.string("title") else {
                 throw ToolError(args.value("title") == nil ? "title is required."
-                                                           : "title is empty; undo_edit puts back an earlier title.")
+                                                           : "title is empty.")
             }
             let title = given.split(whereSeparator: \.isWhitespace).joined(separator: " ")
             guard title.count <= Self.maxTitleLength else {
@@ -381,7 +381,7 @@ struct MCPRouter: Sendable {
                  "Set a call's or dictation's title, which History shows in place of its date. It replaces any title there, a person's included, and is an edit undo_edit can revert.",
                  ["id": ["type": "string", "description": "A call's or a dictation's id."],
                   "title": ["type": "string", "maxLength": maxTitleLength,
-                            "description": "A short title; runs of whitespace become one space."]],
+                            "description": "A short title."]],
                  required: ["id", "title"], readOnly: false),
             tool("list_dictations", "List dictations newest first with their final text.",
                  ["since": since, "limit": limit(20, 200)]),
