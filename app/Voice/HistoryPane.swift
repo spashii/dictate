@@ -536,7 +536,7 @@ private struct HistoryDetailView: View {
                     Text(entry.customTitle ?? date)
                         .font(.title3.weight(.semibold))
                         .lineLimit(2)
-                    Text([entry.customTitle == nil ? nil : date, entry.kindLabel, HistoryTime.elapsed(entry.duration)]
+                    Text([entry.kindLabel, entry.customTitle == nil ? nil : date, HistoryTime.elapsed(entry.duration)]
                         .compactMap { $0 }.joined(separator: " \u{00B7} "))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)

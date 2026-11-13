@@ -44,6 +44,8 @@ import Testing
         ("Here is the title\nLakeside kickoff", "Lakeside kickoff"),
         ("Sure, here you go:\nLakeside kickoff", "Lakeside kickoff"),
         ("Here is a title:", nil),
+        ("Here is a title: Q3 budget review", "Q3 budget review"),
+        ("Q3 budget review:", "Q3 budget review"),
     ] as [(String, String?)])
     func sanitize(raw: String, expected: String?) {
         #expect(CallTitles.sanitize(raw) == expected)

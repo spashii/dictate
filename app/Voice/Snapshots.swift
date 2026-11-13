@@ -29,6 +29,8 @@ enum Snapshots {
             model.snapshotSetupComplete = true
             model.unlockForSnapshots()
 
+            let locked = AppModel(activation: Activation(store: MemoryActivationStore()))
+
             for dark in [false, true] {
                 let suffix = dark ? "dark" : "light"
                 let history = HistoryModel(store: store)
@@ -54,6 +56,10 @@ enum Snapshots {
                 await write(folder, "model-picker-not-installed-\(suffix)",
                             await modelPicker(model, appleAvailable: false, ollama: missing, choice: .ollama("qwen3.5:9b"), dark: dark))
                 await write(folder, "agents-tools-\(suffix)", try await agentsSettings(model, dark: dark))
+                await write(folder, "welcome-\(suffix)", try await welcomeWindow(locked, dark: dark))
+                await write(folder, "dictation-pill-\(suffix)", await dictationPill(model, dark: dark))
+                await write(folder, "call-pill-\(suffix)", await callPill(dark: dark))
+                await write(folder, "record-call-nudge-\(suffix)", await nudge(model, dark: dark))
             }
         } catch {
             DevLog.write("app-shots failed: \(error)")
@@ -62,6 +68,55 @@ enum Snapshots {
     }
 
     // MARK: Views
+
+    private static func welcomeWindow(_ model: AppModel, dark: Bool) async throws -> NSBitmapImageRep? {
+        let navigation = MainNavigation()
+        navigation.selection = .welcome
+        let size = NSSize(width: 1060, height: 680)
+        let window = makeWindow(MainView(navigation: navigation, history: HistoryModel()).environment(model)
+            .environment(CallsModel()), size: size, dark: dark, titled: true)
+        return await withSidebar(await capture(window, size: size, titled: true), model, .welcome, size: size, dark: dark)
+    }
+
+    private static func dictationPill(_ model: AppModel, dark: Bool) async -> NSBitmapImageRep? {
+        model.phase = .recording(.fix, Date().addingTimeInterval(-7))
+        model.level = 0.55
+        model.liveText = "Send Alex the Northwind proposal before Friday, and ask whether the pilot numbers are in."
+        let size = NSSize(width: 480, height: 96)
+        let view = Backdrop(dark: dark) {
+            IndicatorView().environment(model).environment(PillHoverState())
+        }
+        let window = makeWindow(view, size: size, dark: dark, titled: false)
+        let data = await capture(window, size: size, titled: false)
+        model.phase = .idle
+        return data
+    }
+
+    private static func callPill(dark: Bool) async -> NSBitmapImageRep? {
+        let lines = [
+            LiveCallLines.Line(id: 1, channel: .call, label: "Call", text: "Did the pilot numbers come through?"),
+            LiveCallLines.Line(id: 2, channel: .me, label: "Me", text: "They did. Retention is up twelve percent."),
+            LiveCallLines.Line(id: 3, channel: .call, label: "Call", text: "That is better than we expected."),
+        ]
+        let size = NSSize(width: 480, height: 116)
+        let view = Backdrop(dark: dark) {
+            CallPill(startedAt: Date().addingTimeInterval(-134), stopHint: "\u{2325}\u{21E7}` stops", lines: lines)
+                .font(.system(size: 12, weight: .medium))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .padding(.top, 4)
+        }
+        return await capture(makeWindow(view, size: size, dark: dark, titled: false), size: size, titled: false)
+    }
+
+    private static func nudge(_ model: AppModel, dark: Bool) async -> NSBitmapImageRep? {
+        let calls = CallsModel()
+        calls.promptForSnapshots(DetectedCall(bundleID: "com.example.meeting", name: "Meeting"), model: model)
+        let size = NSSize(width: 420, height: 92)
+        let view = Backdrop(dark: dark) {
+            CallPromptView().environment(calls).frame(width: 340, height: 44)
+        }
+        return await capture(makeWindow(view, size: size, dark: dark, titled: false), size: size, titled: false)
+    }
 
     static func historyWindow(_ model: AppModel, _ history: HistoryModel, dark: Bool) async throws -> NSBitmapImageRep? {
         let navigation = MainNavigation()
@@ -158,6 +213,8 @@ enum Snapshots {
             window.contentView = NSHostingView(rootView: view)
         }
         window.setContentSize(size)
+        // Far from the pointer, so no row draws hovered.
+        window.setFrameOrigin(NSPoint(x: -20_000, y: -20_000))
         // Ordered in but fully transparent: AppKit lists and sidebars only fill in once their
         // window is on screen, and nothing is visible to anyone.
         window.alphaValue = 0

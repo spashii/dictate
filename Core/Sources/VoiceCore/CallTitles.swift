@@ -104,8 +104,17 @@ public enum CallTitles {
         var lines = text.split(whereSeparator: \.isNewline)
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
-        // "Here is a title for this call:" announces the answer; the answer is the next line.
-        if let first = lines.first, isLeadIn(first) { lines.removeFirst() }
+        // "Here is a title for this call:" announces the answer: the answer is what follows
+        // its colon, or else the next line. A lone "Q3 budget review:" is the title itself.
+        if let first = lines.first, isLeadIn(first) {
+            let after = first.lastIndex(of: ":").map { first[first.index(after: $0)...] }?
+                .trimmingCharacters(in: .whitespaces) ?? ""
+            if !after.isEmpty {
+                lines[0] = after
+            } else if lines.count > 1 || announces(first) {
+                lines.removeFirst()
+            }
+        }
         guard var line = lines.first else { return nil }
 
         line = line.trimmingCharacters(in: leading)
@@ -124,9 +133,17 @@ public enum CallTitles {
     }
 
     private static func isLeadIn(_ line: String) -> Bool {
-        let lowered = line.lowercased().replacingOccurrences(of: "\u{2019}", with: "'")
-        let bare = lowered.trimmingCharacters(in: CharacterSet(charactersIn: "*_ \t"))
-        return bare.hasSuffix(":") || bare.hasPrefix("here is") || bare.hasPrefix("here's")
+        bare(line).hasSuffix(":") || announces(line)
+    }
+
+    private static func announces(_ line: String) -> Bool {
+        let text = bare(line)
+        return text.hasPrefix("here is") || text.hasPrefix("here's")
+    }
+
+    private static func bare(_ line: String) -> String {
+        line.lowercased().replacingOccurrences(of: "\u{2019}", with: "'")
+            .trimmingCharacters(in: CharacterSet(charactersIn: "*_ \t"))
     }
 
     /// Ollama lists "name:latest" for a model pulled as "name". The same rule as the app's

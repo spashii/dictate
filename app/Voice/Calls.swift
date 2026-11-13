@@ -257,6 +257,8 @@ final class CallsModel {
         if let recording { return recording }
         guard !starting else { throw VoiceError.store("A call recording is already starting.") }
         dismissStoppedCall()
+        // A call's chunks load whisper as a dictation does.
+        yieldToDictation()
         starting = true
         defer { starting = false }
         await refreshSources()
