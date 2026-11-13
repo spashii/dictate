@@ -17,21 +17,16 @@
   }
 }
 
-/* Corners and insets step down from the outside in, and each container's inset matches its radius:
-   the floating nav (radius 28, inset 28), then cards and frames (24, 24), then buttons (22, 22 from
-   ds/v1.css). Where a capsule sits inside a capsule the gap is the same on every side, so the corners
-   stay concentric: the nav's 36px Download button sits 10px in, and 28 = 18 + 10. */
+/* Corners step down from the outside in: the floating nav (radius 28), then cards and frames (24),
+   then buttons (22 from ds/v1.css). The nav's 36px Download button sits 10px in on top, bottom and
+   right, so its corners stay concentric with the nav's (28 = 18 + 10), and the logo sits the same
+   10px in on the left, so the two ends of the capsule mirror each other. */
 :root { --nav-h: 56px; --radius-card: 24px; }
-.nav { width: min(calc(var(--page) + 56px), 100% - 24px); padding: 0 10px 0 28px; }
-@media (max-width: 734px) { .nav { padding-left: 24px; } } /* the cards' inset is 20 on a phone */
-
-/* Download groups at the left edge of a column: the primary button moves left by its own inset, so
-   its label starts on the same line as the heading and the facts under it. On a phone the button
-   fills the row and stays put. */
-@media (min-width: 735px) {
-  .hero .get .actions > .button:first-child,
-  .bottom .get .actions > .button:first-child { margin-left: -22px; }
-}
+.nav { width: min(calc(var(--page) + 56px), 100% - 24px); padding: 0 10px; }
+/* The name's line box is centred on the logo, but the word has no descenders, so its ink sits high. Moving
+   it down 2px puts the middle of its capitals on the logo's centre line. A transform, so the phone rule in
+   ds/v1.css that hides the name by positioning it still applies. */
+.nav .brand .name { transform: translateY(2px); }
 
 /* Drawn app UI in native macOS colours. The pill values are sampled from the 0.13.0 renders. */
 .mac {
@@ -66,7 +61,7 @@
 /* Pictures on the cards */
 .art { padding: var(--sp-3); display: flex; flex-direction: column; justify-content: center; gap: 8px; overflow: hidden; font-size: 14px; line-height: 1.35; }
 .art .pillc { display: flex; align-items: center; gap: 8px; width: max-content; max-width: 100%; padding: 6px 12px; border-radius: 14px; background: var(--app-control); box-shadow: var(--app-ring); font-size: 13px; }
-.art .pillc.col { flex-direction: column; align-items: flex-start; gap: 4px; }
+.art .pillc.col { flex-direction: column; align-items: flex-start; align-self: center; gap: 4px; }
 .art .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border-radius: 10px; background: var(--app-control); box-shadow: var(--app-ring); }
 .switch { flex: none; position: relative; width: 38px; height: 22px; border-radius: 11px; background: var(--app-off); }
 .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); }
@@ -328,10 +323,11 @@
 }
 
 /* How it compares by price: Dictate, then Cloud, then Local. From 735px the columns share their rows (name,
-   the line of apps, price) through subgrid, so the names and the prices sit level across all three; Dictate
-   leaves the apps row empty. The icon sits beside Dictate's name and sets the name row's height for every
-   column. Dictate is the raised card and runs on below its price with its terms and button; the flat columns end
-   at their price. All prices share one display size. Below 735px it is one column in the same order. */
+   the line of apps, price, terms, where the processing happens) through subgrid, so the names, the prices and
+   the processing lines sit level across all three; Dictate leaves the apps row empty and Cloud the terms row.
+   The icon sits beside Dictate's name and sets the name row's height for every column. Dictate is the raised
+   card and runs on below its processing line with its button; the flat columns end at theirs. All prices
+   share one display size. Below 735px it is one column in the same order. */
 .tiers { margin-top: var(--sp-6); display: grid; gap: var(--sp-8); }
 .tier p { margin: 0; }
 .tier .apps { margin-top: var(--sp-2); }
@@ -339,20 +335,22 @@
 .tier .fig .per { font-size: 26px; letter-spacing: -.01em; }
 .tier .terms { margin-top: var(--sp-4); }
 .tier .terms p + p { margin-top: var(--sp-2); }
+.tier .where { margin-top: var(--sp-4); }
 .tier .get { margin-top: var(--sp-5); }
 .tier-dictate { background: var(--surface); border-radius: var(--radius-card); box-shadow: var(--app-float); padding: var(--sp-5); }
 .tier-dictate .name { display: flex; align-items: center; gap: var(--sp-3); }
 .tier-dictate .name img { flex: none; width: 40px; height: 40px; border-radius: 9px; box-shadow: 0 4px 12px -4px rgba(0,0,0,.35), 0 0 0 1px rgba(0,0,0,.08); }
 
 @media (min-width: 735px) {
-  .tiers { grid-template-columns: 1.15fr 1fr 1fr; grid-template-rows: repeat(5, auto); gap: 0 var(--sp-6); }
-  .tier { display: grid; grid-row: 1 / span 5; grid-template-rows: subgrid; align-content: start; padding: var(--sp-5) 0; }
+  .tiers { grid-template-columns: 1.15fr 1fr 1fr; grid-template-rows: repeat(6, auto); gap: 0 var(--sp-6); }
+  .tier { display: grid; grid-row: 1 / span 6; grid-template-rows: subgrid; align-content: start; padding: var(--sp-5) 0; }
   .tier-dictate { padding: var(--sp-5); }
   .tier > h3 { grid-row: 1; align-self: center; }
   .tier > .apps { grid-row: 2; }
   .tier > .fig { grid-row: 3; align-self: baseline; }
   .tier > .terms { grid-row: 4; }
-  .tier > .get { grid-row: 5; }
+  .tier > .where { grid-row: 5; }
+  .tier > .get { grid-row: 6; }
 }
 @media (min-width: 735px) and (max-width: 1000px) {
   .tiers { column-gap: var(--sp-5); }

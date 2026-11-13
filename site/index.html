@@ -53,10 +53,10 @@
   "mainEntity": [
    {
     "@type": "Question",
-    "name": "How is it different from Handy and OpenSuperWhisper?",
+    "name": "Does anything leave my Mac?",
     "acceptedAnswer": {
      "@type": "Answer",
-     "text": "At the core they are close: all three run on your Mac. Handy also runs Parakeet and works on Windows and Linux. What Dictate adds is retries, online calls with both sides apart, and a local MCP server for your agents."
+     "text": "Your audio and transcripts stay on your Mac, in one folder, kept forever or for 30 days. Dictate goes online for its speech models (1.6 GB, once) and for updates, which count checks by app, version and country and never store your IP address. If you connect an agent, it can read your transcripts, and where it sends them depends on that agent. Where everything is kept"
     }
    },
    {
@@ -64,15 +64,23 @@
     "name": "What will it cost?",
     "acceptedAnswer": {
      "@type": "Answer",
-     "text": "Free forever for the first 50 early access users. Dictate works on Apple silicon Macs with macOS 15 or later."
+     "text": "Free forever for the first 50 early access users. After early access, a lifetime license costs $49."
     }
    },
    {
     "@type": "Question",
-    "name": "Why Whisper and not Parakeet?",
+    "name": "Should I tell people I'm transcribing a call?",
     "acceptedAnswer": {
      "@type": "Answer",
-     "text": "Retries use the confidence Whisper gives each part it writes, and key terms go into Whisper's prompt. Parakeet is faster, and I have not measured it against this pipeline."
+     "text": "Yes. Dictate does not tell the other side, and the rules differ by country."
+    }
+   },
+   {
+    "@type": "Question",
+    "name": "How is it different from Handy and OpenSuperWhisper?",
+    "acceptedAnswer": {
+     "@type": "Answer",
+     "text": "At the core they're close, and I learned a lot from both. All three run on your Mac. Handy also runs Parakeet and works on Windows and Linux. Dictate adds three things: retries on unsure words, online calls with both sides kept apart and a local MCP server for your agents."
     }
    },
    {
@@ -85,15 +93,7 @@
    },
    {
     "@type": "Question",
-    "name": "Does anything leave my Mac?",
-    "acceptedAnswer": {
-     "@type": "Answer",
-     "text": "Your audio and transcripts stay on your Mac, in one folder, kept forever or for 30 days. Dictate goes online for its speech models (1.6 GB, once) and for updates, which count checks by app, version and country and never store your IP address. If you connect an agent, it can read your transcripts, and where it sends them depends on that agent. Where everything is kept"
-    }
-   },
-   {
-    "@type": "Question",
-    "name": "Why do I activate it?",
+    "name": "Why do I need to activate it as an early access user?",
     "acceptedAnswer": {
      "@type": "Answer",
      "text": "Dictate is free, and I want to know who uses it. Your email gets the code, and I might write to hear how you use Dictate and what's missing. Tell me to stop and I will. The app does not sign in and does not report what you do."
@@ -117,18 +117,18 @@
    },
    {
     "@type": "Question",
-    "name": "I use OpenSuperWhisper. Will they clash?",
+    "name": "I use OpenSuperWhisper, which also uses Option+`. Will they clash?",
     "acceptedAnswer": {
      "@type": "Answer",
-     "text": "Both start on Option+`. Change one in Settings, Shortcuts. If OpenSuperWhisper already has the speech model, Dictate reuses it instead of downloading 1.6 GB again."
+     "text": "Change the shortcut in one of them, in Dictate under Settings, Shortcuts. If OpenSuperWhisper already has the speech model, Dictate reuses it instead of downloading 1.6 GB again."
     }
    },
    {
     "@type": "Question",
-    "name": "Which call apps work, and should I tell people?",
+    "name": "Which call apps work?",
     "acceptedAnswer": {
      "@type": "Answer",
-     "text": "Zoom, Teams, Slack, Discord, FaceTime, WhatsApp, Signal, Telegram, Webex, Skype and Element, and calls in a browser tab such as Meet. Dictate does not tell the people on the other side apart. Tell them you are recording, because the law differs by country."
+     "text": "Zoom, Teams, Slack, Discord, FaceTime, WhatsApp, Signal, Telegram, Webex, Skype and Element. Calls in a browser tab such as Meet work too. How to transcribe calls on a Mac."
     }
    },
    {
@@ -136,15 +136,23 @@
     "name": "Can I use it on my phone?",
     "acceptedAnswer": {
      "@type": "Answer",
-     "text": "Not yet. Dictate runs on your Mac. To bring in a call you had on your phone, record it there, with the iPhone's own call recording where your country has it, or a voice memo on your Apple Watch. File import is coming next: drop the file into Dictate, or ask your agent to, and the call lands in your History with the rest."
+     "text": "Not yet. If you have an Apple Watch, record the call as a voice memo. That's what I do. File import into Dictate is coming next."
     }
    },
    {
     "@type": "Question",
-    "name": "Which languages?",
+    "name": "Which languages are supported?",
     "acceptedAnswer": {
      "@type": "Answer",
-     "text": "Whisper detects the language. Large v3 (3.1 GB) is there for languages where turbo does worse."
+     "text": "English works best. Whisper also does well in Spanish, French, German, Italian, Portuguese, Dutch, Japanese, Chinese and Korean. Other languages work too, with more mistakes. For those, pick Large v3 in Settings, Model."
+    }
+   },
+   {
+    "@type": "Question",
+    "name": "Why Whisper and not Parakeet?",
+    "acceptedAnswer": {
+     "@type": "Answer",
+     "text": "Retries use the confidence Whisper gives each part it writes, and key terms go into Whisper's prompt. Parakeet is faster, and I have not measured it against this pipeline."
     }
    }
   ]
@@ -292,31 +300,67 @@
     </ul>
   </section>
 
+  <section class="compare">
+    <h2 class="sr">How it compares</h2>
+    <div class="tiers">
+      <div class="tier tier-dictate">
+        <h3 class="name"><img src="icon.svg" alt="" width="40" height="40">Dictate</h3>
+        <p class="fig">Free</p>
+        <div class="terms">
+          <p>Free forever for early access users.</p>
+          <p>A regular lifetime license is <span data-price>$49</span>.</p>
+        </div>
+        <p class="where">All processing happens on your Mac. Nothing is sent.</p>
+        <div class="get"><div class="actions"><a class="button primary" data-get href="https://dictate.firstversion.in/get">Download for Mac</a></div></div>
+      </div>
+      <div class="tier">
+        <h3>Cloud apps</h3>
+        <p class="apps">Wispr Flow and Granola</p>
+        <p class="fig"><span data-eur="€140">$150</span><span class="per"> a year</span></p>
+        <p class="where">Processing happens in the cloud.</p>
+      </div>
+      <div class="tier">
+        <h3>Local apps</h3>
+        <p class="apps">Handy, OpenSuperWhisper, VoiceInk and MacWhisper</p>
+        <p class="fig">Free</p>
+        <p class="terms">Some apps charge up to <span data-eur="€64">$75</span> once.</p>
+        <p class="where">Processing happens on your Mac.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="why measure">
+    <h2 class="sr">Why I made it</h2>
+    <p>I wanted fast, simple and robust dictation and transcription for calls, running on my Mac without sending data to the cloud. Local transcription on Apple silicon is so good now that there's simply no need to. <a href="https://handy.computer">Handy</a> and <a href="https://github.com/Starmel/OpenSuperWhisper">OpenSuperWhisper</a> are my all-time favorites, and I've learned a lot from them.</p>
+    <p>I spent a lot of time using those tools, and built on top of them to solve some challenges I ran into. Sometimes I'd talk and the mic was off, so Dictate shows a level meter and your words as you talk. Sometimes I'd hit Escape by accident and lose what I'd said, so only Dictate's own shortcut stops a recording. And I wanted something lightweight, hackable and customizable, that could also record my online calls and let my agents read them.</p>
+    <p>Along the way I found that Whisper, the model that turns your speech into text, can tell which words it wasn't sure of. Having it listen to just those parts again catches words it got wrong, at almost no extra time. That became Dictate.</p>
+  </section>
+
   <section class="faq" id="questions">
     <h2>Questions</h2>
     <div class="faq-list">
       <details open>
-        <summary><h3>How is it different from Handy and OpenSuperWhisper?</h3></summary>
-        <p>At the core they are close: all three run on your Mac. <a href="https://handy.computer">Handy</a> also runs Parakeet and works on Windows and Linux. What Dictate adds is retries, online calls with both sides apart, and a local MCP server for your agents.</p>
+        <summary><h3>Does anything leave my Mac?</h3></summary>
+        <p>Your audio and transcripts stay on your Mac, in one folder, kept forever or for 30 days. Dictate goes online for its speech models (1.6 GB, once) and for updates, which count checks by app, version and country and never store your IP address. If you connect an agent, it can read your transcripts, and where it sends them depends on that agent. <a href="https://github.com/spashii/dictate/blob/main/docs/user/data.md">Where everything is kept</a></p>
       </details>
       <details>
         <summary><h3>What will it cost?</h3></summary>
-        <p><span data-left>Free forever for the first 50 early&nbsp;access&nbsp;users.</span> Dictate works on Apple silicon Macs with macOS 15 or later.</p>
+        <p>Free forever for the first 50 early access users. After early access, a lifetime license costs <span data-price>$49</span>.</p>
       </details>
       <details>
-        <summary><h3>Why Whisper and not Parakeet?</h3></summary>
-        <p>Retries use the confidence Whisper gives each part it writes, and key terms go into Whisper's prompt. Parakeet is faster, and I have not measured it against this pipeline.</p>
+        <summary><h3>Should I tell people I'm transcribing a call?</h3></summary>
+        <p>Yes. Dictate does not tell the other side, and the rules differ by country.</p>
+      </details>
+      <details>
+        <summary><h3>How is it different from Handy and OpenSuperWhisper?</h3></summary>
+        <p>At the core they're close, and I learned a lot from both. All three run on your Mac. <a href="https://handy.computer">Handy</a> also runs Parakeet and works on Windows and Linux. Dictate adds three things: retries on unsure words, online calls with both sides kept apart and a local MCP server for your agents.</p>
       </details>
       <details>
         <summary><h3>Is it open source?</h3></summary>
         <p>No. It is source available under FSL-1.1-MIT: you can read, change and run the code, but not offer it in a commercial product that competes with it. Each version becomes MIT two years after release, and versions up to 0.11.0 already are. The code and licence are on <a href="https://github.com/spashii/dictate">GitHub</a>.</p>
       </details>
       <details>
-        <summary><h3>Does anything leave my Mac?</h3></summary>
-        <p>Your audio and transcripts stay on your Mac, in one folder, kept forever or for 30 days. Dictate goes online for its speech models (1.6 GB, once) and for updates, which count checks by app, version and country and never store your IP address. If you connect an agent, it can read your transcripts, and where it sends them depends on that agent. <a href="https://github.com/spashii/dictate/blob/main/docs/user/data.md">Where everything is kept</a></p>
-      </details>
-      <details>
-        <summary><h3>Why do I activate it?</h3></summary>
+        <summary><h3>Why do I need to activate it as an early access user?</h3></summary>
         <p>Dictate is free, and I want to know who uses it. Your email gets the code, and I might write to hear how you use Dictate and what's missing. Tell me to stop and I will. The app does not sign in and does not report what you do.</p>
       </details>
       <details>
@@ -328,55 +372,26 @@
         <p>Your dictations and call transcripts, through the tools you leave on. The server listens only on your Mac and needs the token in Settings, Agents. Tools that record or change anything start off, because your agent reads what the other side of a call says, and that could steer it.</p>
       </details>
       <details>
-        <summary><h3>I use OpenSuperWhisper. Will they clash?</h3></summary>
-        <p>Both start on Option+`. Change one in Settings, Shortcuts. If OpenSuperWhisper already has the speech model, Dictate reuses it instead of downloading 1.6 GB again.</p>
+        <summary><h3>I use OpenSuperWhisper, which also uses Option+`. Will they clash?</h3></summary>
+        <p>Change the shortcut in one of them, in Dictate under Settings, Shortcuts. If OpenSuperWhisper already has the speech model, Dictate reuses it instead of downloading 1.6 GB again.</p>
       </details>
       <details>
-        <summary><h3>Which call apps work, and should I tell people?</h3></summary>
-        <p>Zoom, Teams, Slack, Discord, FaceTime, WhatsApp, Signal, Telegram, Webex, Skype and Element, and calls in a browser tab such as Meet. Dictate does not tell the people on the other side apart. Tell them you are recording, because the law differs by country. <a href="transcribe-calls-on-mac/">How to transcribe calls on a Mac.</a></p>
+        <summary><h3>Which call apps work?</h3></summary>
+        <p>Zoom, Teams, Slack, Discord, FaceTime, WhatsApp, Signal, Telegram, Webex, Skype and Element. Calls in a browser tab such as Meet work too. <a href="transcribe-calls-on-mac/">How to transcribe calls on a Mac.</a></p>
       </details>
       <details>
         <summary><h3>Can I use it on my phone?</h3></summary>
-        <p>Not yet. Dictate runs on your Mac. To bring in a call you had on your phone, record it there, with the iPhone's own call recording where your country has it, or a voice memo on your Apple Watch. File import is coming next: drop the file into Dictate, or ask your agent to, and the call lands in your History with the rest.</p>
+        <p>Not yet. If you have an Apple Watch, record the call as a voice memo. That's what I do. File import into Dictate is coming next.</p>
       </details>
       <details>
-        <summary><h3>Which languages?</h3></summary>
-        <p>Whisper detects the language. Large v3 (3.1 GB) is there for languages where turbo does worse.</p>
+        <summary><h3>Which languages are supported?</h3></summary>
+        <p>English works best. Whisper also does well in Spanish, French, German, Italian, Portuguese, Dutch, Japanese, Chinese and Korean. Other languages work too, with more mistakes. For those, pick Large v3 in Settings, Model.</p>
+      </details>
+      <details>
+        <summary><h3>Why Whisper and not Parakeet?</h3></summary>
+        <p>Retries use the confidence Whisper gives each part it writes, and key terms go into Whisper's prompt. Parakeet is faster, and I have not measured it against this pipeline.</p>
       </details>
     </div>
-  </section>
-
-  <section class="compare">
-    <h2>How it compares</h2>
-    <div class="tiers">
-      <div class="tier tier-dictate">
-        <h3 class="name"><img src="icon.svg" alt="" width="40" height="40">Dictate</h3>
-        <p class="fig">Free</p>
-        <div class="terms">
-          <p>Free forever for early access users.</p>
-          <p>A regular lifetime license is <span data-price>$49</span>.</p>
-        </div>
-        <div class="get"><div class="actions"><a class="button primary" data-get href="https://dictate.firstversion.in/get">Download for Mac</a></div></div>
-      </div>
-      <div class="tier">
-        <h3>Cloud apps</h3>
-        <p class="apps">Wispr Flow and Granola</p>
-        <p class="fig"><span data-eur="€140">$150</span><span class="per"> a year</span></p>
-      </div>
-      <div class="tier">
-        <h3>Local apps</h3>
-        <p class="apps">Handy, OpenSuperWhisper, VoiceInk and MacWhisper</p>
-        <p class="fig">Free</p>
-        <p class="terms">Some apps charge up to <span data-eur="€64">$75</span> once.</p>
-      </div>
-    </div>
-  </section>
-
-  <section class="why measure">
-    <h2 class="sr">Why I made it</h2>
-    <p>I wanted fast, simple and robust dictation and transcription for calls, running on my Mac without sending data to the cloud. Local transcription on Apple silicon is so good now that there's simply no need to. <a href="https://handy.computer">Handy</a> and <a href="https://github.com/Starmel/OpenSuperWhisper">OpenSuperWhisper</a> are my all-time favorites, and I've learned a lot from them.</p>
-    <p>I spent a lot of time using those tools, and built on top of them to solve some challenges I ran into. Sometimes I'd talk and the mic was off, so Dictate shows a level meter and your words as you talk. Sometimes I'd hit Escape by accident and lose what I'd said, so only Dictate's own shortcut stops a recording. And I wanted something lightweight, hackable and customizable, that could also record my online calls and let my agents read them.</p>
-    <p>Along the way I found that Whisper, the model that turns your speech into text, can tell which words it wasn't sure of. Having it listen to just those parts again catches words it got wrong, at almost no extra time. That became Dictate.</p>
   </section>
 
   <section class="bottom" id="get">
