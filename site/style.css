@@ -260,9 +260,9 @@
 .get .meta > [data-left] { text-wrap: balance; }
 /* Notify-me form, shown once the founding spots are gone: the field and its button share a row up to
    the width of a short line, the consent line sits under it like the other facts of the group. */
-.notify { margin-top: var(--sp-4); max-width: 420px; }
+.notify { margin-top: var(--sp-4); }
 .notify label + .notify-row { margin-top: var(--sp-2); }
-.notify-row { display: flex; gap: var(--sp-2); }
+.notify-row { display: flex; gap: var(--sp-2); max-width: 420px; }
 .notify-row input { flex: 1 1 auto; min-width: 0; }
 .notify-row .button { flex: none; }
 .notify-done, .notify-err { margin-top: var(--sp-2); }
@@ -270,7 +270,7 @@
 .notify-err:empty { display: none; }
 .notify .meta { margin-top: var(--sp-2); }
 .notify-ts { height: 0; overflow: hidden; }
-.notify-ts:not(:empty) { height: auto; }
+.notify-ts.is-shown { height: auto; margin-top: var(--sp-2); }
 
 /* And more: one line per item between hairlines, the same rule the Questions list draws, so the list
    sits quietly between the cards above and the FAQ below. */

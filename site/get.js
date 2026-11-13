@@ -8,7 +8,8 @@
    [data-eur] holds the euro text for a price that is not the same number in both, such as another app's.
    The founding spots count is fetched once and appends "N spots left." to the founding sentence in every [data-left]; if the
    request fails the sentence stands alone. At zero the sentence says the spots are taken and each
-   [data-notify] form appears under it, collecting an address for the launch email. Preview hosts
+   Download block that holds a [data-left] gets an email form built under it, collecting an address for the launch email, so
+   every page with the block gets it without markup. Preview hosts
    (localhost and the tailnet) can add ?spots=0 to show that sold-out state without the fetch. */
 (function () {
   var STEPS = ["Open the DMG and drag Dictate to Applications.", "Open Dictate.", "In the window Dictate opens, press Activate in Browser."];
@@ -85,37 +86,101 @@
   };
   var NOTIFY_FAILED = "I could not save your address. Try again in a minute.";
   var NOTIFY_DONE = "You are on the list.";
-  var tsScript = null, tsBlocked = false, tsBlockedListeners = [];
+  var tsScript = null, tsBlocked = false, tsBlockedListeners = [], tsWaiting = [];
+  var notifyForms = [];
 
   // Turnstile loads only when the sold-out state shows, so visitors who never see the form never load it.
+  // Every form waits in tsWaiting and renders its widget once the script is there.
   function loadTurnstile(cb) {
     if (window.turnstile) return cb();
-    if (!tsScript) {
-      tsScript = document.createElement("script");
-      tsScript.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
-      tsScript.async = true;
-      tsScript.addEventListener("error", function () {
-        tsBlocked = true;
-        tsBlockedListeners.forEach(function (l) { l(); });
-      });
-      document.head.appendChild(tsScript);
-    }
-    tsScript.addEventListener("load", cb);
+    tsWaiting.push(cb);
+    if (tsScript) return;
+    tsScript = document.createElement("script");
+    tsScript.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+    tsScript.async = true;
+    tsScript.addEventListener("load", function () {
+      var run = tsWaiting;
+      tsWaiting = [];
+      run.forEach(function (f) { f(); });
+    });
+    tsScript.addEventListener("error", function () {
+      tsBlocked = true;
+      tsBlockedListeners.forEach(function (l) { l(); });
+    });
+    document.head.appendChild(tsScript);
+  }
+
+  // A script that failed to load (blocked, offline) is replaced by a fresh one on the next submit, so a
+  // visitor who fixes the connection does not have to reload the page. Forms still waiting render when it arrives.
+  function retryTurnstileScript() {
+    if (!tsBlocked) return;
+    tsBlocked = false;
+    if (tsScript && tsScript.parentNode) tsScript.parentNode.removeChild(tsScript);
+    tsScript = null;
+    loadTurnstile(function () {});
   }
 
   // A blocked or failed script never reports back on its own, so each form listens for the error and stops waiting.
   function onTurnstileBlocked(cb) {
-    if (tsBlocked) return cb();
     tsBlockedListeners.push(cb);
+  }
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text) n.textContent = text;
+    return n;
+  }
+
+  // The form is built here, not written into each page, so every Download block gets it without page edits.
+  // It goes last in the block, after the founding and price lines.
+  function buildForm(group, i) {
+    var id = "notify-" + i;
+    var form = el("form", "notify");
+    form.setAttribute("novalidate", "");
+    var label = el("label", "", "Get the launch-week price by email.");
+    label.htmlFor = id;
+    var row = el("div", "notify-row");
+    var input = el("input");
+    input.id = id;
+    input.name = "email";
+    input.type = "email";
+    input.setAttribute("autocomplete", "email");
+    input.setAttribute("inputmode", "email");
+    input.setAttribute("autocapitalize", "none");
+    input.setAttribute("spellcheck", "false");
+    input.required = true;
+    input.setAttribute("aria-describedby", id + "-consent");
+    var button = el("button", "button", "Notify me");
+    button.type = "submit";
+    row.appendChild(input);
+    row.appendChild(button);
+    var done = el("p", "notify-done");
+    done.hidden = true;
+    var err = el("p", "notify-err");
+    err.id = id + "-err";
+    err.setAttribute("role", "alert");
+    var ts = el("div", "notify-ts");
+    var consent = el("p", "meta");
+    consent.id = id + "-consent";
+    consent.appendChild(el("span", "", "I'll email you once, when Dictate launches."));
+    [label, row, done, err, ts, consent].forEach(function (n) { form.appendChild(n); });
+    group.appendChild(form);
+    return form;
   }
 
   function soldOut(spots) {
     for (var i = 0; i < spots.length; i++) spots[i].textContent = "All 50 early access spots are taken.";
-    var forms = document.querySelectorAll("[data-notify]");
-    for (var f = 0; f < forms.length; f++) notify(forms[f]);
+    var groups = document.querySelectorAll(".get");
+    var n = 0;
+    for (var g = 0; g < groups.length; g++) {
+      if (!groups[g].querySelector("[data-left]") || groups[g].querySelector(".notify")) continue;
+      notify(buildForm(groups[g], n++));
+    }
   }
 
   function notify(form) {
+    var label = form.querySelector("label");
     var input = form.querySelector("input");
     var button = form.querySelector("button");
     var row = form.querySelector(".notify-row");
@@ -123,20 +188,53 @@
     var done = form.querySelector(".notify-done");
     var tsBox = form.querySelector(".notify-ts");
     var token = "", widget = null, busy = false, failed = false, waiting = null;
-    form.hidden = false;
+    var started = false, ran = false, interactive = false, finished = false, timer = null;
 
-    // The token comes ahead of the submit; "interaction-only" keeps the widget invisible unless Cloudflare needs the person to act.
+    var me = {
+      // The address is saved: this form swaps to the confirmation, and the widget is removed so no challenge reappears.
+      finish: function (focus) {
+        finished = true;
+        if (widget !== null && window.turnstile) window.turnstile.remove(widget);
+        widget = null;
+        label.hidden = true;
+        row.hidden = true;
+        err.textContent = "";
+        done.textContent = NOTIFY_DONE;
+        done.hidden = false;
+        // The form row is gone, so focus would fall to the body; the confirmation takes it.
+        if (focus) { done.setAttribute("tabindex", "-1"); done.focus(); }
+      }
+    };
+    notifyForms.push(me);
+
+    // The challenge starts when the visitor first engages with this form, so a page that is only read never runs one.
+    function start() {
+      started = true;
+      if (widget !== null && !ran && !finished) { ran = true; window.turnstile.execute(widget); }
+    }
+
+    // "interaction-only" keeps the widget invisible unless Cloudflare needs the person to act.
     loadTurnstile(function () {
+      if (finished) return;
       widget = window.turnstile.render(tsBox, {
         sitekey: SITEKEY,
         appearance: "interaction-only",
+        execution: "execute",
         callback: function (t) { token = t; failed = false; if (waiting) waiting(); },
         "expired-callback": function () { token = ""; },
-        "error-callback": function () { token = ""; failed = true; if (waiting) waiting(); }
+        "error-callback": function () { token = ""; failed = true; if (waiting) waiting(); },
+        "before-interactive-callback": function () {
+          interactive = true;
+          if (timer) { clearTimeout(timer); timer = null; }
+          tsBox.classList.add("is-shown");
+        },
+        "after-interactive-callback": function () { interactive = false; tsBox.classList.remove("is-shown"); }
       });
+      if (started) start();
     });
 
-    onTurnstileBlocked(function () { failed = true; if (waiting) waiting(); });
+    onTurnstileBlocked(function () { if (waiting) waiting(); });
+    input.addEventListener("focus", start);
 
     // Only a bad address marks the field invalid; any other failure is not the visitor's to fix in the field.
     function fail(text, field) {
@@ -144,13 +242,20 @@
       if (field) input.setAttribute("aria-invalid", "true"); else input.removeAttribute("aria-invalid");
     }
 
-    // Resolves with a token, or "" once the check has failed or taken too long.
+    // Resolves with a token, or "" once the check has failed or taken too long. While the visitor is solving
+    // an interactive challenge there is no time limit; the callback or the error ends the wait.
     function getToken() {
       if (token) return Promise.resolve(token);
-      if (failed) return Promise.resolve("");
+      if (failed || tsBlocked) return Promise.resolve("");
       return new Promise(function (resolve) {
-        var t = setTimeout(function () { waiting = null; resolve(""); }, 15000);
-        waiting = function () { if (token || failed) { clearTimeout(t); waiting = null; resolve(token); } };
+        if (!interactive) timer = setTimeout(function () { timer = null; waiting = null; resolve(""); }, 15000);
+        waiting = function () {
+          if (token || failed || tsBlocked) {
+            if (timer) { clearTimeout(timer); timer = null; }
+            waiting = null;
+            resolve(token);
+          }
+        };
       });
     }
 
@@ -164,6 +269,9 @@
       busy = true;
       button.setAttribute("aria-disabled", "true");
       button.classList.add("is-disabled");
+      retryTurnstileScript();
+      start();
+      var saved = false;
       getToken().then(function (t) {
         if (!t) throw "turnstile";
         return fetch(LAUNCH, {
@@ -175,13 +283,8 @@
         });
       }).then(function (r) {
         if (r.status === 200 && r.json.ok) {
-          row.hidden = true;
-          err.textContent = "";
-          done.textContent = NOTIFY_DONE;
-          done.hidden = false;
-          // The form row is gone, so focus would fall to the body; the confirmation takes it.
-          done.setAttribute("tabindex", "-1");
-          done.focus();
+          saved = true;
+          notifyForms.forEach(function (f) { f.finish(f === me); });
           return;
         }
         var code = r.json && r.json.error;
@@ -194,10 +297,12 @@
         busy = false;
         button.removeAttribute("aria-disabled");
         button.classList.remove("is-disabled");
-        // A token works once; ask for the next one now so a retry does not wait.
+        if (saved) return;
+        // A token works once; after a failure ask for the next one now so a retry does not wait.
         token = "";
-        if (!tsBlocked) failed = false;
-        if (widget !== null && window.turnstile) window.turnstile.reset(widget);
+        failed = false;
+        ran = false;
+        if (widget !== null && window.turnstile) { window.turnstile.reset(widget); start(); }
       });
     });
   }
