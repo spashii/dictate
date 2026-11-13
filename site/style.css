@@ -295,23 +295,21 @@
 /* How it compares by price: three columns, Cloud, Dictate, Local. Price is the comparison, so each figure is
    display type. From 735px the tiers share six rows through subgrid, so names, figures, terms and the audio
    lines align across columns; a tier without a row leaves it empty. Dictate is the raised card in the middle.
-   Below that it is one column in the same order. The scroll-driven strike draws on the old price as the card
-   enters view; without support or with reduced motion the plain strike stays. */
+   Below that it is one column in the same order. */
 .tiers { margin-top: var(--sp-6); display: grid; gap: var(--sp-8); }
 .tiers + p { margin-top: var(--sp-8); }
 .tier p { margin: 0; }
 .tier .apps { margin-top: var(--sp-2); }
-.tier .fig { margin-top: var(--sp-5); font-size: 48px; line-height: 1; font-weight: 600; letter-spacing: -.03em; font-variant-numeric: lining-nums tabular-nums; white-space: nowrap; }
+.tier .fig { margin-top: var(--sp-4); font-size: 48px; line-height: 1; font-weight: 600; letter-spacing: -.03em; font-variant-numeric: lining-nums tabular-nums; white-space: nowrap; }
 .tier .fig .per { font-size: 26px; letter-spacing: -.01em; }
 .tier .terms { margin-top: var(--sp-3); }
 .tier .terms p + p { margin-top: var(--sp-2); }
-.tier .line { margin-top: var(--sp-5); padding-top: var(--sp-4); border-top: 1px solid var(--hairline); }
+.tier .line { margin-top: var(--sp-4); padding-top: var(--sp-4); border-top: 1px solid var(--hairline); }
 .tier .get { margin-top: var(--sp-5); }
 .tier-dictate { background: var(--surface); border-radius: var(--radius-card); box-shadow: var(--app-float); padding: var(--sp-5); }
 .tier-dictate .name { display: flex; align-items: center; gap: var(--sp-4); }
 .tier-dictate .name img { flex: none; width: 56px; height: 56px; border-radius: 13px; box-shadow: 0 6px 16px -6px rgba(0,0,0,.35), 0 0 0 1px rgba(0,0,0,.08); }
 .tier-dictate .fig { display: flex; align-items: baseline; gap: var(--sp-3); }
-.tier-dictate .was { font-size: 34px; letter-spacing: -.02em; text-decoration-thickness: 3px; }
 .tier-dictate .now { font-size: 56px; letter-spacing: -.04em; }
 
 @media (min-width: 735px) {
@@ -321,31 +319,25 @@
   .tier:last-child { padding-right: 0; }
   .tier > :nth-child(1) { grid-row: 1; align-self: center; }
   .tier > .apps { grid-row: 2; }
-  .tier > .fig { grid-row: 3; align-self: end; }
+  .tier > .fig { grid-row: 3; align-self: baseline; }
   .tier > .terms { grid-row: 4; }
   .tier > .line { grid-row: 5; }
   .tier > .get { grid-row: 6; }
   .tier-dictate .now { font-size: clamp(56px, 6vw, 72px); }
 }
 @media (min-width: 735px) and (max-width: 1000px) {
+  .tiers { column-gap: var(--sp-4); }
+  .tier { padding-left: var(--sp-4); padding-right: var(--sp-4); }
+  .tier:first-child { padding-left: 0; }
+  .tier:last-child { padding-right: 0; }
   .tier .fig { font-size: 40px; }
   .tier .fig .per { font-size: 22px; }
-  .tier-dictate .was { font-size: 28px; }
   .tier-dictate .now { font-size: 56px; }
 }
 @media (max-width: 734px) {
   .tier .fig { font-size: 40px; }
   .tier-dictate .actions > .button { flex: 1 1 auto; }
 }
-
-@supports (animation-timeline: view()) {
-  @media (prefers-reduced-motion: no-preference) {
-    .tier-dictate { view-timeline: --card block; }
-    .tier-dictate .was { position: relative; text-decoration: none; }
-    .tier-dictate .was::after { content: ""; position: absolute; left: -2px; right: -2px; top: 54%; height: 3px; background: currentColor; border-radius: 2px; transform-origin: left center; animation: strike linear both; animation-timeline: --card; animation-range: entry 20% cover 35%; }
-  }
-}
-@keyframes strike { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 
 /* Hero headline: "call transcription" never splits at any width. From 1000px each phrase
    is an inline-block, so the headline breaks between phrases (three lines) and never inside one
