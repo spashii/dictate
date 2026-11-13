@@ -449,6 +449,7 @@ struct AboutPane: View {
 
     var body: some View {
         @Bindable var updates = model.updates
+        @Bindable var preferences = model.preferences
         Form {
             Section {
                 HStack(spacing: 14) {
@@ -502,6 +503,12 @@ struct AboutPane: View {
                         Button("View more") { showingAllReleases = true }
                             .buttonStyle(.link)
                     }
+                }
+            }
+            Section {
+                Toggle(isOn: $preferences.developerMode) {
+                    Text("Developer mode")
+                    Text("Shows Advanced in the sidebar.")
                 }
             }
             Section {

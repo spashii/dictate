@@ -96,7 +96,7 @@ extension Snapshots {
                                size: NSSize(width: 1060, height: expanded ? 1900 : 1400), dark: dark)
     }
 
-    private static func settingsPane<Pane: View>(_ model: AppModel, _ selection: MainPane, _ content: Pane,
+    static func settingsPane<Pane: View>(_ model: AppModel, _ selection: MainPane, _ content: Pane,
                                                  size: NSSize, dark: Bool) async throws -> NSBitmapImageRep? {
         let navigation = MainNavigation()
         navigation.selection = selection

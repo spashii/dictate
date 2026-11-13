@@ -421,13 +421,14 @@ final class CallsModel {
     private func title(_ callID: String) {
         guard model?.preferences.titleCalls == true, let store else { return }
         let previous = titling
+        let asked = ContinuousClock.now
         titling = Task { [weak self] in
             await previous?.value
-            await self?.makeTitle(callID, store: store)
+            await self?.makeTitle(callID, store: store, since: asked)
         }
     }
 
-    private func makeTitle(_ callID: String, store: CallStore) async {
+    private func makeTitle(_ callID: String, store: CallStore, since asked: ContinuousClock.Instant) async {
         guard let model, model.preferences.titleCalls else { return }
         let choice = model.effectiveModel
         if case .ollama = choice { await model.refreshOllama() } else { model.appleModelState = AppleModel.state }
@@ -454,7 +455,7 @@ final class CallsModel {
         }
 
         let work = Task.detached(priority: .utility) {
-            await CallTitler().title(callID, in: store, models: models)
+            await CallTitler().timedTitle(callID, in: store, models: models, kind: usesOllama ? .ollama : .apple, since: asked)
         }
         if usesOllama {
             ollamaRequest = work

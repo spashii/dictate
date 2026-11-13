@@ -62,6 +62,7 @@ enum Snapshots {
                 await write(folder, "agents-tools-\(suffix)", try await agentsSettings(model, dark: dark))
                 await write(folder, "welcome-\(suffix)", try await welcomeWindow(locked, dark: dark))
                 await write(folder, "about-\(suffix)", try await aboutWindow(model, dark: dark))
+                try await measureShots(model, into: folder, suffix: suffix, dark: dark)
                 await write(folder, "about-expanded-\(suffix)", try await aboutWindow(model, expanded: true, dark: dark))
                 model.updates.setAvailableForSnapshots(Self.fixtureUpdate)
                 await write(folder, "about-update-\(suffix)", try await aboutWindow(model, dark: dark))
