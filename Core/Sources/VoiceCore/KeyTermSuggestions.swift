@@ -358,9 +358,9 @@ extension Edit {
 public actor KeyTermSuggestions {
     public static let settingsClient = "Dictate Settings"
 
-    private let store: CallStore
-    private let editor: KeyTermsEditor
-    private let dictionary: CommonWords.Dictionary
+    fileprivate let store: CallStore
+    fileprivate let editor: KeyTermsEditor
+    fileprivate let dictionary: CommonWords.Dictionary
 
     public init(store: CallStore, settings: any KeyTermsSettings, tokenizer: any PromptTokenizer = WhisperTokenizer(),
                 dictionary: @escaping CommonWords.Dictionary = CommonWords.system) {
@@ -400,5 +400,57 @@ public actor KeyTermSuggestions {
     @discardableResult
     public func dismiss(_ id: Int64, client: String = settingsClient) throws -> Edit {
         try store.dismissTermSuggestion(id, client: client)
+    }
+}
+
+/// A key term a hand correction added.
+public struct AddedKeyTerm: Sendable, Equatable {
+    public var term: String
+    public var suggestionID: Int64
+    /// The add_key_terms edit that put it in the list.
+    public var editID: Int64
+}
+
+/// What a hand correction in History did.
+public struct HandCorrectionResult: Sendable {
+    /// The correction itself; nil when nothing changed.
+    public var edit: Edit?
+    public var added: [AddedKeyTerm]
+    /// Why a proposed term wasn't added, in add_key_terms' words, such as the list being full.
+    public var refused: String?
+}
+
+extension KeyTermSuggestions {
+    /// A person's correction in History: stores it, then adds each key term it proposes, as
+    /// Settings' Add would, by `Edit.personClient`. A refused add stays a pending suggestion.
+    /// An agent's correction only suggests; undo it with `undo`.
+    public func correct(_ request: HandCorrection, to replacement: String) async throws -> HandCorrectionResult {
+        let known = KeyTerms.parse(await editor.settings.keyTerms())
+        guard let edit = try store.correct(request, to: replacement, known: known, suggest: false) else {
+            return HandCorrectionResult(edit: nil, added: [], refused: nil)
+        }
+        let suggestions = (try? store.suggestKeyTerms(from: edit, known: known, dictionary: dictionary)) ?? []
+        var added: [AddedKeyTerm] = []
+        var refused: String?
+        for suggestion in suggestions where suggestion.status == .pending {
+            do {
+                if let add = try await accept(suggestion.id, client: Edit.personClient) {
+                    added.append(AddedKeyTerm(term: suggestion.term, suggestionID: suggestion.id, editID: add.id))
+                }
+            } catch {
+                refused = "\(error)"
+                break
+            }
+        }
+        return HandCorrectionResult(edit: edit, added: added, refused: refused)
+    }
+
+    /// Takes the added terms out of the list and dismisses their suggestions, so they don't
+    /// come back as pending.
+    public func undo(_ added: [AddedKeyTerm]) async throws {
+        for term in added {
+            try await editor.undo(term.editID, client: Edit.personClient)
+            try store.dismissTermSuggestion(term.suggestionID, client: Edit.personClient)
+        }
     }
 }
