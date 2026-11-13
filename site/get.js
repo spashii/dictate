@@ -8,10 +8,13 @@
    [data-eur] holds the euro text for a price that is not the same number in both, such as another app's.
    The founding spots count is fetched once and appends "N spots left." to the founding sentence in every [data-left]; if the
    request fails the sentence stands alone. At zero the sentence says the spots are taken and each
-   [data-notify] form appears under it, collecting an address for the launch email. */
+   [data-notify] form appears under it, collecting an address for the launch email. Preview hosts
+   (localhost and the tailnet) can add ?spots=0 to show that sold-out state without the fetch. */
 (function () {
   var STEPS = ["Open the DMG and drag Dictate to Applications.", "Open Dictate.", "In the window Dictate opens, press Activate in Browser."];
   var FOUNDING = "https://dictate.firstversion.in/api/activate/founding";
+  // Preview hosts can show the sold-out state with ?spots=0 and use the Turnstile test key; production ignores both.
+  var PREVIEW = /^(localhost|127\.0\.0\.1)$|\.ts\.net$/.test(location.hostname);
 
   // Touch, coarse pointer and a narrow screen together; the user agent alone is not trusted.
   function isPhone() {
@@ -65,6 +68,7 @@
     var spots = document.querySelectorAll("[data-left]");
     if (!spots.length || !window.fetch) return;
     for (var k = 0; k < spots.length; k++) spots[k].setAttribute("data-base", spots[k].textContent);
+    if (PREVIEW && /[?&]spots=0(&|$)/.test(location.search)) { soldOut(spots); return; }
     fetch(FOUNDING).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
       if (!j || !Number.isInteger(j.left) || j.left < 0) return;
       if (j.left === 0) { soldOut(spots); return; }
@@ -73,7 +77,7 @@
   }
 
   var LAUNCH = "https://dictate.firstversion.in/api/launch-list";
-  var SITEKEY = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? "1x00000000000000000000AA" : "0x4AAAAAAF-MEHP47FLn7LEY";
+  var SITEKEY = PREVIEW ? "1x00000000000000000000AA" : "0x4AAAAAAF-MEHP47FLn7LEY";
   var NOTIFY_ERRORS = {
     bad_email: "That email address does not look right.",
     turnstile: "I could not confirm you are a person. Try again in a moment.",
