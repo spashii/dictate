@@ -31,7 +31,7 @@ private final class FakeRecording: RecordingControl, @unchecked Sendable {
         let start = try await recorder.beginImport(url)
         if !start.duplicate {
             let task = Task { [recorder] in
-                _ = await recorder.transcribeImport(start.call.id, from: url, transcriber: FakeTranscriber())
+                _ = await recorder.transcribeImport(start.call.id, transcriber: FakeTranscriber())
             }
             lock.withLock { tasks.append(task) }
         }
@@ -161,6 +161,7 @@ private final class FakeRecording: RecordingControl, @unchecked Sendable {
         let text = try await fixture.tool("get_transcript", ["id": id]).text
         #expect(text.contains(words))
         #expect(!text.contains("Me:") && !text.contains("Call:"))
+        #expect(text.hasPrefix("Standup recording.wav (done"))
         let listed = try await fixture.tool("get_call", ["id": id]).object
         #expect(listed?["file_name"] as? String == "Standup recording.wav")
     }

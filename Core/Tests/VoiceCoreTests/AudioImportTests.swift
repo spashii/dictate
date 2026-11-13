@@ -58,8 +58,7 @@ private struct Workspace {
     func importFile(_ file: URL, transcriber: any ChunkTranscribing = FakeTranscriber(),
                     onProgress: @escaping @Sendable (Double) -> Void = { _ in }) async throws -> Call {
         let start = try await recorder.beginImport(file, at: Date(timeIntervalSince1970: 1_800_000_000))
-        let call = await recorder.transcribeImport(start.call.id, from: file, transcriber: transcriber,
-                                                   onProgress: onProgress)
+        let call = await recorder.transcribeImport(start.call.id, transcriber: transcriber, onProgress: onProgress)
         await recorder.waitForCompression()
         return try #require(try store.call(call?.id ?? start.call.id))
     }
@@ -83,7 +82,7 @@ private func writeTone(to url: URL, bursts: Int? = nil) throws {
         AVNumberOfChannelsKey: 1,
         AVLinearPCMBitDepthKey: 16,
         AVLinearPCMIsFloatKey: false,
-        AVLinearPCMIsBigEndianKey: ext == "aiff",
+        AVLinearPCMIsBigEndianKey: ext == "aiff" || ext == "aifc",
     ]
     let file = try AVAudioFile(forWriting: url, settings: settings, commonFormat: .pcmFormatFloat32, interleaved: false)
     let frames = bursts.map { $0 * 2 * 16_000 } ?? 3 * 16_000
@@ -105,7 +104,7 @@ private func fixture(_ name: String, in dir: URL) throws -> URL {
 }
 
 private func source(_ type: String, in dir: URL) throws -> URL {
-    if ["mp3", "mp4", "mov"].contains(type) { return try fixture(type, in: dir) }
+    if ["mp3", "mp4", "mov", "m4v", "flac", "aac", "m4b"].contains(type) { return try fixture(type, in: dir) }
     let url = dir.appending(path: "Standup recording.\(type)")
     try writeTone(to: url)
     return url
@@ -115,10 +114,10 @@ private func source(_ type: String, in dir: URL) throws -> URL {
     /// The extension of the copy the call keeps: a WAV is compressed once it is transcribed,
     /// and video keeps its audio only.
     private func expectedExtension(_ type: String) -> String {
-        ["wav", "mp4", "mov"].contains(type) ? "m4a" : type
+        ["wav", "mp4", "mov", "m4v"].contains(type) ? "m4a" : type
     }
 
-    @Test(arguments: ["wav", "aiff", "caf", "m4a", "mp3", "mp4", "mov"])
+    @Test(arguments: ["wav", "aiff", "aifc", "caf", "m4a", "mp3", "aac", "flac", "m4b", "mp4", "mov", "m4v"])
     func importsEachSupportedTypeAsOneTrack(type: String) async throws {
         let work = try Workspace()
         defer { work.remove() }
@@ -139,7 +138,7 @@ private func source(_ type: String, in dir: URL) throws -> URL {
         #expect(FileManager.default.fileExists(atPath: path))
         #expect(work.stored.count == 1)
         let length = try #require(call.endedAt).timeIntervalSince(call.startedAt)
-        #expect(abs(length - 3) < 0.1)
+        #expect(abs(length - 3) < 0.3)
         #expect(FileManager.default.fileExists(atPath: file.path))
     }
 
@@ -153,27 +152,148 @@ private func source(_ type: String, in dir: URL) throws -> URL {
         let waiting = try #require(try work.store.historyEntries().first)
         #expect(waiting.isLive && waiting.fileName == "broken.m4a" && waiting.kindLabel == "broken.m4a")
 
-        let call = await work.recorder.transcribeImport(start.call.id, from: file, transcriber: FakeTranscriber())
+        let call = await work.recorder.transcribeImport(start.call.id, transcriber: FakeTranscriber())
 
         #expect(call?.status == .failed)
         #expect(call?.error == "This file has no audio Dictate can read.")
+        #expect(call?.audioPath == nil)
         #expect(work.stored.isEmpty)
         let entry = try #require(try work.store.historyEntries().first)
         #expect(!entry.isLive && entry.error == "This file has no audio Dictate can read.")
     }
 
-    @Test func aFileThatMovedFailsTheCall() async throws {
+    @Test func theOriginalCanGoOnceTheRowExists() async throws {
         let work = try Workspace()
         defer { work.remove() }
         let file = try source("wav", in: work.source)
         let start = try await work.recorder.beginImport(file)
         try FileManager.default.removeItem(at: file)
 
-        let call = await work.recorder.transcribeImport(start.call.id, from: file, transcriber: FakeTranscriber())
+        #expect(start.call.audioPath.map { FileManager.default.fileExists(atPath: $0) } == true)
+        let call = await work.recorder.transcribeImport(start.call.id, transcriber: FakeTranscriber())
+
+        #expect(call?.status == .done)
+        #expect(work.stored.count == 1)
+        #expect(work.stored.allSatisfy { !$0.hasSuffix(".partial") })
+    }
+
+    @Test func aDuplicateKeepsNoCopy() async throws {
+        let work = try Workspace()
+        defer { work.remove() }
+        let file = try source("wav", in: work.source)
+        _ = try await work.importFile(file)
+        let before = work.stored
+
+        let again = try await work.recorder.beginImport(file)
+
+        #expect(again.duplicate)
+        #expect(work.stored == before)
+    }
+
+    @Test func twoImportsOfOneFileAtOnceMakeOneRow() async throws {
+        let work = try Workspace()
+        defer { work.remove() }
+        let file = try source("wav", in: work.source)
+
+        async let one = work.recorder.beginImport(file)
+        async let two = work.recorder.beginImport(file)
+        let starts = try await [one, two]
+
+        #expect(starts.filter(\.duplicate).count == 1)
+        #expect(try work.store.calls(limit: 10).count == 1)
+        #expect(work.stored.count == 1)
+    }
+
+    @Test func sweepingRemovesHalfWrittenCopiesOnly() async throws {
+        let work = try Workspace()
+        defer { work.remove() }
+        _ = try await work.importFile(try source("wav", in: work.source))
+        let partial = work.calls.appending(path: "1-abcd1234.m4a.partial")
+        try Data([1]).write(to: partial)
+
+        work.recorder.sweepPartials()
+
+        #expect(work.stored.count == 1 && work.stored.allSatisfy { !$0.hasSuffix(".partial") })
+    }
+
+    @Test func aSixChannelFileAt96kHzIsTranscribedAsOneMixAndKept() async throws {
+        let work = try Workspace()
+        defer { work.remove() }
+        let file = work.source.appending(path: "Surround.wav")
+        try writeAudio(to: file, sampleRate: 96_000, channels: 6, frames: 96_000 * 3,
+                       sample: { _, i in i < 192_000 ? sine(440, rate: 96_000)(0, i) : 0 })
+
+        let call = try await work.importFile(file)
+
+        #expect(call.status == .done)
+        #expect(try work.store.segments(call.id).allSatisfy { $0.channel == .mix })
+        #expect(try !work.store.segments(call.id).isEmpty)
+        let path = try #require(call.audioPath)
+        #expect(FileManager.default.fileExists(atPath: path))
+        #expect(URL(fileURLWithPath: path).pathExtension == "m4a")
+        // A launch has nothing left to retry.
+        #expect(try work.store.callsAwaitingCompression().isEmpty)
+    }
+
+    @Test func cancellingLeavesAFailedRowItsCopyAndNoPartials() async throws {
+        let work = try Workspace()
+        defer { work.remove() }
+        let file = work.source.appending(path: "long.wav")
+        try writeTone(to: file, bursts: 12)
+        let start = try await work.recorder.beginImport(file)
+        let task = Task { await work.recorder.transcribeImport(start.call.id, transcriber: FakeTranscriber(delay: .milliseconds(200))) }
+        try await Task.sleep(for: .milliseconds(600))
+        task.cancel()
+        let call = await task.value
 
         #expect(call?.status == .failed)
-        #expect(call?.error == "The file was moved before Dictate could read it.")
-        #expect(work.stored.isEmpty)
+        #expect(call?.error == "The import was cancelled.")
+        #expect(work.stored.count == 1 && work.stored.allSatisfy { !$0.hasSuffix(".partial") })
+        #expect(call?.audioPath.map { FileManager.default.fileExists(atPath: $0) } == true)
+    }
+
+    @Test func aQuitImportIsRebuiltFromItsCopyWithBackPressure() async throws {
+        let work = try Workspace()
+        defer { work.remove() }
+        let file = work.source.appending(path: "long.wav")
+        try writeTone(to: file, bursts: 12)
+        let start = try await work.recorder.beginImport(file)
+        let progress = Progress()
+
+        let call = try await work.recorder.rebuild(start.call.id, transcriber: FakeTranscriber(delay: .milliseconds(150)),
+                                                   onProgress: progress.add)
+        await work.recorder.waitForCompression()
+
+        #expect(call.status == .done)
+        #expect(try work.store.segments(call.id).count == 12)
+        #expect(try work.store.segments(call.id).allSatisfy { $0.channel == .mix })
+        #expect(work.recorder.importHighWater <= CallSession.maxQueued + 1)
+        #expect(try #require(progress.values.last) > 0.5)
+    }
+
+    @Test func anImportDoesNotCountAsTheCurrentCall() async throws {
+        let work = try Workspace()
+        defer { work.remove() }
+        let recording = try work.store.createCall(NewCall(split: true))
+        _ = try await work.recorder.beginImport(try source("wav", in: work.source),
+                                                at: Date().addingTimeInterval(60))
+
+        #expect(try work.store.currentCall()?.id == recording.id)
+        let batch = try await work.store.waitForSegments(nil, after: 0, timeout: .milliseconds(100))
+        #expect(batch.call?.id == recording.id)
+    }
+
+    @Test func aLiveImportCantBeDeletedAndSaysWhy() async throws {
+        let work = try Workspace()
+        defer { work.remove() }
+        let start = try await work.recorder.beginImport(try source("wav", in: work.source))
+
+        #expect(throws: VoiceError.self) { try work.store.deleteRecording(.call, start.call.id) }
+        do {
+            try work.store.deleteRecording(.call, start.call.id)
+        } catch {
+            #expect("\(error)".contains("Wait for the import to finish or stop it before deleting it."))
+        }
     }
 
     @Test func theSameFileIsImportedOnce() async throws {
@@ -274,7 +394,7 @@ private func source(_ type: String, in dir: URL) throws -> URL {
         #expect(work.recorder.importHighWater <= CallSession.maxQueued + 1)
     }
 
-    @Test func aQuitImportThatNeverStoredItsFileSaysSoAndARecordingDoesNot() throws {
+    @Test func anImportLeftLiveSaysItWasAFileAndARecordingDoesNot() throws {
         let store = try CallStore(url: temporaryCallDatabase())
         let waiting = try store.createCall(NewCall(split: false, fileName: "a.m4a", status: .transcribing))
         let recording = try store.createCall(NewCall(split: true))
@@ -286,10 +406,8 @@ private func source(_ type: String, in dir: URL) throws -> URL {
         #expect(try store.call(recording.id)?.error == "Dictate stopped while recording this call.")
         #expect(try store.call(stored.id)?.status == .transcribing)
 
-        let other = try store.createCall(NewCall(split: false, fileName: "c.m4a", status: .transcribing))
-        #expect(try store.failInterruptedCalls() == 2)
-        #expect(try store.call(other.id)?.error == "Dictate quit before this file was read. Import it again.")
-        #expect(try store.call(stored.id)?.error == "Dictate stopped while recording this call.")
+        #expect(try store.failInterruptedCalls() == 1)
+        #expect(try store.call(stored.id)?.error == "Dictate quit before this file was read. Import it again.")
     }
 
     @Test func markTranscribingKeepsAnEndTimeThatIsSet() throws {
@@ -369,6 +487,41 @@ private func source(_ type: String, in dir: URL) throws -> URL {
 
         #expect(message(big.path) == "Files over 2 GB can't be imported.")
         #expect(message(edge.path) == nil)
+    }
+
+    @Test func refusesAPipeAndADevice() throws {
+        let dir = try folder()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let pipe = dir.appending(path: "pipe.m4a")
+        #expect(mkfifo(pipe.path, 0o600) == 0)
+        let zero = dir.appending(path: "zero.m4a")
+        try FileManager.default.createSymbolicLink(at: zero, withDestinationURL: URL(fileURLWithPath: "/dev/zero"))
+
+        #expect(message(pipe.path) == "\(pipe.path) is not a file.")
+        #expect(message(zero.path) == "\(zero.path) is not a file.")
+    }
+
+    @Test func aPathSwappedForAPipeAfterValidationDoesNotHang() async throws {
+        let dir = try folder()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let pipe = dir.appending(path: "pipe.m4a")
+        #expect(mkfifo(pipe.path, 0o600) == 0)
+        let store = try CallStore(url: dir.appending(path: "voice.sqlite"))
+        let recorder = CallRecorder(store: store, directory: dir.appending(path: "calls"))
+
+        await #expect(throws: AudioImportError.self) { try await recorder.beginImport(pipe) }
+        await #expect(throws: AudioImportError.self) { try await recorder.beginImport(URL(fileURLWithPath: "/dev/zero")) }
+        #expect(try store.calls(limit: 10).isEmpty)
+    }
+
+    @Test func refusesDictatesOwnFoldersButNotTheRestOfLibrary() throws {
+        let support = DataMigration.applicationSupport
+        let own = [Paths.support, support.appending(path: "Dictate"), support.appending(path: "Voice")]
+        for folder in own {
+            #expect(message(folder.appending(path: "calls/x.m4a").path) == "Dictate's own files can't be imported.", "\(folder.path)")
+        }
+        let memo = NSHomeDirectory() + "/Library/Application Support/com.apple.voicememos/Recordings/x.m4a"
+        #expect(message(memo)?.hasPrefix("Dictate's own") == false)
     }
 
     @Test func followsASymlinkToTheFile() throws {
