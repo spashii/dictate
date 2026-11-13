@@ -56,7 +56,6 @@ final class MainWindow {
 
 struct MainView: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.controlActiveState) private var activeState
     let navigation: MainNavigation
     let history: HistoryModel
 
@@ -127,24 +126,36 @@ struct MainSidebar: View {
     }
 
     private func row(_ pane: MainPane) -> some View {
+        SidebarRow(pane: pane, setupIncomplete: !model.setupComplete,
+                   updateAvailable: model.updates.available != nil)
+            .tag(pane)
+    }
+}
+
+private struct SidebarRow: View {
+    let pane: MainPane
+    let setupIncomplete: Bool
+    let updateAvailable: Bool
+    /// Read here, in the row the List draws: it is `.increased` only while the row's highlight is
+    /// the accent colour, which depends on the sidebar having focus.
+    @Environment(\.backgroundProminence) private var prominence
+
+    var body: some View {
         HStack {
             Label(pane.title, systemImage: pane.symbol)
-            if pane == .setup, !model.setupComplete {
+            if pane == .setup, setupIncomplete {
                 Spacer()
                 Image(systemName: "exclamationmark.circle.fill")
                     .foregroundStyle(.orange)
                     .accessibilityLabel("Setup is not finished")
             }
-            if pane.showsUpdateDot(updateAvailable: model.updates.available != nil) {
+            if pane.showsUpdateDot(updateAvailable: updateAvailable) {
                 Spacer()
-                // White on the selected row while the window is active, as its highlight is then
-                // the accent colour itself.
                 Circle()
-                    .fill(navigation.selection == pane && activeState != .inactive ? Color.white : Color.accentColor)
+                    .fill(prominence == .increased ? Color.white : Color.accentColor)
                     .frame(width: 8, height: 8)
                     .accessibilityLabel("Update available")
             }
         }
-        .tag(pane)
     }
 }
