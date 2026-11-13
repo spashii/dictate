@@ -2,7 +2,7 @@
 import AppKit
 
 extension Snapshots {
-    /// Where the toolbar's + and its search field sit in the window, in points from its top left,
+    /// Where the toolbar's New button (the item furthest right) and its search field sit in the window, in points from its top left,
     /// as AppKit laid them out.
     static func toolbarFrames(_ window: NSWindow, height: CGFloat) async -> (plus: NSRect?, search: NSRect?) {
         try? await Task.sleep(for: .milliseconds(800))
@@ -12,8 +12,8 @@ extension Snapshots {
             let name = String(describing: type(of: view))
             let frame = view.convert(view.bounds, to: nil)
             let top = NSRect(x: frame.minX, y: height - frame.maxY, width: frame.width, height: frame.height)
-            if name == "AppKitSearchField" { search = top }
-            if name == "NSToolbarPlatterView", frame.width < 100 { plus = top }
+            if name == "NSSearchField" { search = top }
+            if name.hasPrefix("ToolbarItemHostingView"), top.minX > (plus?.minX ?? 0) { plus = top }
             view.subviews.forEach(walk)
         }
         if let root = window.contentView?.superview { walk(root) }

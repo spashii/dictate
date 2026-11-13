@@ -363,13 +363,74 @@ final class HistoryModel {
     }
 }
 
+/// The toolbar's search field: the native `NSSearchField`, with Return for the next match and Shift-Return for the previous.
+/// `focusRequest` focuses it when it changes.
+private struct HistorySearchField: NSViewRepresentable {
+    @Binding var text: String
+    let focusRequest: Int
+    let step: (Int) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeNSView(context: Context) -> NSSearchField {
+        let field = NSSearchField()
+        field.placeholderString = "Search"
+        field.setAccessibilityLabel("Search")
+        field.sendsSearchStringImmediately = true
+        field.sendsWholeSearchString = false
+        field.delegate = context.coordinator
+        field.target = context.coordinator
+        field.action = #selector(Coordinator.changed(_:))
+        return field
+    }
+
+    func updateNSView(_ field: NSSearchField, context: Context) {
+        context.coordinator.parent = self
+        if field.stringValue != text { field.stringValue = text }
+        if context.coordinator.focusRequest != focusRequest {
+            context.coordinator.focusRequest = focusRequest
+            field.window?.makeFirstResponder(field)
+        }
+    }
+
+    @MainActor final class Coordinator: NSObject, NSSearchFieldDelegate {
+        var parent: HistorySearchField
+        var focusRequest: Int
+
+        init(_ parent: HistorySearchField) {
+            self.parent = parent
+            focusRequest = parent.focusRequest
+        }
+
+        @objc func changed(_ field: NSSearchField) { parent.text = field.stringValue }
+
+        func controlTextDidChange(_ notification: Notification) {
+            if let field = notification.object as? NSSearchField { parent.text = field.stringValue }
+        }
+
+        func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
+            switch selector {
+            case #selector(NSResponder.insertNewline(_:)):
+                parent.step(NSEvent.modifierFlags.contains(.shift) ? -1 : 1)
+                return true
+            case #selector(NSResponder.cancelOperation(_:)):
+                control.stringValue = ""
+                parent.text = ""
+                return true
+            default:
+                return false
+            }
+        }
+    }
+}
+
 /// History: the list of recordings, and the selected one's transcript with its play bar.
 struct HistoryPane: View {
     @Environment(AppModel.self) private var model
     @Environment(CallsModel.self) private var calls
     let history: HistoryModel
     @State private var dropTargeted = false
-    @FocusState private var searchFocused: Bool
+    @State private var searchFocus = 0
 
     var body: some View {
         @Bindable var history = history
@@ -394,9 +455,6 @@ struct HistoryPane: View {
             }
             .frame(minWidth: 380, maxWidth: .infinity)
         }
-        .searchable(text: $history.search, placement: .toolbar, prompt: "Search")
-        .searchFocused($searchFocused)
-        .onSubmit(of: .search) { history.stepMatch(1) }
         .dropDestination(for: URL.self) { urls, _ in
             let supported = ImportDrop.supported(urls)
             guard !supported.isEmpty else {
@@ -407,6 +465,16 @@ struct HistoryPane: View {
             return true
         } isTargeted: { dropTargeted = $0 }
         .toolbar {
+            // SwiftUI's own search field is always laid out last in the toolbar, so the New button
+            // could never sit after it.
+            ToolbarItem(placement: .primaryAction) {
+                HistorySearchField(text: $history.search, focusRequest: searchFocus,
+                                   step: { history.stepMatch($0) })
+                    .frame(width: 240)
+            }
+            if #available(macOS 26, *) {
+                ToolbarSpacer(.fixed, placement: .primaryAction)
+            }
             ToolbarItem(placement: .primaryAction) {
                 Menu {
                     HistoryNewMenu(chooseFiles: chooseFiles)
@@ -421,7 +489,7 @@ struct HistoryPane: View {
             // Shortcuts with no place of their own on screen.
             Group {
                 Button("Import Audio File\u{2026}") { chooseFiles() }.keyboardShortcut("o")
-                Button("Search") { searchFocused = true }.keyboardShortcut("f", modifiers: .command)
+                Button("Search") { searchFocus += 1 }.keyboardShortcut("f", modifiers: .command)
                 Button("Next match") { history.stepMatch(1) }.keyboardShortcut("g", modifiers: .command)
                 Button("Previous match") { history.stepMatch(-1) }.keyboardShortcut("g", modifiers: [.command, .shift])
                 Button("Previous match") { history.stepMatch(-1) }.keyboardShortcut(.return, modifiers: .shift)
