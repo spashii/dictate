@@ -26,7 +26,7 @@ func sampleSegment(_ channel: CallSegment.Channel, _ startMs: Int, _ text: Strin
 
         let calls = try CallStore(url: url)
         #expect(try calls.appliedMigrations() == ["calls-1", "search-1", "speakers-1", "retries-1", "retries-2", "edits-1",
-                                                   "suggestions-1", "fixes-1", "zones-1", "titles-1", "titles-2"])
+                                                   "suggestions-1", "fixes-1", "zones-1", "titles-1", "titles-2", "imports-1"])
         #expect(store.recent(10).map(\.finalText) == ["the budget for the pilot is approved"])
         // Dictations made before the index existed are in it.
         #expect(try calls.search("budget").map(\.kind) == [.dictation])
@@ -38,7 +38,7 @@ func sampleSegment(_ channel: CallSegment.Channel, _ startMs: Int, _ text: Strin
         try first.createCall(NewCall(split: true))
         let second = try CallStore(url: url)
         #expect(try second.appliedMigrations() == ["calls-1", "search-1", "speakers-1", "retries-1", "retries-2", "edits-1",
-                                                   "suggestions-1", "fixes-1", "zones-1", "titles-1", "titles-2"])
+                                                   "suggestions-1", "fixes-1", "zones-1", "titles-1", "titles-2", "imports-1"])
         #expect(try second.calls().count == 1)
     }
 

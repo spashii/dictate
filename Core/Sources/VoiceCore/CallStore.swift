@@ -20,17 +20,18 @@ public final class CallStore: @unchecked Sendable {
 
     // MARK: Writing, for the recorder
 
-    /// Starts a call in the recording state.
+    /// Starts a call, in the recording state unless `new.status` says otherwise.
     @discardableResult
     public func createCall(_ new: NewCall) throws -> Call {
         _ = try queue.sync {
             try db.run("""
-                INSERT INTO calls (id, started_at, time_zone, app_bundle_id, app_name, device_uid, split, audio_path,
-                                   status, title, title_source, speakers)
-                VALUES (?,?,?,?,?,?,?,?,'recording',?,?,?)
-                """, [new.id, new.startedAt, new.timeZone, new.appBundleID, new.appName, new.deviceUID, new.split, new.audioPath,
+                INSERT INTO calls (id, started_at, ended_at, time_zone, app_bundle_id, app_name, device_uid, split,
+                                   audio_path, status, title, title_source, speakers, file_name, file_hash)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """, [new.id, new.startedAt, new.endedAt, new.timeZone, new.appBundleID, new.appName, new.deviceUID,
+                      new.split, new.audioPath, new.status.rawValue,
                       new.title, new.title.map { _ in (new.titleSource ?? .user).rawValue },
-                      new.speakers?.joined(separator: "\u{1F}")])
+                      new.speakers?.joined(separator: "\u{1F}"), new.fileName, new.fileHash])
         }
         return try require(new.id)
     }
@@ -70,9 +71,16 @@ public final class CallStore: @unchecked Sendable {
         }
     }
 
-    /// Recording has stopped; the rest of the audio is still being transcribed.
+    /// Recording has stopped; the rest of the audio is still being transcribed. An end time
+    /// already set stays: an import knows its length before it is read.
     public func markTranscribing(_ callID: String, endedAt: Date = Date()) throws {
-        try update(callID, "status = 'transcribing', ended_at = ?", [endedAt])
+        try update(callID, "status = 'transcribing', ended_at = coalesce(ended_at, ?)", [endedAt])
+    }
+
+    /// An import's stored copy and its end time, written together so the row never shows a
+    /// duration without audio to play.
+    public func setImportedAudio(_ callID: String, path: String, endedAt: Date) throws {
+        try update(callID, "audio_path = ?, ended_at = ?", [path, endedAt])
     }
 
     /// The transcript is complete. Keeps the end time markTranscribing set, if it ran.
@@ -127,17 +135,24 @@ public final class CallStore: @unchecked Sendable {
     public func failInterruptedCalls(_ reason: String = "Dictate stopped while recording this call.",
                                      except keep: Set<String> = []) throws -> Int {
         if !keep.isEmpty {
-            let ids = try liveCalls().map(\.id).filter { !keep.contains($0) }
-            for id in ids { try failCall(id, error: reason) }
-            return ids.count
+            let calls = try liveCalls().filter { !keep.contains($0.id) }
+            for call in calls {
+                try failCall(call.id, error: call.fileName != nil && call.audioPath == nil ? Self.importInterrupted : reason)
+            }
+            return calls.count
         }
         return try queue.sync {
             try db.run("""
-                UPDATE calls SET status = 'failed', error = ?, ended_at = coalesce(ended_at, ?)
+                UPDATE calls SET status = 'failed',
+                  error = CASE WHEN file_name IS NOT NULL AND audio_path IS NULL THEN ?3 ELSE ?1 END,
+                  ended_at = coalesce(ended_at, ?2)
                 WHERE status IN ('recording', 'transcribing')
-                """, [reason, Date()])
+                """, [reason, Date(), Self.importInterrupted])
         }
     }
+
+    /// An import that quit before its copy was stored has nothing to rebuild from.
+    static let importInterrupted = "Dictate quit before this file was read. Import it again."
 
     /// Adds and removes tags; returns the call's tags after. Tags compare without case.
     @discardableResult
@@ -192,7 +207,7 @@ public final class CallStore: @unchecked Sendable {
     /// nothing in it is a recording that heard nothing.
     static func heardSomething(_ calls: String = "calls") -> String {
         """
-        (\(calls).status <> 'done' OR EXISTS (SELECT 1 FROM call_segments s WHERE s.call_id = \(calls).id
+        (\(calls).status <> 'done' OR \(calls).file_name IS NOT NULL OR EXISTS (SELECT 1 FROM call_segments s WHERE s.call_id = \(calls).id
           AND trim(coalesce(s.corrected_text, s.text), ' ' || char(9, 10, 13)) <> ''))
         """
     }
@@ -276,6 +291,17 @@ public final class CallStore: @unchecked Sendable {
     public func call(_ id: String) throws -> Call? {
         try queue.sync {
             try db.query("SELECT \(Self.callColumns) FROM calls WHERE id = ?", [id], Self.readCall).first
+        }
+    }
+
+    /// The import of a file with this SHA-256 that hasn't failed, oldest first: a failed one
+    /// doesn't stop the same file being imported again.
+    public func importedCall(hash: String) throws -> Call? {
+        try queue.sync {
+            try db.query("""
+                SELECT \(Self.callColumns) FROM calls WHERE file_hash = ? AND status <> 'failed'
+                ORDER BY started_at LIMIT 1
+                """, [hash], Self.readCall).first
         }
     }
 
@@ -664,6 +690,13 @@ public final class CallStore: @unchecked Sendable {
             UPDATE calls SET title_source = 'user' WHERE title IS NOT NULL;
             UPDATE dictations SET title_source = 'user' WHERE title IS NOT NULL;
             """),
+        // A call made from an imported audio or video file: the file's name, and its SHA-256 so
+        // the same file isn't imported twice.
+        ("imports-1", """
+            ALTER TABLE calls ADD COLUMN file_name TEXT;
+            ALTER TABLE calls ADD COLUMN file_hash TEXT;
+            CREATE INDEX calls_file_hash ON calls(file_hash) WHERE file_hash IS NOT NULL;
+            """),
     ]
 
     /// The names of the migrations this file has had.
@@ -692,14 +725,15 @@ public final class CallStore: @unchecked Sendable {
     private static let callColumns = """
         id, started_at, ended_at, app_bundle_id, app_name, device_uid, split, audio_path, status, title, error,
         (SELECT group_concat(tag, char(31)) FROM call_tags WHERE call_id = calls.id), speakers, time_zone,
-        title_source
+        title_source, file_name
         """
 
     private static func readCall(_ row: SQLiteRow) -> Call {
         Call(id: row.text(0), startedAt: row.date(1), timeZone: row.string(13), endedAt: row.optionalDate(2), appBundleID: row.string(3),
              appName: row.string(4), deviceUID: row.string(5), split: row.int(6) != 0, audioPath: row.string(7),
              status: Call.Status(rawValue: row.text(8)) ?? .failed, title: row.string(9),
-             titleSource: row.string(14).flatMap(TitleSource.init(rawValue:)), error: row.string(10),
+             titleSource: row.string(14).flatMap(TitleSource.init(rawValue:)), fileName: row.string(15),
+             error: row.string(10),
              tags: (row.string(11) ?? "").split(separator: "\u{1F}").map(String.init)
                 .sorted { $0.localizedStandardCompare($1) == .orderedAscending },
              speakers: row.string(12).map { $0.split(separator: "\u{1F}", omittingEmptySubsequences: false).map(String.init) })

@@ -228,6 +228,100 @@ public final class CallRecorder: @unchecked Sendable {
         return await finish(session) ?? call
     }
 
+    /// What `beginImport` made or found.
+    public struct ImportStart: Sendable {
+        public var call: Call
+        /// The file was imported before, and `call` is that import: nothing new was made.
+        public var duplicate: Bool
+    }
+
+    /// Starts an import: hashes the file off the calling thread, and unless a call already
+    /// holds the same bytes, makes the row at once so the history shows it while it waits.
+    /// The row's time is when it was imported, and its end is set once the file's length is known.
+    public func beginImport(_ source: URL, at: Date = Date()) async throws -> ImportStart {
+        let hash = try await Task.detached(priority: .utility) { try AudioImport.sha256(of: source) }.value
+        if let existing = try store.importedCall(hash: hash) { return ImportStart(call: existing, duplicate: true) }
+        let call = try store.createCall(NewCall(startedAt: at, split: false, fileName: source.lastPathComponent,
+                                                fileHash: hash, endedAt: at, status: .transcribing))
+        return ImportStart(call: call, duplicate: false)
+    }
+
+    /// The most chunks that waited for whisper at once during any import, for a test of the
+    /// back-pressure.
+    var importHighWater: Int { lock.withLockUnchecked { importPeak } }
+    private var importPeak = 0
+
+    /// Stores a copy of the file beside the recorded calls and transcribes it as one track,
+    /// the way a rebuild does, with reading held back while whisper has a few chunks to catch up on.
+    /// Whatever goes wrong ends the call as failed with a reason a person can read. `onProgress` gets
+    /// 0 to 1, the part of the file the transcript reaches. Returns the call as it ends up.
+    public func transcribeImport(_ callID: String, from source: URL, transcriber: any ChunkTranscribing,
+                                 whisper: WhisperOptions = WhisperOptions(),
+                                 onProgress: @escaping @Sendable (Double) -> Void = { _ in }) async -> Call? {
+        guard let call = try? store.call(callID) else { return nil }
+        func fail(_ reason: String) -> Call? {
+            try? store.failCall(callID, error: reason)
+            return try? store.call(callID)
+        }
+        guard FileManager.default.fileExists(atPath: source.path) else {
+            return fail("The file was moved before Dictate could read it.")
+        }
+        let stored: (url: URL, duration: Double)
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let base = directory.appending(
+                path: "\(Int(call.startedAt.timeIntervalSince1970 * 1000))-\(callID.prefix(8))")
+            stored = try await AudioImport.storeCopy(of: source, as: base)
+        } catch {
+            return fail((error as? AudioImportError)?.description ?? "Dictate couldn't read this file's audio.")
+        }
+        let audio: AVAudioFile
+        do {
+            audio = try AVAudioFile(forReading: stored.url)
+            try store.setImportedAudio(callID, path: stored.url.path,
+                                       endedAt: call.startedAt.addingTimeInterval(stored.duration))
+        } catch {
+            try? FileManager.default.removeItem(at: stored.url)
+            return fail("Dictate couldn't read this file's audio.")
+        }
+        let format = audio.processingFormat
+        let duration = stored.duration
+        let session: CallSession
+        do {
+            session = try CallSession(callID: callID, format: format, labels: [.mix],
+                                      order: Array(0..<min(Int(format.channelCount), 2)), wav: nil, store: store,
+                                      transcriber: transcriber, whisper: whisper,
+                                      progress: { onProgress(min(1, $0 / duration)) })
+        } catch {
+            return fail("Dictate couldn't read this file's audio.")
+        }
+        let step = AVAudioFrameCount(format.sampleRate)
+        var cancelled = false
+        while audio.framePosition < audio.length {
+            while session.queued > CallSession.maxQueued {
+                if Task.isCancelled { break }
+                try? await Task.sleep(for: .milliseconds(25))
+            }
+            if Task.isCancelled { cancelled = true; break }
+            guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: step) else { break }
+            do {
+                try audio.read(into: buffer, frameCount: step)
+            } catch {
+                session.close()
+                return fail("Dictate couldn't read this file's audio.")
+            }
+            guard buffer.frameLength > 0 else { break }
+            session.ingest(buffer)
+        }
+        if cancelled {
+            session.close()
+            return fail("The import was cancelled.")
+        }
+        let ended = await finish(session)
+        lock.withLockUnchecked { importPeak = max(importPeak, session.highWater) }
+        return ended
+    }
+
     /// Replaces a finished call's WAV with an AAC .m4a, off the calling thread. The call's
     /// path moves to the .m4a and the WAV goes only once the .m4a has opened with the WAV's
     /// duration and channels; on any failure the WAV and the path stay as they were, so
@@ -489,6 +583,27 @@ final class CallSession: @unchecked Sendable {
     private var closed = false
     private let chunks: AsyncStream<SpeechChunk>.Continuation
     private let worker: Task<String?, Never>
+    private let backlog = Backlog()
+
+    /// Chunks cut and not yet transcribed, with the most there have been at once.
+    private final class Backlog: @unchecked Sendable {
+        private let lock = OSAllocatedUnfairLock()
+        private var count = 0
+        private var peak = 0
+
+        func add() { lock.withLockUnchecked { count += 1; peak = max(peak, count) } }
+        func done() { lock.withLockUnchecked { count -= 1 } }
+        var queued: Int { lock.withLockUnchecked { count } }
+        var highWater: Int { lock.withLockUnchecked { peak } }
+    }
+
+    /// How many chunks an import lets wait for whisper before it stops reading the file, so a
+    /// file of hours is held a few seconds at a time. A buffer can add one more past this.
+    static let maxQueued = 2
+
+    /// Chunks cut and not yet transcribed.
+    var queued: Int { backlog.queued }
+    var highWater: Int { backlog.highWater }
 
     /// One side of the call: a channel of the file (or all of them, for a mix) at 16 kHz.
     private struct Lane {
@@ -503,7 +618,8 @@ final class CallSession: @unchecked Sendable {
     /// the file's channels, so labels[0] is the file's left.
     init(callID: String, format: AVAudioFormat, labels: [CallSegment.Channel], order: [Int], wav: URL?,
          writer: (any AudioWriting)? = nil, replacingSegments: Bool = false, store: CallStore,
-         transcriber: Transcriber, whisper: WhisperOptions) throws {
+         transcriber: any ChunkTranscribing, whisper: WhisperOptions,
+         progress: (@Sendable (_ seconds: Double) -> Void)? = nil) throws {
         self.callID = callID
         self.order = order
         fileFormat = AVAudioFormat(standardFormatWithSampleRate: format.sampleRate,
@@ -530,9 +646,10 @@ final class CallSession: @unchecked Sendable {
         }
         let (stream, continuation) = AsyncStream<SpeechChunk>.makeStream()
         chunks = continuation
+        let backlog = backlog
         worker = Task.detached(priority: .userInitiated) {
             await Self.transcribe(stream, callID: callID, replacing: replacingSegments, store: store,
-                                  transcriber: transcriber, whisper: whisper)
+                                  transcriber: transcriber, whisper: whisper, backlog: backlog, progress: progress)
         }
     }
 
@@ -554,6 +671,7 @@ final class CallSession: @unchecked Sendable {
             }
             for i in lanes.indices {
                 for chunk in lanes[i].chunker.append(resample(picked, lane: lanes[i])) {
+                    backlog.add()
                     chunks.yield(SpeechChunk(channel: lanes[i].channel, start: chunk.start, samples: chunk.samples))
                 }
             }
@@ -576,6 +694,7 @@ final class CallSession: @unchecked Sendable {
             file = nil
             for i in lanes.indices {
                 if let chunk = lanes[i].chunker.flush() {
+                    backlog.add()
                     chunks.yield(SpeechChunk(channel: lanes[i].channel, start: chunk.start, samples: chunk.samples))
                 }
             }
@@ -612,14 +731,22 @@ final class CallSession: @unchecked Sendable {
 
     /// Transcribes chunks in the order they were cut, each with the same side's last words
     /// as whisper's context, and stores the segments as soon as each is done. `replacing`
-    /// clears the call's old segments just before the first new ones are stored.
+    /// clears the call's old segments just before the first new ones are stored. `progress`
+    /// gets how far into the audio the transcript now reaches, in seconds, after each chunk.
     private static func transcribe(_ stream: AsyncStream<SpeechChunk>, callID: String, replacing: Bool,
-                                   store: CallStore, transcriber: Transcriber,
-                                   whisper: WhisperOptions) async -> String? {
+                                   store: CallStore, transcriber: any ChunkTranscribing,
+                                   whisper: WhisperOptions, backlog: Backlog,
+                                   progress: (@Sendable (Double) -> Void)?) async -> String? {
         var previous: [CallSegment.Channel: String] = [:]
         var failure: String?
         var replace = replacing
+        var reached = 0.0
         for await chunk in stream {
+            defer {
+                backlog.done()
+                reached = max(reached, Double(chunk.start + chunk.samples.count) / Audio.sampleRate)
+                progress?(reached)
+            }
             var options = whisper
             options.initialPrompt = previous[chunk.channel] ?? ""
             let offset = Double(chunk.start) / Audio.sampleRate

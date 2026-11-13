@@ -222,6 +222,13 @@ public struct SegmentRetry: Sendable, Codable {
     }
 }
 
+/// What a call's chunks are transcribed by: whisper, or a stand-in in a test.
+public protocol ChunkTranscribing: Sendable {
+    func transcribe(_ samples: [Float], options: WhisperOptions) async throws -> Transcript
+}
+
+extension Transcriber: ChunkTranscribing {}
+
 /// Runs whisper.cpp on the GPU. One decode at a time across every model, on one queue all
 /// transcribers share: a context can't run two, and two models decoding at once (the old
 /// one finishing while Settings switches) would contend for the same GPU.
