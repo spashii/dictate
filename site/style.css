@@ -270,6 +270,7 @@
   .compare-table tr { padding: var(--sp-4) 0; border-bottom: 1px solid var(--hairline); }
   .compare-table th, .compare-table td { padding: 0; border: 0; }
   .compare-table td { margin-top: var(--sp-1); }
+  .compare-table tbody th { font-size: var(--size-h3); line-height: var(--leading-h3); font-weight: 600; letter-spacing: -.01em; }
   .compare-table th + td { margin-top: var(--sp-2); }
   .compare-table td::before { content: attr(data-label) ": "; }
 }
@@ -277,7 +278,6 @@
 /* Hero headline: "call transcription" never splits at any width. From 1000px each phrase
    is an inline-block, so the headline breaks between phrases (three lines) and never inside one
    unless a phrase is wider than the column. */
-.nowrap { white-space: nowrap; }
 @media (min-width: 1000px) {
   .h1-part { display: inline-block; }
 }
@@ -288,5 +288,4 @@
   .nav .brand { flex: none; }
   .nav .links { gap: var(--sp-3); }
   .nav .links a:not(.button):not([href="#questions"]) { display: none; }
-  .nav .button.small { padding: 0 12px; }
 }
