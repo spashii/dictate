@@ -155,6 +155,7 @@ targets:
       - path: Voice/Changelog.swift
       - path: Voice/UpdateAvailability.swift
       - path: Voice/KeyTermConfirmation.swift
+      - path: Voice/RetentionText.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.spashii.voice.tests

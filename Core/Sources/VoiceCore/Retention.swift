@@ -2,7 +2,7 @@ import Foundation
 
 /// How long a recording's audio file stays after it was made.
 public enum AudioRetention: String, CaseIterable, Sendable {
-    case immediately, sevenDays, forever
+    case untilTranscribed, oneDay, sevenDays, forever
 }
 
 /// How long a recording's transcript stays in History, search and the agent server.
@@ -100,10 +100,6 @@ public struct RetentionCounts: Equatable, Sendable {
 /// The deletion pass over dictations and calls. `preview` counts what `run` would delete on
 /// the same data, so a confirmation can name the numbers first.
 public enum RetentionSweep {
-    /// Failed recordings keep their audio this long whatever the audio choice, so they can
-    /// be tried again.
-    static let failedAudioDays = 7
-
     private struct Cutoffs {
         var transcripts: Date?
         /// Audio of recordings that finished well is deleted before this date.
@@ -118,10 +114,12 @@ public enum RetentionSweep {
             case .thirtyDays: transcripts = now.addingTimeInterval(-30 * day)
             case .forever: transcripts = nil
             }
-            let week = now.addingTimeInterval(-Double(RetentionSweep.failedAudioDays) * day)
+            // A failed recording's audio is what a retry needs, so Until transcribed never
+            // deletes it; it goes with the row.
             switch policy.audio {
-            case .immediately: (finishedAudio, anyAudio) = (.distantFuture, week)
-            case .sevenDays: (finishedAudio, anyAudio) = (.distantPast, week)
+            case .untilTranscribed: (finishedAudio, anyAudio) = (.distantFuture, .distantPast)
+            case .oneDay: (finishedAudio, anyAudio) = (.distantPast, now.addingTimeInterval(-day))
+            case .sevenDays: (finishedAudio, anyAudio) = (.distantPast, now.addingTimeInterval(-7 * day))
             case .forever: (finishedAudio, anyAudio) = (.distantPast, .distantPast)
             }
         }

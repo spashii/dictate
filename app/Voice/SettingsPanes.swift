@@ -20,17 +20,29 @@ struct SetupPane: View {
             }
             Section {
                 Toggle("Open at login", isOn: Binding(get: { model.openAtLogin }, set: { model.setOpenAtLogin($0) }))
-                Picker(selection: $preferences.history) {
-                    Text(Preferences.History.thirtyDays.title).tag(Preferences.History.thirtyDays)
-                    Text(Preferences.History.forever.title).tag(Preferences.History.forever)
-                } label: {
-                    Text("Keep history")
-                    Text("Each dictation\u{2019}s and call\u{2019}s audio and text.")
+            }
+            Section {
+                Picker(RetentionText.audioLabel, selection: Binding(
+                    get: { _ = model.retentionRevision; return preferences.shownAudioRetention },
+                    set: { model.setRetention(audio: $0) })) {
+                    ForEach(RetentionText.audioOptions(developerMode: preferences.developerMode), id: \.self) {
+                        Text(RetentionText.title($0)).tag($0)
+                    }
                 }
+                Picker(RetentionText.historyLabel, selection: Binding(
+                    get: { _ = model.retentionRevision; return preferences.shownTranscriptRetention },
+                    set: { model.setRetention(transcripts: $0) })) {
+                    ForEach(RetentionText.transcriptOptions, id: \.self) {
+                        Text(RetentionText.title($0)).tag($0)
+                    }
+                }
+            } header: {
+                Text(RetentionText.groupTitle)
+            } footer: {
+                if preferences.developerMode { Text(RetentionText.developerModeFooter) }
             }
         }
         .formStyle(.grouped)
-        .onChange(of: preferences.history) { model.pruneHistory() }
     }
 }
 
@@ -506,7 +518,7 @@ struct AboutPane: View {
                 }
             }
             Section {
-                Toggle("Developer mode", isOn: $preferences.developerMode)
+                Toggle("Developer mode", isOn: Binding(get: { preferences.developerMode }, set: { model.setDeveloperMode($0) }))
             }
             Section {
                 Link(destination: URL(string: "https://spashii.github.io/dictate/")!) {

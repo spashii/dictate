@@ -19,7 +19,7 @@ private func defaults() -> UserDefaults {
     }
 
     @Test func everyStoredChoiceIsHonouredWithoutDeveloperMode() {
-        for audio in [AudioRetention.immediately, .sevenDays] {
+        for audio in [AudioRetention.untilTranscribed, .oneDay, .sevenDays] {
             for transcripts in TranscriptRetention.allCases {
                 let policy = RetentionPolicy.effective(audio: audio, transcripts: transcripts, developerMode: false)
                 #expect(policy == RetentionPolicy(audio: audio, transcripts: transcripts))
@@ -46,7 +46,7 @@ private func defaults() -> UserDefaults {
     @Test func pickersShowForeverInDeveloperModeUntilAChoiceIsStored() {
         #expect(RetentionPolicy.shownAudio(nil, developerMode: true) == .forever)
         #expect(RetentionPolicy.shownTranscripts(nil, developerMode: true) == .forever)
-        #expect(RetentionPolicy.shownAudio(.immediately, developerMode: true) == .immediately)
+        #expect(RetentionPolicy.shownAudio(.untilTranscribed, developerMode: true) == .untilTranscribed)
         #expect(RetentionPolicy.shownTranscripts(.sevenDays, developerMode: true) == .sevenDays)
         #expect(RetentionPolicy.shownAudio(nil, developerMode: false) == .sevenDays)
         #expect(RetentionPolicy.shownTranscripts(nil, developerMode: false) == .thirtyDays)
@@ -68,9 +68,9 @@ private func defaults() -> UserDefaults {
 
     @Test func savesAndLoadsAndNilRemovesTheKey() {
         let store = defaults()
-        RetentionChoices(audio: .immediately, transcripts: .forever).save(to: store)
-        #expect(RetentionChoices.load(from: store) == RetentionChoices(audio: .immediately, transcripts: .forever))
-        #expect(store.string(forKey: "audioRetention") == "immediately")
+        RetentionChoices(audio: .untilTranscribed, transcripts: .forever).save(to: store)
+        #expect(RetentionChoices.load(from: store) == RetentionChoices(audio: .untilTranscribed, transcripts: .forever))
+        #expect(store.string(forKey: "audioRetention") == "untilTranscribed")
         #expect(store.string(forKey: "transcriptRetention") == "forever")
 
         RetentionChoices(audio: nil, transcripts: .sevenDays).save(to: store)
@@ -81,8 +81,8 @@ private func defaults() -> UserDefaults {
     @Test func turningDeveloperModeOffResetsOnlyAudioForever() {
         #expect(RetentionChoices(audio: .forever, transcripts: .forever).afterDeveloperModeOff()
                 == RetentionChoices(audio: nil, transcripts: .forever))
-        #expect(RetentionChoices(audio: .immediately, transcripts: .sevenDays).afterDeveloperModeOff()
-                == RetentionChoices(audio: .immediately, transcripts: .sevenDays))
+        #expect(RetentionChoices(audio: .untilTranscribed, transcripts: .sevenDays).afterDeveloperModeOff()
+                == RetentionChoices(audio: .untilTranscribed, transcripts: .sevenDays))
         #expect(RetentionChoices(audio: nil, transcripts: nil).afterDeveloperModeOff() == RetentionChoices())
     }
 }
@@ -219,41 +219,58 @@ private final class Bench {
     private let bench: Bench
     init() throws { bench = try Bench() }
 
-    @Test func immediatelyDeletesAFreshFinishedDictationsAudioAndSevenDaysKeepsIt() throws {
+    @Test func untilTranscribedDeletesAFreshFinishedDictationsAudioAndSevenDaysKeepsIt() throws {
         let audio = try bench.dictation("fresh")
 
         RetentionSweep.run(RetentionPolicy(audio: .sevenDays, transcripts: .forever), dictations: bench.store, calls: bench.calls)
         #expect(bench.has(audio))
 
-        let counts = RetentionSweep.run(RetentionPolicy(audio: .immediately, transcripts: .forever),
+        let counts = RetentionSweep.run(RetentionPolicy(audio: .untilTranscribed, transcripts: .forever),
                                         dictations: bench.store, calls: bench.calls)
         #expect(counts == RetentionCounts(recordings: 0, audioOnly: 1))
         #expect(!bench.has(audio))
         #expect(bench.store.recent(10).map(\.id) == ["fresh"])
     }
 
-    @Test func aFailedDictationKeepsItsAudioUntilSevenDaysOld() throws {
+    @Test func aFailedDictationKeepsItsAudioWhateverItsAge() throws {
         let recent = try bench.dictation("recent", ageDays: 6, error: "Whisper failed")
-        let old = try bench.dictation("old", ageDays: 8, error: "Whisper failed")
-        let policy = RetentionPolicy(audio: .immediately, transcripts: .forever)
+        let old = try bench.dictation("old", ageDays: 400, error: "Whisper failed")
 
-        RetentionSweep.run(policy, dictations: bench.store, calls: bench.calls)
-
-        #expect(bench.has(recent))
-        #expect(!bench.has(old))
-    }
-
-    @Test func aFailedCallKeepsItsAudioUntilSevenDaysOld() throws {
-        let recent = try bench.call("recent", ageDays: 3, status: .failed)
-        let old = try bench.call("old", ageDays: 9, status: .failed)
-        let finished = try bench.call("finished", ageDays: 0)
-
-        RetentionSweep.run(RetentionPolicy(audio: .immediately, transcripts: .forever),
+        RetentionSweep.run(RetentionPolicy(audio: .untilTranscribed, transcripts: .forever),
                            dictations: bench.store, calls: bench.calls)
 
         #expect(bench.has(recent))
-        #expect(!bench.has(old))
+        #expect(bench.has(old))
+    }
+
+    @Test func aFailedCallKeepsItsAudioWhateverItsAge() throws {
+        let recent = try bench.call("recent", ageDays: 3, status: .failed)
+        let old = try bench.call("old", ageDays: 400, status: .failed)
+        let finished = try bench.call("finished", ageDays: 0)
+
+        RetentionSweep.run(RetentionPolicy(audio: .untilTranscribed, transcripts: .forever),
+                           dictations: bench.store, calls: bench.calls)
+
+        #expect(bench.has(recent))
+        #expect(bench.has(old))
         #expect(!bench.has(finished))
+    }
+
+    @Test func oneDayDeletesFinishedAndFailedAudioOlderThanADay() throws {
+        let fresh = try bench.dictation("fresh", ageDays: 0)
+        let oldDone = try bench.dictation("old-done", ageDays: 2)
+        let oldFailed = try bench.dictation("old-failed", ageDays: 2, error: "Whisper failed")
+        let freshFailed = try bench.dictation("fresh-failed", ageDays: 0, error: "Whisper failed")
+        let callDone = try bench.call("call-done", ageDays: 2)
+        let callFailed = try bench.call("call-failed", ageDays: 2, status: .failed)
+        let callFresh = try bench.call("call-fresh", ageDays: 0)
+
+        let counts = RetentionSweep.run(RetentionPolicy(audio: .oneDay, transcripts: .forever),
+                                        dictations: bench.store, calls: bench.calls)
+
+        #expect(counts == RetentionCounts(recordings: 0, audioOnly: 4))
+        #expect(bench.has(fresh) && bench.has(freshFailed) && bench.has(callFresh))
+        #expect(!bench.has(oldDone) && !bench.has(oldFailed) && !bench.has(callDone) && !bench.has(callFailed))
     }
 }
 
@@ -377,7 +394,7 @@ private final class Bench {
         let recording = try bench.call("recording", ageDays: 400, status: .recording)
         let transcribing = try bench.call("transcribing", ageDays: 400, status: .transcribing)
 
-        let counts = RetentionSweep.run(RetentionPolicy(audio: .immediately, transcripts: .sevenDays),
+        let counts = RetentionSweep.run(RetentionPolicy(audio: .untilTranscribed, transcripts: .sevenDays),
                                         dictations: bench.store, calls: bench.calls)
 
         #expect(counts.isEmpty)
@@ -517,7 +534,7 @@ private final class Asked: @unchecked Sendable {
         let before = (try bench.calls.search("Northwind").count, bench.store.recent(50).count,
                       try FileManager.default.contentsOfDirectory(atPath: bench.dir.path).count)
 
-        let counts = RetentionSweep.preview(RetentionPolicy(audio: .immediately, transcripts: .sevenDays),
+        let counts = RetentionSweep.preview(RetentionPolicy(audio: .untilTranscribed, transcripts: .sevenDays),
                                             dictations: bench.store, calls: bench.calls)
 
         #expect(!counts.isEmpty)
@@ -534,7 +551,7 @@ private final class Asked: @unchecked Sendable {
         // finished ones lose their audio at once: d-3, d-now, d-shared-new (it shares a path
         // with a deleted row, which is gone first), c-2, and the failed d-3-failed and
         // c-2-failed keep theirs.
-        let policy = RetentionPolicy(audio: .immediately, transcripts: .sevenDays)
+        let policy = RetentionPolicy(audio: .untilTranscribed, transcripts: .sevenDays)
         let counts = RetentionSweep.run(policy, dictations: bench.store, calls: bench.calls)
 
         #expect(counts == RetentionCounts(recordings: 9, audioOnly: 4))

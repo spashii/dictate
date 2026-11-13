@@ -172,15 +172,16 @@ final class CallsModel {
                 // Those with audio stay live until their rebuild finishes or fails them.
                 try store.failInterruptedCalls(except: Set(live.map(\.id)))
                 self.store = store
-                // Before the rebuilds and conversions below, which would spend their time on
-                // calls about to be deleted. The store didn't exist when the app first pruned.
-                model.pruneHistory()
                 let recorder = CallRecorder(store: store, onInputLost: { call in
                     Task { @MainActor in self.inputWentAway(call) }
                 }, onNotice: { text in
                     Task { @MainActor in self.model?.notice(text) }
                 })
                 self.recorder = recorder
+                // The store didn't exist when the app first applied retention. Before the
+                // rebuilds and conversions below, which would spend their time on calls
+                // about to be deleted.
+                model.applyRetention()
                 recorder.sweepPartials()
                 for call in resumed {
                     importsWaiting.insert(call.id)
@@ -354,6 +355,7 @@ final class CallsModel {
         let call = await recorder.stop()
         transcribing = false
         refreshRecent()
+        model?.applyRetention()
         updatePrompt()
         if let call {
             title(call.id)
@@ -564,15 +566,17 @@ final class CallsModel {
         updatePrompt()
     }
 
-    /// Deletes calls that started before the cutoff, with their audio. Never one that is
-    /// still recording or being transcribed.
-    func pruneHistory(before cutoff: Date) {
-        guard let store else { return }
-        do {
-            if try store.prune(before: cutoff) > 0 { refreshRecent() }
-        } catch {
-            self.error = "Couldn't clear old calls: \(error)"
-        }
+    /// What the retention sweep works on; nil until the call database is open. Call audio goes
+    /// through the recorder, which never deletes under a running compression.
+    var retentionTargets: (store: CallStore, deleteAudio: (@Sendable (String) -> Bool)?)? {
+        guard let store else { return nil }
+        guard let recorder else { return (store, nil) }
+        return (store, { recorder.deleteAudio($0) })
+    }
+
+    /// Whether a call that finishes takes its audio with it, which Until transcribed asks for.
+    func setDeletesAudioWhenDone(_ on: Bool) {
+        recorder?.setDeletesAudioWhenDone(on)
     }
 
     func copyTranscript(_ call: Call) {
@@ -756,6 +760,7 @@ extension CallsModel {
         if ended?.status == .done { title(id) }
         refreshRecent()
         model.refreshRecents()
+        model.applyRetention()
     }
 
     private func importProgressed(_ id: String, _ value: Double) {

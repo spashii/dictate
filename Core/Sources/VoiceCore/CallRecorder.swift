@@ -462,7 +462,7 @@ public final class CallRecorder: @unchecked Sendable {
     }
 
     /// While on, a call that finishes well has its audio deleted instead of compressed: the
-    /// "delete immediately" choice. A failed call keeps its audio so it can be tried again.
+    /// "Until transcribed" choice. A failed call keeps its audio so it can be tried again.
     public func setDeletesAudioWhenDone(_ on: Bool) {
         lock.withLockUnchecked { deletesAudioWhenDone = on }
     }

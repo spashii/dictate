@@ -21,6 +21,14 @@ final class MainWindow {
         self.model = model
     }
 
+    /// The window a confirmation sheet attaches to, when it is on screen.
+    var visibleWindow: NSWindow? { window?.isVisible == true ? window : nil }
+
+    /// Reads the list again after a deletion; nothing to do while the window was never opened.
+    func reloadHistory() {
+        if window != nil { history.reload() }
+    }
+
     func show(_ pane: MainPane, calls: CallsModel) {
         navigation.selection = pane
         let window = window ?? makeWindow(calls: calls)
