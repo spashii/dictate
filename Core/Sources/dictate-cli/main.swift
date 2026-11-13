@@ -21,6 +21,8 @@ import whisper
 //       the joined chunks with a whole-file decode
 //   dictate-cli defaults                                   whisper.cpp's decoding defaults
 //   dictate-cli call ..., dictate-cli watch-calls            call recording; see Calls.swift
+//   dictate-cli import FILE                                an audio or video file, kept as one call and
+//       transcribed; prints the progress to stderr, then the call id and its transcript
 //   dictate-cli import-osw [PATH]                          OpenSuperWhisper's history into Dictate's;
 //       see ImportOSW.swift
 //   dictate-cli retry-report [--json]                      the app's segment retries over the last
@@ -125,6 +127,13 @@ if args.first == "call" {
     exit(0)
 }
 
+if args.first == "import" {
+    let transcriber = Transcriber(modelURL: model, vadModelURL: vadModel)
+    await importCommand(Array(args.dropFirst()), transcriber: transcriber, whisper: whisper, dbPath: dbPath)
+    await transcriber.unload()
+    exit(0)
+}
+
 if args == ["defaults"] {
     let p = whisper_full_default_params(WHISPER_SAMPLING_GREEDY)
     print("temperature \(p.temperature) temperature_inc \(p.temperature_inc) entropy_thold \(p.entropy_thold) "
@@ -133,7 +142,7 @@ if args == ["defaults"] {
     exit(0)
 }
 guard args.count == 2 || (args.count == 3 && ["batch", "cleanup-batch", "fix-batch"].contains(args[0])) else {
-    fail("usage: dictate-cli transcribe FILE [--cleanup] | dictate-cli eval DIR [--cleanup N] | dictate-cli batch MANIFEST OUT | dictate-cli cleanup-batch IN OUT | dictate-cli fix-batch IN OUT")
+    fail("usage: dictate-cli transcribe FILE [--cleanup] | dictate-cli import FILE | dictate-cli eval DIR [--cleanup N] | dictate-cli batch MANIFEST OUT | dictate-cli cleanup-batch IN OUT | dictate-cli fix-batch IN OUT")
 }
 let command = args[0]
 let target = URL(fileURLWithPath: args[1])

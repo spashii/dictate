@@ -13,6 +13,8 @@ import VoiceCore
 //       transcribes a call again from its audio, WAV or m4a
 //   dictate-cli call --remove [--db PATH]
 //       deletes every call `call --file` wrote, with its audio
+//   dictate-cli import FILE [--db PATH]
+//       imports an audio or video file as one call, as the app does, and prints its transcript
 //   dictate-cli watch-calls [--raw]
 //       prints call detection as it happens; --raw adds every process using audio each second
 
@@ -74,6 +76,51 @@ func callCommand(_ arguments: [String], transcriber: Transcriber, whisper: Whisp
         }
     } catch {
         fail("dictate-cli call: \(error)")
+    }
+}
+
+func importCommand(_ arguments: [String], transcriber: Transcriber, whisper: WhisperOptions, dbPath: String?) async {
+    guard arguments.count == 1 else { fail("usage: dictate-cli import FILE [--model PATH] [--vad-model PATH] [--db PATH]") }
+    do {
+        let source = try AudioImport.validate(path: arguments[0].hasPrefix("/") || arguments[0].hasPrefix("~/")
+            ? arguments[0] : FileManager.default.currentDirectoryPath + "/" + arguments[0])
+        let store = try CallStore(url: dbPath.map { URL(fileURLWithPath: $0) } ?? Paths.database)
+        let recorder = CallRecorder(store: store)
+        let start = try await recorder.beginImport(source)
+        if start.duplicate {
+            print("Already imported: \(start.call.id)")
+            return
+        }
+        try await transcriber.load()
+        let shown = ProgressShown()
+        let call = await recorder.transcribeImport(start.call.id, from: source, transcriber: transcriber,
+                                                   whisper: whisper) { fraction in
+            let percent = Int(fraction * 100)
+            if shown.advance(to: percent) {
+                FileHandle.standardError.write(Data("\(percent)%\n".utf8))
+            }
+        }
+        await recorder.waitForCompression()
+        guard let call else { fail("dictate-cli import: the call \(start.call.id) was not found.") }
+        if call.status == .failed { fail("dictate-cli import: \(call.error ?? "the file could not be transcribed.")") }
+        print(call.id)
+        print(try store.transcript(call.id))
+    } catch {
+        fail("dictate-cli import: \(error)")
+    }
+}
+
+/// Lets progress print each whole percent once, from whichever thread reports it.
+private final class ProgressShown: @unchecked Sendable {
+    private let lock = NSLock()
+    private var last = -1
+
+    func advance(to percent: Int) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard percent > last else { return false }
+        last = percent
+        return true
     }
 }
 
