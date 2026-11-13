@@ -172,15 +172,16 @@ final class CallsModel {
                 // Those with audio stay live until their rebuild finishes or fails them.
                 try store.failInterruptedCalls(except: Set(live.map(\.id)))
                 self.store = store
-                // Before the rebuilds and conversions below, which would spend their time on
-                // calls about to be deleted. The store didn't exist when the app first pruned.
-                model.pruneHistory()
                 let recorder = CallRecorder(store: store, onInputLost: { call in
                     Task { @MainActor in self.inputWentAway(call) }
                 }, onNotice: { text in
                     Task { @MainActor in self.model?.notice(text) }
                 })
                 self.recorder = recorder
+                // The store didn't exist when the app first applied retention. Before the
+                // rebuilds and conversions below, which would spend their time on calls
+                // about to be deleted.
+                model.applyRetention()
                 recorder.sweepPartials()
                 for call in resumed {
                     importsWaiting.insert(call.id)
@@ -194,6 +195,8 @@ final class CallsModel {
                     if rebuilt != nil { title(call.id) }
                 }
                 transcribing = false
+                // Rebuilt calls are finished now, so Until transcribed may take their audio.
+                model.applyRetention()
                 runImports()
                 refreshRecent()
                 // Calls that finished before audio was compressed, or whose conversion was
@@ -354,6 +357,7 @@ final class CallsModel {
         let call = await recorder.stop()
         transcribing = false
         refreshRecent()
+        model?.applyRetention()
         updatePrompt()
         if let call {
             title(call.id)
@@ -564,15 +568,17 @@ final class CallsModel {
         updatePrompt()
     }
 
-    /// Deletes calls that started before the cutoff, with their audio. Never one that is
-    /// still recording or being transcribed.
-    func pruneHistory(before cutoff: Date) {
-        guard let store else { return }
-        do {
-            if try store.prune(before: cutoff) > 0 { refreshRecent() }
-        } catch {
-            self.error = "Couldn't clear old calls: \(error)"
-        }
+    /// What the retention sweep works on; nil until the call database is open. Call audio goes
+    /// through the recorder, which never deletes under a running compression.
+    var retentionTargets: (store: CallStore, deleteAudio: (@Sendable (String) -> Bool)?)? {
+        guard let store else { return nil }
+        guard let recorder else { return (store, nil) }
+        return (store, { recorder.deleteAudio($0) })
+    }
+
+    /// Whether a call that finishes takes its audio with it, which Until transcribed asks for.
+    func setDeletesAudioWhenDone(_ on: Bool) {
+        recorder?.setDeletesAudioWhenDone(on)
     }
 
     func copyTranscript(_ call: Call) {
@@ -756,6 +762,7 @@ extension CallsModel {
         if ended?.status == .done { title(id) }
         refreshRecent()
         model.refreshRecents()
+        model.applyRetention()
     }
 
     private func importProgressed(_ id: String, _ value: Double) {
@@ -786,7 +793,7 @@ extension CallsModel {
 final class CallPrompt {
     private unowned let calls: CallsModel
     private var panel: NSPanel?
-    private static let size = NSSize(width: 340, height: 44)
+    private static let size = NSSize(width: 420, height: 56)
 
     init(calls: CallsModel) {
         self.calls = calls
@@ -822,25 +829,38 @@ final class CallPrompt {
 struct CallPromptView: View {
     @Environment(CallsModel.self) private var calls
 
+    /// Under the question, so the person knows nothing is recorded unless they say so.
+    static let note = "Ask before you record."
+
     var body: some View {
         HStack(spacing: 8) {
             if let app = calls.promptApp {
                 Image(systemName: "phone.fill").foregroundStyle(.green)
-                Text("Record this call?")
-                Text(app.name).foregroundStyle(.secondary).lineLimit(1)
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 8) {
+                        Text("Record this call?").lineLimit(1)
+                        Text(app.name).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    .font(.system(size: 12, weight: .medium))
+                    Text(Self.note)
+                        .lineLimit(1)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
                 Spacer(minLength: 4)
                 Button("Not now") { calls.notNow(app) }
+                    .font(.system(size: 12, weight: .medium))
                     .controlSize(.small)
                 // No default action: the panel never takes focus from the call, so Return
                 // goes to the call app, and a highlighted button would suggest otherwise.
                 Button("Record") { calls.recordFromMenu(app) }
+                    .font(.system(size: 12, weight: .medium))
                     .controlSize(.small)
             }
         }
-        .font(.system(size: 12, weight: .medium))
         .padding(.horizontal, 14)
-        .frame(height: 32)
-        .background(.regularMaterial, in: Capsule())
+        .frame(height: 48)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
@@ -918,7 +938,7 @@ struct CallMenuItems: View {
         if let call = calls.recording {
             Text("Recording call " + AppModel.clock(Date().timeIntervalSince(call.startedAt)))
             if model.preferences.runPrompt {
-                Text("Whisper only during calls")
+                Text("Fix the text is paused during calls")
             }
             Button("Stop Recording" + keys) { Task { await calls.stop() } }
         } else {
@@ -927,7 +947,7 @@ struct CallMenuItems: View {
                 .disabled(calls.starting)
         }
         if calls.recording == nil, calls.isImporting, model.preferences.runPrompt {
-            Text("Whisper only while importing")
+            Text("Fix the text is paused while importing")
         }
         if let warning = calls.warning {
             Text(warning)

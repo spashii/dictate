@@ -14,7 +14,7 @@ final class ChangelogTests: XCTestCase {
 
         ## 1.2.0 (2026-11-13)
 
-        - Drop a file on History.
+        - **Import audio files.** Drop a file on History.
         - A long line that
           wraps onto the next one.
         unknown line
@@ -26,15 +26,24 @@ final class ChangelogTests: XCTestCase {
         let entries = Changelog.parse(text)
         XCTAssertEqual(entries.map(\.version), ["1.2.0", "1.1.0"])
         XCTAssertEqual(entries[0].date, DateComponents(year: 2026, month: 11, day: 13))
-        XCTAssertEqual(entries[0].items, ["Drop a file on History.", "A long line that wraps onto the next one."])
+        XCTAssertEqual(entries[0].items, ["**Import audio files.** Drop a file on History.", "A long line that wraps onto the next one."])
         XCTAssertNil(entries[1].date)
         XCTAssertEqual(entries[1].items, ["Older change."])
     }
 
     func testBulletsFromHTML() {
-        let html = "<ul><li>Fish &amp; chips</li><li>Use <b>&lt;b&gt;</b> &quot;now&quot; it&#39;s &#8217;ok&#x2019;</li></ul>"
+        let html = "<ul><li>Fish &amp; chips</li><li>Use &lt;b&gt; &quot;now&quot; it&#39;s &#8217;ok&#x2019;</li><li><b>Import.</b> Drop a file.</li></ul>"
         XCTAssertEqual(Changelog.bullets(fromDescription: html),
-                       ["Fish & chips", "Use <b> \"now\" it's \u{2019}ok\u{2019}"])
+                       ["Fish & chips", "Use <b> \"now\" it's \u{2019}ok\u{2019}", "**Import.** Drop a file."])
+    }
+
+    func testStyledBulletBoldsOnlyTheHeadline() {
+        let styled = Changelog.styled("**Import audio files.** Drop a file on History.")
+        XCTAssertEqual(String(styled.characters), "Import audio files. Drop a file on History.")
+        let bold = styled.runs.filter { $0.inlinePresentationIntent?.contains(.stronglyEmphasized) == true }
+        XCTAssertEqual(bold.map { String(styled[$0.range].characters) }, ["Import audio files."])
+        XCTAssertEqual(String(Changelog.styled("No headline here.").characters), "No headline here.")
+        XCTAssertEqual(String(Changelog.styled("Open **unclosed").characters), "Open **unclosed")
     }
 
     func testBulletsFromPlainText() {
@@ -69,6 +78,9 @@ final class ChangelogTests: XCTestCase {
         for entry in entries {
             XCTAssertNotNil(entry.date, entry.version)
             XCTAssertFalse(entry.items.isEmpty, entry.version)
+        }
+        for entry in entries {
+            for item in entry.items { XCTAssertTrue(item.hasPrefix("**"), "\(entry.version): \(item)") }
         }
         XCTAssertFalse(text.contains("\u{2014}"))
         XCTAssertFalse(text.contains("\u{2013}"))

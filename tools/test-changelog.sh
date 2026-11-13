@@ -23,10 +23,11 @@ cat > $tmp/fixture.md <<'MD'
 - Fish & chips, and 1 < 2.
 - A wrapped
   line.
+- **Bold & brief.** Then <plain> text.
 MD
 out=$($root/tools/changelog.sh 1.0.0 $tmp/fixture.md 2>&1)
-[[ $out == '<ul><li>Fish &amp; chips, and 1 &lt; 2.</li><li>A wrapped line.</li></ul>' ]] &&
-  check "escapes & and < and joins wrapped bullets" ok || check "escapes & and < and joins wrapped bullets" "got: $out"
+[[ $out == '<ul><li>Fish &amp; chips, and 1 &lt; 2.</li><li>A wrapped line.</li><li><b>Bold &amp; brief.</b> Then &lt;plain&gt; text.</li></ul>' ]] &&
+  check "escapes & and <, joins wrapped bullets and turns **bold** into <b>" ok || check "escapes & and <, joins wrapped bullets and turns **bold** into <b>" "got: $out"
 
 printf '# What'\''s new\n\n<!--\n## 9.9.9 (2026-02-02)\n\n- Draft.\n-->\n\n## 1.0.0 (2026-01-01)\n\n- Something.\n' > $tmp/draft.md
 $root/tools/changelog.sh 9.9.9 $tmp/draft.md >/dev/null 2>&1 &&

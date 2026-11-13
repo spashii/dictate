@@ -8,20 +8,6 @@ final class Preferences {
     /// Empty: the names worth listing are your own.
     static let defaultKeyTerms = ""
 
-    enum History: String, CaseIterable, Identifiable {
-        case forever
-        case thirtyDays
-
-        var id: String { rawValue }
-
-        var title: String {
-            switch self {
-            case .forever: "Forever"
-            case .thirtyDays: "30 days"
-            }
-        }
-    }
-
     /// The input's UID; empty follows the system default.
     var microphoneUID: String { didSet { save(microphoneUID, "microphoneUID") } }
     /// Whether the text goes to the fix step before the paste.
@@ -40,8 +26,9 @@ final class Preferences {
     /// Comma or newline separated.
     var keyTerms: String { didSet { save(keyTerms, "keyTerms") } }
     var whisperModel: WhisperModel { didSet { save(whisperModel.rawValue, "whisperModel") } }
-    /// Forever by default: past dictations are the test set for whisper and the prompt.
-    var history: History { didSet { save(history.rawValue, "history") } }
+    /// What the two retention pickers stored; nil until a picker is touched, so the default can
+    /// follow Developer mode.
+    var retentionChoices: RetentionChoices { didSet { if savesRetention { retentionChoices.save(to: .standard) } } }
     /// Decodes the segments whisper was least sure of a second time, worst first. No further
     /// retry starts once the retries so far took half the first decode's time; the one in
     /// progress finishes. On by default.
@@ -51,7 +38,29 @@ final class Preferences {
     /// Whether History shows each retry and fix under its line, beside the underlined words.
     var showCorrections: Bool { didSet { UserDefaults.standard.set(showCorrections, forKey: "showCorrections") } }
     /// Shows Advanced in the sidebar, and nothing else.
-    var developerMode: Bool { didSet { UserDefaults.standard.set(developerMode, forKey: "developerMode") } }
+    var developerMode: Bool { didSet { if savesRetention { UserDefaults.standard.set(developerMode, forKey: "developerMode") } } }
+    /// The app-shots run changes these to draw each state and must not leave them in the
+    /// person's own settings.
+    private var savesRetention: Bool {
+        #if DEBUG
+        return Snapshots.folder == nil
+        #else
+        return true
+        #endif
+    }
+    /// What the automatic deletion may remove right now: nothing while Developer mode is on.
+    var retention: RetentionPolicy {
+        .effective(audio: retentionChoices.audio, transcripts: retentionChoices.transcripts, developerMode: developerMode)
+    }
+
+    var shownAudioRetention: AudioRetention {
+        RetentionPolicy.shownAudio(retentionChoices.audio, developerMode: developerMode)
+    }
+
+    var shownTranscriptRetention: TranscriptRetention {
+        RetentionPolicy.shownTranscripts(retentionChoices.transcripts, developerMode: developerMode)
+    }
+
     /// Not in Settings: Ollama is on this Mac on its own port, and nothing else is expected.
     let ollamaURL: String
     /// dictate-cli mcp writes the key terms from another process; this brings them in.
@@ -69,7 +78,7 @@ final class Preferences {
         titleCalls = TitleCallsDefault.load(from: defaults)
         keyTerms = defaults.string(forKey: "keyTerms") ?? Self.defaultKeyTerms
         whisperModel = defaults.string(forKey: "whisperModel").flatMap(WhisperModel.init) ?? .largeV3Turbo
-        history = defaults.string(forKey: "history").flatMap(History.init) ?? .forever
+        retentionChoices = RetentionChoices.load(from: defaults)
         retrySegments = defaults.object(forKey: "retrySegments") as? Bool ?? true
         historyTimes = defaults.string(forKey: HistoryTimeMode.defaultsKey).flatMap(HistoryTimeMode.init) ?? .standard
         showCorrections = defaults.bool(forKey: "showCorrections")

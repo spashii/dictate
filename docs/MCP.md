@@ -1,6 +1,6 @@
 # Dictate over MCP
 
-Agents read dictations and call transcripts, live calls included, through an MCP server: Claude Code, Codex or any MCP client on this Mac, and, if you choose, on your other devices over Tailscale.
+Agents read dictations and call transcripts through an MCP server, live calls included. Claude Code, Codex or any MCP client on this Mac can connect. Your other devices can too if you set up Tailscale.
 
 | From | Address |
 | --- | --- |
@@ -11,7 +11,7 @@ Every request carries `Authorization: Bearer <token>`, from this Mac too; withou
 
 ## Who serves it
 
-Dictate hosts the server while it runs, unless Settings, Agents, "Agents can read transcripts" is off. That page sets the host and port (the server restarts when they change), copies or regenerates the token, copies the setup for an agent app, and switches each tool on or off. The tools that start a recording or change stored data are off until someone turns them on (existing choices are kept). A tool that is off is missing from `tools/list` and refuses `tools/call`, for agents already connected too. When Dictate isn't running nothing answers, and the tailnet address returns 502.
+Dictate hosts the server while it runs, unless "Agents can read transcripts" in the Agents settings is off. That page sets the host and port (the server restarts when they change), copies or regenerates the token, copies the setup for an agent app, and switches each tool on or off. The tools that start a recording or change stored data are off until someone turns them on (existing choices are kept). A tool that is off is missing from `tools/list` and refuses `tools/call`, for agents already connected too. When Dictate isn't running nothing answers, and the tailnet address returns 502.
 
 `dictate-cli mcp` serves the same thing without the app, against the same database:
 
@@ -19,11 +19,11 @@ Dictate hosts the server while it runs, unless Settings, Agents, "Agents can rea
 Core/.build/release/dictate-cli mcp            # [--port N] [--db PATH]
 ```
 
-Only one of the two can hold port 7766; the second to start reports that the port is in use. The server listens on 127.0.0.1 only.
+Only one of the two can hold port 7766; the second to start reports that the port is in use. `dictate-cli mcp` listens on 127.0.0.1 only.
 
 ## The token
 
-`~/Library/Application Support/Dictate/mcp-token`: 32 random bytes in hex, mode 0600, made by whichever of the app or `dictate-cli mcp` starts first. To change it, delete the file and restart whatever serves; every client then needs the new one.
+`~/Library/Application Support/Dictate/mcp-token`: 32 random bytes in hex, mode 0600, made by whichever of the app or `dictate-cli mcp` starts first. To change it, press Regenerate in the Agents settings. With `dictate-cli mcp` alone, delete the file and restart it. Every client then needs the new one.
 
 To add Dictate to Claude Code on this Mac:
 
@@ -32,9 +32,7 @@ claude mcp add --transport http --scope user dictate http://127.0.0.1:7766/mcp \
   --header "Authorization: Bearer $(cat ~/Library/Application\ Support/Dictate/mcp-token)"
 ```
 
-The server reports `"name": "dictate"` and `"title": "Dictate"` in `serverInfo`. The endpoint is still `/mcp` on port 7766, and the token is unchanged by the rename. A client registered as `voice` keeps working: a client keys on the name in its own configuration, not on `serverInfo`, and its tools stay `mcp__voice__*` until it is registered again under another name.
-
-`~/Library/Application Support/Voice` is a link to `Dictate` after the data folder moves, so `~/Library/Application Support/Voice/mcp-token` still reads the same token.
+The server reports `"name": "dictate"` and `"title": "Dictate"` in `serverInfo`. A client registered as `voice` keeps working.
 
 From another device, use the tailnet address instead, and keep the token in that device's own secret store rather than in a shell history.
 
@@ -95,7 +93,7 @@ To follow a live call, take the cursor from `current_call`, then call `wait_for_
 
 The recorder writes with `createCall`, `appendSegments`, `markTranscribing`, `finishCall`, `failCall`, `setTitle` and `tagCall`, and calls `failInterruptedCalls` at launch so a call cut off by a crash stops counting as current. The app's titler writes with `setAutoTitle`.
 
-`CallRecorder` (Core) writes each call to `~/Library/Application Support/Dictate/calls/<ms>-<id>.wav` at the device's rate, me on the left and the call on the right, and transcribes each side at its pauses while the call runs. While the call records the WAV is the source of truth: at launch the app takes the calls still marked live, fails them with `failInterruptedCalls`, then rebuilds their transcripts from the file (`dictate-cli call --rebuild ID` does the same by hand). When a call's status becomes `done`, `CallAudio` re-encodes the WAV as AAC (`<ms>-<id>.m4a`, the WAV's own sample rate and channels, 48 kbps a channel, about 45 MB an hour of stereo against 690 MB), checks that the .m4a opens with the WAV's channels and a duration within 0.5 s, then points the call at it and deletes the WAV. If any step fails the WAV and the path stay and the failure is logged (`log show --predicate 'category == "call-audio"'`); the app retries at the next launch. Rebuild reads either format. Settings, Keep history, 30 days deletes calls older than that, with their audio, as it does dictations; calls still recording or transcribing are never deleted. Me is the microphone and Call is the call app's sound (every helper process of a browser included), both from one BlendKit capture (`CallCapturing`; BlendKit is Blend Mic's engine, pinned to its 0.9.0 release in `Core/Package.swift` and `app/project.yml`, resolved in `Core/Package.resolved`) at 48 kHz and the same instants; a Blend mix is read as one two-channel device instead. `CallPlanner` picks them from the call audio choice in Settings, Microphones, and falls back to the microphone alone when the app can't be captured or the System Audio Recording permission is denied. The capture's events (the app's sound lost or silent, the microphone missing) become notices and never end the call. With an app as Call, BlendKit cancels the call's echo from Me when Settings, Microphones, Cancel echo from the call is on.
+`CallRecorder` (Core) writes each call to `~/Library/Application Support/Dictate/calls/<ms>-<id>.wav` at the device's rate, me on the left and the call on the right, and transcribes each side at its pauses while the call runs. While the call records the WAV is the source of truth: at launch the app takes the calls still marked live, fails them with `failInterruptedCalls`, then rebuilds their transcripts from the file (`dictate-cli call --rebuild ID` does the same by hand). When a call's status becomes `done`, `CallAudio` re-encodes the WAV as AAC (`<ms>-<id>.m4a`, the WAV's own sample rate and channels, 48 kbps a channel, about 45 MB an hour of stereo against 690 MB), checks that the .m4a opens with the WAV's channels and a duration within 0.5 s, then points the call at it and deletes the WAV. If any step fails the WAV and the path stay and the failure is logged (`log show --predicate 'category == "call-audio"'`); the app retries at the next launch. Rebuild reads either format. Settings, Data retention deletes old calls and their audio as it does dictations (audio after 7 days and history after 30 by default, nothing while Developer mode is on); calls still recording or transcribing are never deleted. Me is the microphone and Call is the call app's sound (every helper process of a browser included), both from one BlendKit capture (`CallCapturing`; BlendKit is Blend Mic's engine, pinned to its 0.9.0 release in `Core/Package.swift` and `app/project.yml`, resolved in `Core/Package.resolved`) at 48 kHz and the same instants; a Blend mix is read as one two-channel device instead. `CallPlanner` picks them from the call audio choice in Settings, Microphones, and falls back to the microphone alone when the app can't be captured or the System Audio Recording permission is denied. The capture's events (the app's sound lost or silent, the microphone missing) become notices and never end the call. With an app as Call, BlendKit cancels the call's echo from Me when Settings, Microphones, Cancel echo from the call is on.
 
 ## Testing
 

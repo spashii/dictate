@@ -1,5 +1,6 @@
 import AVFoundation
 import KeyboardShortcuts
+import os
 import ServiceManagement
 import SwiftUI
 import VoiceCore
@@ -77,6 +78,12 @@ final class AppModel {
     @ObservationIgnored weak var calls: CallsModel?
     @ObservationIgnored private var recorder: Recorder!
     @ObservationIgnored private var store: Store?
+    @ObservationIgnored private var sweeping = false
+    @ObservationIgnored private var sweepAgain = false
+    @ObservationIgnored private var sweepNow: Date?
+    @ObservationIgnored private var sweptPolicy: RetentionPolicy?
+    /// Bumped when the policy changes, so a running sweep under the old one stops early.
+    @ObservationIgnored private let sweepGeneration = OSAllocatedUnfairLock(initialState: 0)
     @ObservationIgnored private var pipeline: Pipeline?
     @ObservationIgnored private var pipelineModel: WhisperModel?
     @ObservationIgnored private var startTask: Task<Bool, Never>?
@@ -146,12 +153,6 @@ final class AppModel {
         return preferences.effectiveModel
     }
 
-    /// Whether the prompt will run: it is on, and the chosen model can answer.
-    var fixesText: Bool {
-        preferences.runPrompt
-            && LocalModelChoice.canRun(effectiveModel, appleAvailable: appleModelAvailable, ollamaModels: ollamaModels)
-    }
-
     var setupComplete: Bool {
         #if DEBUG
         if snapshotSetupComplete { return true }
@@ -173,7 +174,7 @@ final class AppModel {
     /// The first line of the menu.
     var statusText: String {
         switch phase {
-        case .idle, .notice, .edits: fixesText ? "Ready" : "Ready, Whisper only"
+        case .idle, .notice, .edits: "Ready"
         case .recording(_, let began): "Listening " + Self.clock(now.timeIntervalSince(began))
         case .transcribing: "Transcribing"
         case .cleaningUp: "Fixing the text"
@@ -185,8 +186,9 @@ final class AppModel {
         applyLock()
         do {
             store = try Store(url: Paths.database)
-            pruneHistory()
+            // Read before the sweep starts: a long prune holds the store.
             recent = store?.recent(5) ?? []
+            applyRetention()
         } catch {
             show("Can't open the history: \(error)")
         }
@@ -195,8 +197,15 @@ final class AppModel {
         agents.launch()
         updates.onStaged = { [weak self] in self?.installUpdateWhenQuiet() }
         installUpdateWhenQuiet()
+        // Retention also runs when the app stays open for days.
+        Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(3600))
+                applyRetention()
+            }
+        }
         // Ollama can start or stop at any time; a localhost check every half minute keeps
-        // the menu's "Whisper only" honest without asking on every keypress.
+        // the model status honest without asking on every keypress.
         Task {
             while !Task.isCancelled {
                 await refreshOllama()
@@ -277,6 +286,7 @@ final class AppModel {
                                  timeZone: dictation.timeZone)
                 store?.delete(dictation.id)
                 recent = store?.recent(5) ?? recent
+                applyRetention()
                 if retried.finalText.isEmpty {
                     show("Heard nothing in it.")
                 } else {
@@ -330,14 +340,119 @@ final class AppModel {
         openAtLogin = SMAppService.mainApp.status == .enabled
     }
 
-    /// Under "30 days", deletes dictations and calls older than that, with their audio.
-    func pruneHistory() {
-        guard preferences.history == .thirtyDays else { return }
-        let cutoff = Date().addingTimeInterval(-30 * 24 * 3600)
-        calls?.pruneHistory(before: cutoff)
-        guard let store else { return }
-        store.prune(before: cutoff)
-        recent = store.recent(5)
+    /// Deletes what the retention choices allow, off the main thread. Never two sweeps at
+    /// once: a request during a sweep runs one more after it. `now` is the moment a
+    /// confirmation counted at, so what goes matches the numbers shown.
+    func applyRetention(now: Date? = nil) {
+        let targets = calls?.retentionTargets
+        guard store != nil || targets != nil else { return }
+        calls?.setDeletesAudioWhenDone(preferences.retention.audio == .untilTranscribed)
+        let policy = preferences.retention
+        if let sweptPolicy, sweptPolicy != policy { sweepGeneration.withLock { $0 += 1 } }
+        sweptPolicy = policy
+        if sweeping {
+            sweepAgain = true
+            sweepNow = now ?? sweepNow
+            return
+        }
+        sweeping = true
+        let dictations = store
+        let generation = sweepGeneration.withLock { $0 }
+        let generations = sweepGeneration
+        let at = now ?? Date()
+        Task {
+            let counts = await Task.detached(priority: .utility) {
+                RetentionSweep.run(policy, dictations: dictations, calls: targets?.store,
+                                   deleteCallAudio: targets?.deleteAudio, now: at,
+                                   shouldContinue: { generations.withLock { $0 } == generation })
+            }.value
+            sweeping = false
+            if !counts.isEmpty {
+                Self.retentionLog.info("deleted \(counts.recordings, privacy: .public) recordings and the audio of \(counts.audioOnly, privacy: .public) more")
+                refreshRecents()
+                mainWindow.reloadHistory()
+            }
+            if sweepAgain {
+                sweepAgain = false
+                let next = sweepNow
+                sweepNow = nil
+                applyRetention(now: next)
+            }
+        }
+    }
+
+    private static let retentionLog = Logger(subsystem: "io.github.spashii.voice", category: "retention")
+
+    /// What a policy would delete now, counted off the main thread; empty before any database is open.
+    private func retentionPreview(_ policy: RetentionPolicy, now: Date) async -> RetentionCounts {
+        let targets = calls?.retentionTargets
+        let dictations = store
+        guard dictations != nil || targets != nil else { return RetentionCounts() }
+        return await Task.detached(priority: .userInitiated) {
+            RetentionSweep.preview(policy, dictations: dictations, calls: targets?.store, now: now)
+        }.value
+    }
+
+    /// A picker changed. Asks first when the new policy would delete something now; the
+    /// picker keeps showing the stored choice until it is confirmed.
+    func setRetention(audio: AudioRetention? = nil, transcripts: TranscriptRetention? = nil) {
+        var choices = preferences.retentionChoices
+        if let audio { choices.audio = audio }
+        if let transcripts { choices.transcripts = transcripts }
+        changeRetention(choices, developerMode: preferences.developerMode, alert: RetentionText.deleteOldRecordings)
+    }
+
+    /// The Developer mode switch. Turning it off lets the policy delete again, and an audio
+    /// choice of Forever falls back to the default, so what that would delete is confirmed.
+    func setDeveloperMode(_ on: Bool) {
+        guard preferences.developerMode != on else { return }
+        if on {
+            preferences.developerMode = true
+            applyRetention()
+            return
+        }
+        changeRetention(preferences.retentionChoices.afterDeveloperModeOff(), developerMode: false,
+                        alert: RetentionText.turnOffDeveloperMode)
+    }
+
+    private func changeRetention(_ choices: RetentionChoices, developerMode: Bool,
+                                 alert: @escaping (RetentionCounts, RetentionPolicy) -> RetentionText.Alert) {
+        let policy = RetentionPolicy.effective(audio: choices.audio, transcripts: choices.transcripts,
+                                               developerMode: developerMode)
+        Task {
+            let now = Date()
+            let counts = await retentionPreview(policy, now: now)
+            if !counts.isEmpty, !(await confirm(alert(counts, policy))) {
+                retentionRevision += 1
+                return
+            }
+            preferences.retentionChoices = choices
+            preferences.developerMode = developerMode
+            applyRetention(now: now)
+        }
+    }
+
+    /// Bumped when a confirmation is cancelled, so a picker that already moved shows the stored value again.
+    private(set) var retentionRevision = 0
+
+    /// The confirmation as the app shows it, one place so the app-shots draw the same alert.
+    static func retentionAlert(_ text: RetentionText.Alert) -> NSAlert {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = text.title
+        alert.informativeText = text.body
+        let destructive = alert.addButton(withTitle: text.confirm)
+        destructive.hasDestructiveAction = true
+        alert.addButton(withTitle: text.cancel)
+        return alert
+    }
+
+    private func confirm(_ text: RetentionText.Alert) async -> Bool {
+        let alert = Self.retentionAlert(text)
+        if let window = mainWindow.visibleWindow {
+            return await alert.beginSheetModal(for: window) == .alertFirstButtonReturn
+        }
+        return alert.runModal() == .alertFirstButtonReturn
     }
 
     func noticeAction(_ action: NoticeAction) {
@@ -386,7 +501,7 @@ final class AppModel {
         live = session
         startTask = Task {
             guard await AVCaptureDevice.requestAccess(for: .audio) else {
-                show("Dictate needs the microphone: System Settings, Privacy & Security, Microphone.")
+                show("Allow the microphone for Dictate in System Settings.")
                 return false
             }
             do {
@@ -488,6 +603,7 @@ final class AppModel {
                 }
                 recent = store.recent(5)
             }
+            applyRetention()
         }
     }
 
@@ -498,8 +614,8 @@ final class AppModel {
     }
 
     private func finish(_ dictation: Dictation, inputLost: Bool = false, writeError: String? = nil) async {
-        pruneHistory()
         recent = store?.recent(5) ?? recent
+        applyRetention()
         let lost = "The microphone went away, so Dictate stopped"
         guard !dictation.finalText.isEmpty else {
             show(writeError.map { "Couldn't write the recording: \($0)" }

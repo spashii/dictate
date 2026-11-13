@@ -16,21 +16,33 @@ struct SetupPane: View {
                 CallAudioStep()
                 SpeechModelStep(whisperModel: preferences.whisperModel)
             } footer: {
-                Text("Press \(KeyboardShortcuts.getShortcut(for: .dictate)?.description ?? "the shortcut") in any text field, speak, press it again.")
+                Text("Press \(KeyboardShortcuts.getShortcut(for: .dictate)?.description ?? "the shortcut") in any text field and speak. Press it again to paste.")
             }
             Section {
                 Toggle("Open at login", isOn: Binding(get: { model.openAtLogin }, set: { model.setOpenAtLogin($0) }))
-                Picker(selection: $preferences.history) {
-                    Text(Preferences.History.thirtyDays.title).tag(Preferences.History.thirtyDays)
-                    Text(Preferences.History.forever.title).tag(Preferences.History.forever)
-                } label: {
-                    Text("Keep history")
-                    Text("Each dictation\u{2019}s and call\u{2019}s audio and text.")
+            }
+            Section {
+                Picker(RetentionText.audioLabel, selection: Binding(
+                    get: { _ = model.retentionRevision; return preferences.shownAudioRetention },
+                    set: { model.setRetention(audio: $0) })) {
+                    ForEach(RetentionText.audioOptions(developerMode: preferences.developerMode), id: \.self) {
+                        Text(RetentionText.title($0)).tag($0)
+                    }
                 }
+                Picker(RetentionText.historyLabel, selection: Binding(
+                    get: { _ = model.retentionRevision; return preferences.shownTranscriptRetention },
+                    set: { model.setRetention(transcripts: $0) })) {
+                    ForEach(RetentionText.transcriptOptions, id: \.self) {
+                        Text(RetentionText.title($0)).tag($0)
+                    }
+                }
+            } header: {
+                Text(RetentionText.groupTitle)
+            } footer: {
+                if preferences.developerMode { Text(RetentionText.developerModeFooter) }
             }
         }
         .formStyle(.grouped)
-        .onChange(of: preferences.history) { model.pruneHistory() }
     }
 }
 
@@ -47,7 +59,7 @@ struct ShortcutsPane: View {
             }
             Section("Record call") {
                 KeyboardShortcuts.Recorder("Shortcut", name: .recordCall)
-                Toggle("Ask automatically to record calls", isOn: $calls.askToRecord)
+                Toggle("Ask to record when a call starts", isOn: $calls.askToRecord)
             }
         }
         .formStyle(.grouped)
@@ -137,9 +149,9 @@ struct CallAudioPermissionRow: View {
                 }
             } label: {
                 Label("Dictate can\u{2019}t record call audio yet", systemImage: "exclamationmark.circle")
-                Text(calls.capturePermission == .denied
-                     ? "Turn on Dictate under System Audio Recording."
-                     : "macOS asks once.")
+                if calls.capturePermission == .denied {
+                    Text("Turn on Dictate under System Audio Recording.")
+                }
             }
         }
     }
@@ -165,13 +177,13 @@ struct ModelPane: View {
                 }
                 SpeechModelStatus(whisperModel: preferences.whisperModel)
                 Toggle(isOn: $preferences.retrySegments) {
-                    Text("Retry unsure segments")
+                    Text("Retry unsure words")
                     Text("Words Whisper was unsure of are transcribed again, more carefully. This can add a moment before the paste.")
                 }
                 RetryStatsView()
                 TextField(text: $preferences.keyTerms, axis: .vertical) {
                     Text("Key terms")
-                    Text("Names, product names and jargon Whisper gets wrong, as they should be spelled.")
+                    Text("Words Whisper gets wrong, spelled your way.")
                 }
                 SuggestedTermsView()
             }
@@ -184,7 +196,6 @@ struct ModelPane: View {
                 .disabled(noModel)
                 Toggle(isOn: $preferences.titleCalls) {
                     Text("Add a title to each call automatically")
-                    Text("Names each call from its transcript when it ends.")
                 }
                 .disabled(noModel)
             }
@@ -278,7 +289,7 @@ struct AgentsPane: View {
             Section {
                 Toggle(isOn: $agents.enabled) {
                     Text("Agents can read transcripts")
-                    Text("Claude Code and other agents read your dictations and call transcripts over MCP, with the token.")
+                    Text("Over MCP, with the token below.")
                 }
             }
             if agents.enabled {
@@ -337,10 +348,9 @@ struct AgentsPane: View {
     private func connect() -> some View {
         Section {
             LabeledContent {
-                Button("Show") { showingSetup = true }
+                Button("Show Config") { showingSetup = true }
             } label: {
                 Text("Connect an agent app")
-                Text("The config for an agent app, with your token.")
             }
         }
     }
@@ -506,7 +516,7 @@ struct AboutPane: View {
                 }
             }
             Section {
-                Toggle("Developer mode", isOn: $preferences.developerMode)
+                Toggle("Developer mode", isOn: Binding(get: { _ = model.retentionRevision; return preferences.developerMode }, set: { model.setDeveloperMode($0) }))
             }
             Section {
                 Link(destination: URL(string: "https://spashii.github.io/dictate/")!) {
@@ -547,7 +557,7 @@ private struct BulletList: View {
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                 HStack(alignment: .firstTextBaseline) {
                     Text("\u{2022}")
-                    Text(verbatim: item).lineSpacing(2).fixedSize(horizontal: false, vertical: true)
+                    Text(Changelog.styled(item)).lineSpacing(2).fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
                 }
             }

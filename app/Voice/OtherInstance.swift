@@ -37,7 +37,7 @@ enum OtherInstance {
         if cleared { return true }
         let alert = NSAlert()
         alert.messageText = "Another copy of Dictate is still running"
-        alert.informativeText = "An older version (Voice) didn't quit when asked. Quit it from the menu bar, then open Dictate again. Nothing was changed."
+        alert.informativeText = "An older version (Voice) didn't quit when asked. Quit it from the menu bar, then open Dictate again."
         alert.addButton(withTitle: "Quit")
         alert.runModal()
         return false

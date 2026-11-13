@@ -129,7 +129,7 @@ extension Snapshots {
         // A bitmap draw of the window leaves the grouped form blank, like the sidebar, so the pane
         // is drawn on its own and laid over the window's detail area.
         let paneSize = NSSize(width: size.width - 196, height: size.height - 52)
-        let pane = makeWindow(content.environment(model).background(Color(nsColor: .windowBackgroundColor)),
+        let pane = makeWindow(content.environment(model).environment(CallsModel()).background(Color(nsColor: .windowBackgroundColor)),
                               size: paneSize, dark: dark, titled: false)
         try await Task.sleep(for: .seconds(2))
         guard let base = await capture(window, size: size, titled: true),

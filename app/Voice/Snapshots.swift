@@ -90,6 +90,7 @@ enum Snapshots {
                 await write(folder, "dictation-pill-\(suffix)", await dictationPill(model, dark: dark))
                 await write(folder, "call-pill-\(suffix)", await callPill(dark: dark))
                 await write(folder, "record-call-nudge-\(suffix)", await nudge(model, dark: dark))
+                try await retentionShots(model, store: store, into: folder, suffix: suffix, dark: dark)
             }
         } catch {
             DevLog.write("app-shots failed: \(error)")
@@ -109,9 +110,9 @@ enum Snapshots {
     }
 
     private static let fixtureUpdate = AvailableUpdate(version: "0.15.0", notes: Changelog.bullets(fromDescription: """
-        <ul><li>Drop an audio or video file on History to transcribe it.</li>\
-        <li>History has a + button for a new dictation or call.</li>\
-        <li>Agents can bring in an audio file by path. The tool is off until you turn it on.</li></ul>
+        <ul><li><b>Import audio files.</b> Drop an audio or video file on History to transcribe it.</li>\
+        <li><b>A New menu.</b> History has a + button for a new dictation or call.</li>\
+        <li><b>Agents can import.</b> The tool is off until you turn it on.</li></ul>
         """))
 
     private static func dictationPill(_ model: AppModel, dark: Bool) async -> NSBitmapImageRep? {
@@ -147,9 +148,9 @@ enum Snapshots {
     private static func nudge(_ model: AppModel, dark: Bool) async -> NSBitmapImageRep? {
         let calls = CallsModel()
         calls.promptForSnapshots(DetectedCall(bundleID: "com.example.meeting", name: "Meeting"), model: model)
-        let size = NSSize(width: 420, height: 92)
+        let size = NSSize(width: 500, height: 104)
         let view = Backdrop(dark: dark) {
-            CallPromptView().environment(calls).frame(width: 340, height: 44)
+            CallPromptView().environment(calls).frame(width: 420, height: 56)
         }
         return await capture(makeWindow(view, size: size, dark: dark, titled: false), size: size, titled: false)
     }

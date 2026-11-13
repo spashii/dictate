@@ -80,7 +80,7 @@ public struct WhisperOptions: Sendable, Codable {
 /// little padding and decoded again with beam search and the segment before it as context,
 /// and the version whisper is surer of is kept. Worst first, until the budget is spent.
 public struct SegmentRetry: Sendable, Codable {
-    /// On in the app, behind the "Retry unsure segments" switch. Off here so dictate-cli's
+    /// On in the app, behind the "Retry unsure words" switch. Off here so dictate-cli's
     /// batch measures the first pass unless told otherwise.
     public var enabled = false
     /// Segments whose mean token log probability is below this are candidates. Of the
@@ -98,7 +98,7 @@ public struct SegmentRetry: Sendable, Codable {
 
     /// Why a flagged segment wasn't decoded again, stored as its raw value.
     public enum Skip: String, Sendable, Codable, Equatable {
-        /// The "Retry unsure segments" switch was off.
+        /// The "Retry unsure words" switch was off.
         case off
         /// The retries before it had spent the budget.
         case budget
