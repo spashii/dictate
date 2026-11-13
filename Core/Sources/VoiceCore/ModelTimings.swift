@@ -69,8 +69,21 @@ extension CallTitler {
     public func timedTitle(_ callID: String, in store: CallStore, models: [any TitleModel], kind: ModelTimings.Kind,
                            since: ContinuousClock.Instant) async -> String? {
         guard isEligible(callID, in: store) else { return nil }
+        return await timed(.call, callID, force: false, in: store, models: models, kind: kind, since: since)
+    }
+
+    /// `retitle`, timed the same way. A recording with too little text records nothing.
+    public func timedRetitle(_ recording: HistoryEntry.Kind, _ ref: String, in store: CallStore,
+                             models: [any TitleModel], kind: ModelTimings.Kind,
+                             since: ContinuousClock.Instant) async -> String? {
+        guard canTitle(recording, ref, in: store) else { return nil }
+        return await timed(recording, ref, force: true, in: store, models: models, kind: kind, since: since)
+    }
+
+    private func timed(_ recording: HistoryEntry.Kind, _ ref: String, force: Bool, in store: CallStore,
+                       models: [any TitleModel], kind: ModelTimings.Kind, since: ContinuousClock.Instant) async -> String? {
         let began = ContinuousClock.now
-        let attempt = await attempt(callID, in: store, models: models)
+        let attempt = await attempt(recording, ref, force: force, in: store, models: models)
         let now = ContinuousClock.now
         let outcome: ModelTimings.Outcome = attempt.title != nil ? .ok
             : Task.isCancelled ? .cancelled : attempt.failed ? .failed : .empty

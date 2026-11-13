@@ -60,6 +60,17 @@ public enum CallTitles {
             } ?? segment.channel.label
             lines.append(name.map { "\($0): \(text)" } ?? text)
         }
+        return trimmed(lines, words: words)
+    }
+
+    /// A dictation's text as the model sees it, under the same minimum and the same budget.
+    public static func excerpt(text: String) -> String? {
+        let lines = text.split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        return trimmed(lines, words: lines.reduce(0) { $0 + $1.split(whereSeparator: \.isWhitespace).count })
+    }
+
+    private static func trimmed(_ lines: [String], words: Int) -> String? {
         guard words >= minimumWords else { return nil }
         let full = lines.joined(separator: "\n")
         let budget = budget(for: full)
@@ -236,9 +247,24 @@ public struct CallTitler: Sendable {
     /// Whether a title could be made for the call now: it has none, nobody set one, and there
     /// is enough transcript. Cheap, so the app can ask before it frees memory for a model.
     public func isEligible(_ callID: String, in store: CallStore) -> Bool {
-        guard let call = try? store.call(callID), call.title == nil, call.titleSource == nil,
-              let segments = try? store.segments(callID) else { return false }
-        return CallTitles.excerpt(segments, speakers: call.speakers) != nil
+        guard let call = try? store.call(callID), call.title == nil, call.titleSource == nil else { return false }
+        return Self.excerpt(.call, callID, in: store) != nil
+    }
+
+    /// Whether there is enough text to title the recording on request, whatever its title is now.
+    public func canTitle(_ kind: HistoryEntry.Kind, _ ref: String, in store: CallStore) -> Bool {
+        Self.excerpt(kind, ref, in: store) != nil
+    }
+
+    static func excerpt(_ kind: HistoryEntry.Kind, _ ref: String, in store: CallStore) -> String? {
+        switch kind {
+        case .call:
+            guard let call = try? store.call(ref), let segments = try? store.segments(ref) else { return nil }
+            return CallTitles.excerpt(segments, speakers: call.speakers)
+        case .dictation:
+            guard let dictation = try? store.dictation(ref) else { return nil }
+            return CallTitles.excerpt(text: dictation.finalText)
+        }
     }
 
     /// The title stored, or nil when none was: the call already has one, is too short, no
@@ -247,14 +273,28 @@ public struct CallTitler: Sendable {
         await attempt(callID, in: store, models: models).title
     }
 
+    /// An explicit request: replaces any title, a person's or an agent's included, and stores
+    /// the new one as automatic. Nil, with the old title kept, when there is too little text,
+    /// no model answered usably, or the title changed while the model worked.
+    public func retitle(_ kind: HistoryEntry.Kind, _ ref: String, in store: CallStore,
+                        models: [any TitleModel]) async -> String? {
+        await attempt(kind, ref, force: true, in: store, models: models).title
+    }
+
     /// `failed`: no model answered, because each one threw or the store did.
     func attempt(_ callID: String, in store: CallStore, models: [any TitleModel]) async -> (title: String?, failed: Bool) {
+        await attempt(.call, callID, force: false, in: store, models: models)
+    }
+
+    func attempt(_ kind: HistoryEntry.Kind, _ ref: String, force: Bool, in store: CallStore,
+                 models: [any TitleModel]) async -> (title: String?, failed: Bool) {
         guard !models.isEmpty else { return (nil, false) }
         var answered = false
         var errored = false
         do {
-            guard let call = try store.call(callID), call.title == nil, call.titleSource == nil,
-                  let excerpt = CallTitles.excerpt(try store.segments(callID), speakers: call.speakers)
+            guard let before = try store.recordingTitle(kind, ref),
+                  force || (before.title == nil && before.source == nil),
+                  let excerpt = Self.excerpt(kind, ref, in: store)
             else { return (nil, false) }
             let prompt = CallTitles.prompt(for: excerpt)
             for model in models {
@@ -275,8 +315,14 @@ public struct CallTitler: Sendable {
                     Self.log.error("\(model.name, privacy: .public) answered with no usable title")
                     continue
                 }
-                // False when a person or an agent named the call in the meantime.
-                return (try store.setAutoTitle(callID, title) ? title : nil, false)
+                // Nothing is written when a person or an agent named it in the meantime.
+                guard let now = try store.recordingTitle(kind, ref), now.title == before.title,
+                      now.source == before.source else { return (nil, false) }
+                if force {
+                    try store.rename(kind, ref, to: title, source: .auto)
+                    return (title, false)
+                }
+                return (try store.setAutoTitle(ref, title) ? title : nil, false)
             }
         } catch {
             errored = true

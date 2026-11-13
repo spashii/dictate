@@ -309,3 +309,121 @@ private final class AskCount: @unchecked Sendable {
         #expect(model.asked.count == 0)
     }
 }
+
+@Suite struct ExplicitTitleTests {
+    private let speech = [
+        NewCallSegment(channel: .me, startMs: 0, endMs: 4000, text: "We should plan the Northwind rollout with Alex this month."),
+        NewCallSegment(channel: .call, startMs: 4000, endMs: 8000, text: "Agreed, Lakeside needs the new schedule by Friday afternoon."),
+    ]
+    private let spoken = "Remind me to send Alex the Northwind proposal before the Lakeside visit on Friday."
+
+    private func call(title: String? = nil, source: TitleSource? = nil) throws -> (CallStore, Call) {
+        let store = try CallStore(url: temporaryCallDatabase())
+        let created = try store.createCall(NewCall(split: true, title: title, titleSource: source))
+        try store.appendSegments(created.id, speech)
+        return (store, created)
+    }
+
+    @Test func replacesAPersonsOrAnAgentsTitleAsAuto() async throws {
+        for source in [TitleSource.user, .agent, .auto] {
+            let (store, created) = try call(title: "Old name", source: source)
+            let model = FakeModel(name: "a") { "Northwind rollout with Alex" }
+            #expect(await CallTitler().retitle(.call, created.id, in: store, models: [model]) == "Northwind rollout with Alex")
+            let read = try #require(try store.call(created.id))
+            #expect(read.title == "Northwind rollout with Alex" && read.titleSource == .auto)
+        }
+    }
+
+    @Test func theAutomaticPathStillNeverReplacesOne() async throws {
+        for source in [TitleSource.user, .agent] {
+            let (store, created) = try call(title: "Old name", source: source)
+            let model = FakeModel(name: "a") { "Something else" }
+            #expect(await CallTitler().title(created.id, in: store, models: [model]) == nil)
+            #expect(model.asked.count == 0)
+            #expect(try store.call(created.id)?.title == "Old name")
+        }
+    }
+
+    @Test func aFailedOrEmptyRunKeepsTheOldTitle() async throws {
+        let (store, created) = try call(title: "Old name", source: .user)
+        let failing = FakeModel(name: "a") { throw FakeModel.Failure.failed }
+        let empty = FakeModel(name: "b") { "" }
+        let junk = FakeModel(name: "c") { "Sorry, I can't help with that." }
+        #expect(await CallTitler().retitle(.call, created.id, in: store, models: [failing, empty, junk]) == nil)
+        let read = try #require(try store.call(created.id))
+        #expect(read.title == "Old name" && read.titleSource == .user)
+    }
+
+    @Test func aTitleSetWhileTheModelWorksIsKept() async throws {
+        let (store, created) = try call(title: "Old name", source: .user)
+        let id = created.id
+        let model = FakeModel(name: "a") {
+            try store.rename(.call, id, to: "Alex's newer name")
+            return "Northwind rollout with Alex"
+        }
+        #expect(await CallTitler().retitle(.call, id, in: store, models: [model]) == nil)
+        #expect(try store.call(id)?.title == "Alex's newer name")
+    }
+
+    @Test func aDictationIsTitledFromItsText() async throws {
+        let url = temporaryCallDatabase()
+        let calls = try CallStore(url: url)
+        let dictation = sampleDictation(spoken)
+        try Store(url: url).insert(dictation)
+        let model = FakeModel(name: "a") { "Northwind proposal for Alex" }
+        #expect(CallTitler().canTitle(.dictation, dictation.id, in: calls))
+        #expect(await CallTitler().retitle(.dictation, dictation.id, in: calls, models: [model]) == "Northwind proposal for Alex")
+        let read = try #require(try calls.recordingTitle(.dictation, dictation.id))
+        #expect(read.title == "Northwind proposal for Alex" && read.source == .auto)
+        #expect(model.asked.count == 1)
+    }
+
+    @Test func aDictationWithAPersonsTitleIsReplacedOnRequestOnly() async throws {
+        let url = temporaryCallDatabase()
+        let calls = try CallStore(url: url)
+        let dictation = sampleDictation(spoken)
+        try Store(url: url).insert(dictation)
+        try calls.rename(.dictation, dictation.id, to: "Alex's note")
+        let model = FakeModel(name: "a") { "Northwind proposal for Alex" }
+        #expect(await CallTitler().attempt(.dictation, dictation.id, force: false, in: calls, models: [model]).title == nil)
+        #expect(model.asked.count == 0)
+        #expect(await CallTitler().retitle(.dictation, dictation.id, in: calls, models: [model]) == "Northwind proposal for Alex")
+    }
+
+    @Test func aShortDictationOrCallCannotBeTitled() async throws {
+        let url = temporaryCallDatabase()
+        let calls = try CallStore(url: url)
+        let dictation = sampleDictation("Send it to Alex.")
+        try Store(url: url).insert(dictation)
+        let call = try calls.createCall(NewCall(split: true))
+        try calls.appendSegments(call.id, [NewCallSegment(channel: .me, startMs: 0, endMs: 1000, text: "Hello there")])
+        let model = FakeModel(name: "a") { "Greeting" }
+        #expect(!CallTitler().canTitle(.dictation, dictation.id, in: calls))
+        #expect(!CallTitler().canTitle(.call, call.id, in: calls))
+        #expect(await CallTitler().retitle(.dictation, dictation.id, in: calls, models: [model]) == nil)
+        #expect(await CallTitler().retitle(.call, call.id, in: calls, models: [model]) == nil)
+        #expect(model.asked.count == 0)
+    }
+
+    @Test func historyEntriesCountWordsForTheMenu() throws {
+        let url = temporaryCallDatabase()
+        let calls = try CallStore(url: url)
+        let dictation = sampleDictation(spoken)
+        try Store(url: url).insert(dictation)
+        let short = sampleDictation("Send it to Alex.")
+        try Store(url: url).insert(short)
+        let created = try calls.createCall(NewCall(split: true))
+        try calls.appendSegments(created.id, speech)
+        let entries = try calls.historyEntries()
+        #expect(entries.first { $0.ref == dictation.id }?.canTitle == true)
+        #expect(entries.first { $0.ref == short.id }?.canTitle == false)
+        #expect(entries.first { $0.ref == created.id }?.canTitle == true)
+    }
+
+    @Test func aDictationExcerptKeepsTheMinimumAndTheBudget() {
+        #expect(CallTitles.excerpt(text: "one two three") == nil)
+        #expect(CallTitles.excerpt(text: spoken) == spoken)
+        let long = Array(repeating: "word", count: 4000).joined(separator: " ")
+        #expect((CallTitles.excerpt(text: long) ?? "").count < 6100)
+    }
+}
