@@ -12,11 +12,11 @@ Press ``Option+` `` in any text field, talk, and press it again. Your words show
 
 ## Correcting a word
 
-In History, drag across words or right-click one and choose Correct. With a block focused, press E to correct its line; VoiceOver has the same as an action. A changed name is offered as a key term in Settings, Model.
+In History, drag across words or right-click one and choose Correct. With a block focused, press E to correct its line; VoiceOver has the same as an action. A corrected name is added to your key terms, with Undo right after.
 
 ## Finding, renaming and deleting
 
-Cmd+F searches inside the open recording; Return or Cmd+G steps through the matches.
+The Search field in History's title row finds recordings and the words in the open one. Cmd+F goes there. Return or Cmd+G steps through the matches.
 
 Select a recording in History and press Return to give it a title, or Cmd+Delete to delete it. Both are also in the row's right-click menu and the More menu. A name replaces the date as the row's title, and clearing it brings the date back. Delete asks first, then removes the audio, transcript and corrections from this Mac. A call still recording can't be deleted.
 
