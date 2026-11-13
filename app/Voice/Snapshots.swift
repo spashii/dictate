@@ -42,6 +42,8 @@ enum Snapshots {
                     await write(folder, "history-\(name)-list-\(suffix)",
                                 try await historyWindow(model, HistoryModel(store: store), listWidth: width, dark: dark))
                 }
+                await write(folder, "history-search-elsewhere-\(suffix)",
+                            try await historyWindow(model, HistoryModel(store: store), searchingAfter: "venue", dark: dark))
                 await write(folder, "history-naming-\(suffix)", try await namingWindow(model, store: store, dark: dark))
                 await write(folder, "transcript-hover-\(suffix)", try await transcriptHoverWindow(model, store: store, dark: dark))
                 await write(folder, "history-plus-menu-\(suffix)", try await plusMenu(model, store: store, dark: dark))
@@ -144,12 +146,12 @@ enum Snapshots {
     }
 
     static func historyWindow(_ model: AppModel, _ history: HistoryModel, calls: CallsModel = CallsModel(),
-                              selecting id: String = "call:rollout", search: String = "", listWidth: CGFloat? = nil, dark: Bool) async throws -> NSBitmapImageRep? {
+                              selecting id: String = "call:rollout", search: String = "", listWidth: CGFloat? = nil, hover: Int? = nil, searchingAfter: String = "", dark: Bool) async throws -> NSBitmapImageRep? {
         let navigation = MainNavigation()
         navigation.selection = .history
         let size = NSSize(width: 1060, height: 680)
         let window = makeWindow(MainView(navigation: navigation, history: history).environment(model)
-            .environment(calls), size: size, dark: dark, titled: true)
+            .environment(calls).environment(\.snapshotHover, hover), size: size, dark: dark, titled: true)
         history.search = search
         history.reload()
         for _ in 0..<40 where history.visible.isEmpty { try await Task.sleep(for: .milliseconds(100)) }
@@ -159,15 +161,23 @@ enum Snapshots {
         history.selection = call.id
         history.select(call.id)
         for _ in 0..<40 where history.detail == nil || history.waveform.isEmpty { try await Task.sleep(for: .milliseconds(100)) }
+        if !searchingAfter.isEmpty {
+            history.search = searchingAfter
+            try await Task.sleep(for: .milliseconds(1500))
+        }
         if let listWidth { widenList(window, to: listWidth) }
         let toolbar = await toolbarFrames(window, height: size.height)
         let sidebar = await withSidebar(await capture(window, size: size, titled: true), model, .history, size: size, dark: dark)
-        let plus = withPlusButton(sidebar, size: size, dark: dark, frame: toolbar.plus ?? plusButton)
-        return toolbar.search.map { withSearchField(plus, frame: $0, text: search, size: size, dark: dark) } ?? plus
+        plusFrame = toolbar.plus ?? plusButton
+        let plus = withPlusButton(sidebar, size: size, dark: dark, frame: plusFrame)
+        return toolbar.search.map { withSearchField(plus, frame: $0, text: search.isEmpty ? searchingAfter : search, size: size, dark: dark) } ?? plus
     }
 
     /// Where History's + sits in the window, in points from its top left: the toolbar button the bitmap draw puts at the
     /// trailing edge.
+    /// The + as laid out in the last History window drawn, for the shots that hang something under it.
+    static var plusFrame = NSRect(x: 1016, y: 8, width: 36, height: 36)
+
     static let plusButton = NSRect(x: 1016, y: 8, width: 36, height: 36)
 
     /// A bitmap draw of the window leaves the toolbar's button without its round background and

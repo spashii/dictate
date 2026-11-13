@@ -47,7 +47,7 @@ extension Snapshots {
               let context = NSGraphicsContext(bitmapImageRep: out) else { return nil }
         let windowSize = window.size
         out.size = windowSize
-        let button = plusButton
+        let button = plusFrame
         let left = min(button.minX, windowSize.width - 8 - width)
         // The panel sits 4 points under the button; its own margin holds the shadow.
         let origin = NSPoint(x: left - margin, y: windowSize.height - (button.maxY + 4) - height - margin)
