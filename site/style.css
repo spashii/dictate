@@ -294,9 +294,9 @@
   .compare-table tr { column-gap: 6px; }
 }
 
-/* How it compares by price: Dictate, then Cloud, then Local. Each column has the same three rows (name, a short
-   line under it, price), and from 735px they share them through subgrid, so the names, the lines and the prices
-   sit level across all three. The icon sits beside Dictate's name and sets the name row's height for every
+/* How it compares by price: Dictate, then Cloud, then Local. From 735px the columns share their rows (name,
+   the line of apps, price) through subgrid, so the names and the prices sit level across all three; Dictate
+   leaves the apps row empty. The icon sits beside Dictate's name and sets the name row's height for every
    column. Dictate is the raised card and runs on below its price with its terms and button; the flat columns end
    at their price. All prices share one display size. Below 735px it is one column in the same order. */
 .tiers { margin-top: var(--sp-6); display: grid; gap: var(--sp-8); }
