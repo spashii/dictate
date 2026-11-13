@@ -97,7 +97,7 @@ func importCommand(_ arguments: [String], transcriber: Transcriber, whisper: Whi
         }
         try await transcriber.load()
         let shown = ProgressShown()
-        let call = await recorder.transcribeImport(start.call.id, from: source, transcriber: transcriber,
+        let call = await recorder.transcribeImport(start.call.id, transcriber: transcriber,
                                                    whisper: whisper) { fraction in
             let percent = Int(fraction * 100)
             if shown.advance(to: percent) {

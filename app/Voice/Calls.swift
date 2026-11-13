@@ -676,7 +676,7 @@ extension CallsModel {
         // only when the whole percent does.
         let reported = OSAllocatedUnfairLock(initialState: 0)
         let task = Task<Call?, Never> {
-            await recorder.transcribeImport(id, from: next.source, transcriber: transcriber, whisper: whisper) { [weak self] part in
+            await recorder.transcribeImport(id, transcriber: transcriber, whisper: whisper) { [weak self] part in
                 let percent = Int(part * 100)
                 guard reported.withLock({ last in
                     defer { last = percent }

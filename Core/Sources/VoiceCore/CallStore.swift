@@ -23,17 +23,20 @@ public final class CallStore: @unchecked Sendable {
     /// Starts a call, in the recording state unless `new.status` says otherwise.
     @discardableResult
     public func createCall(_ new: NewCall) throws -> Call {
-        _ = try queue.sync {
-            try db.run("""
-                INSERT INTO calls (id, started_at, ended_at, time_zone, app_bundle_id, app_name, device_uid, split,
-                                   audio_path, status, title, title_source, speakers, file_name, file_hash)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                """, [new.id, new.startedAt, new.endedAt, new.timeZone, new.appBundleID, new.appName, new.deviceUID,
-                      new.split, new.audioPath, new.status.rawValue,
-                      new.title, new.title.map { _ in (new.titleSource ?? .user).rawValue },
-                      new.speakers?.joined(separator: "\u{1F}"), new.fileName, new.fileHash])
-        }
+        try queue.sync { try insert(new) }
         return try require(new.id)
+    }
+
+    /// Runs on the queue.
+    private func insert(_ new: NewCall) throws {
+        _ = try db.run("""
+            INSERT INTO calls (id, started_at, ended_at, time_zone, app_bundle_id, app_name, device_uid, split,
+                               audio_path, status, title, title_source, speakers, file_name, file_hash)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """, [new.id, new.startedAt, new.endedAt, new.timeZone, new.appBundleID, new.appName, new.deviceUID,
+                  new.split, new.audioPath, new.status.rawValue,
+                  new.title, new.title.map { _ in (new.titleSource ?? .user).rawValue },
+                  new.speakers?.joined(separator: "\u{1F}"), new.fileName, new.fileHash])
     }
 
     /// Adds segments as they are transcribed, in one transaction, and returns them numbered.
@@ -126,6 +129,11 @@ public final class CallStore: @unchecked Sendable {
         try update(callID, "audio_path = ?", [path])
     }
 
+    /// Forgets a call's audio after its file was removed.
+    public func clearAudioPath(_ callID: String) throws {
+        try update(callID, "audio_path = NULL", [])
+    }
+
     /// Calls still marked recording or transcribing when nothing is recording them: Voice
     /// quit or crashed during the call. The recorder calls this at launch, before it starts
     /// one, so the current call is never a call that ended long ago. Returns how many.
@@ -137,21 +145,21 @@ public final class CallStore: @unchecked Sendable {
         if !keep.isEmpty {
             let calls = try liveCalls().filter { !keep.contains($0.id) }
             for call in calls {
-                try failCall(call.id, error: call.fileName != nil && call.audioPath == nil ? Self.importInterrupted : reason)
+                try failCall(call.id, error: call.fileName != nil ? Self.importInterrupted : reason)
             }
             return calls.count
         }
         return try queue.sync {
             try db.run("""
                 UPDATE calls SET status = 'failed',
-                  error = CASE WHEN file_name IS NOT NULL AND audio_path IS NULL THEN ?3 ELSE ?1 END,
+                  error = CASE WHEN file_name IS NOT NULL THEN ?3 ELSE ?1 END,
                   ended_at = coalesce(ended_at, ?2)
                 WHERE status IN ('recording', 'transcribing')
                 """, [reason, Date(), Self.importInterrupted])
         }
     }
 
-    /// An import that quit before its copy was stored has nothing to rebuild from.
+    /// An import is no recording that stopped: what is left of it is a file to read again.
     static let importInterrupted = "Dictate quit before this file was read. Import it again."
 
     /// Adds and removes tags; returns the call's tags after. Tags compare without case.
@@ -305,11 +313,27 @@ public final class CallStore: @unchecked Sendable {
         }
     }
 
-    /// The newest call still recording or transcribing, if any.
+    /// Adds an import's row unless a call already holds the same bytes, checking and inserting
+    /// in one transaction so two imports of one file can't both pass the check.
+    public func createImport(_ new: NewCall) throws -> (call: Call, duplicate: Bool) {
+        guard let hash = new.fileHash else { throw VoiceError.store("An import needs the hash of its file.") }
+        let existing: String? = try queue.sync {
+            try db.transaction { () -> String? in
+                if let found = try db.query("SELECT id FROM calls WHERE file_hash = ? AND status <> 'failed' ORDER BY started_at LIMIT 1",
+                                            [hash], { $0.text(0) }).first { return found }
+                try insert(new)
+                return nil
+            }
+        }
+        return (try require(existing ?? new.id), existing != nil)
+    }
+
+    /// The newest call recorded and still recording or transcribing, if any. An import is a
+    /// file being read, not something a person is in.
     public func currentCall() throws -> Call? {
         try queue.sync {
             try db.query("""
-                SELECT \(Self.callColumns) FROM calls WHERE status IN ('recording', 'transcribing')
+                SELECT \(Self.callColumns) FROM calls WHERE status IN ('recording', 'transcribing') AND file_name IS NULL
                 ORDER BY started_at DESC LIMIT 1
                 """, [], Self.readCall).first
         }

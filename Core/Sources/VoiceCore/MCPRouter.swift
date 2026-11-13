@@ -513,7 +513,7 @@ struct MCPRouter: Sendable {
     private func transcriptText(_ call: Call, _ transcript: String) throws -> String {
         let corrected = try store.correctedSegments(call.id)
         let note = corrected == 0 ? "" : ", \(corrected) segment\(corrected == 1 ? "" : "s") corrected"
-        let head = "\(call.title ?? "Call") (\(call.status.rawValue), started \(Self.iso(call.startedAt)), id \(call.id)\(note))"
+        let head = "\(call.title ?? call.fileName ?? "Call") (\(call.status.rawValue), started \(Self.iso(call.startedAt)), id \(call.id)\(note))"
         return head + "\n\n" + (transcript.isEmpty ? "(nothing transcribed yet)" : transcript)
     }
 

@@ -66,10 +66,11 @@ extension CallStore {
                 let path: String?
                 switch kind {
                 case .call:
-                    guard let row = try db.query("SELECT audio_path, status FROM calls WHERE id = ?", [ref],
-                                                 { (path: $0.string(0), status: $0.text(1)) }).first else { return nil }
+                    guard let row = try db.query("SELECT audio_path, status, file_name FROM calls WHERE id = ?", [ref],
+                                                 { (path: $0.string(0), status: $0.text(1), file: $0.string(2)) }).first else { return nil }
                     if Call.Status(rawValue: row.status)?.isLive == true {
-                        throw VoiceError.store("Stop the recording before deleting it.")
+                        throw VoiceError.store(row.file == nil ? "Stop the recording before deleting it."
+                                               : "Wait for the import to finish or stop it before deleting it.")
                     }
                     path = row.path
                     // Foreign keys are off in SQLite by default, so the children go explicitly.

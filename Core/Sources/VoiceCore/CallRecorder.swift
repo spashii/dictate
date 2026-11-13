@@ -188,9 +188,11 @@ public final class CallRecorder: @unchecked Sendable {
     /// Transcribes a call again from its audio, replacing its segments: for a call whose
     /// recording was cut off by a crash, or whose transcription failed. The old segments go
     /// only once the first chunk has decoded, so audio or a model that can't be read leaves
-    /// the call with the transcript it had.
-    public func rebuild(_ callID: String, transcriber: Transcriber,
-                        whisper: WhisperOptions = WhisperOptions()) async throws -> Call {
+    /// the call with the transcript it had. `onProgress` gets 0 to 1. Cancelling leaves the
+    /// call as it was, still transcribing, for the next launch to finish.
+    public func rebuild(_ callID: String, transcriber: any ChunkTranscribing,
+                        whisper: WhisperOptions = WhisperOptions(),
+                        onProgress: @escaping @Sendable (Double) -> Void = { _ in }) async throws -> Call {
         guard let call = try store.call(callID), let path = call.audioPath else {
             throw VoiceError.store("Call \(callID) has no audio to rebuild from.")
         }
@@ -215,17 +217,48 @@ public final class CallRecorder: @unchecked Sendable {
         }
         let labels: [CallSegment.Channel] = call.split ? [.me, .call] : [.mix]
         try store.markTranscribing(callID, endedAt: call.endedAt ?? Date())
+        let seconds = Double(audio.length) / format.sampleRate
         let session = try CallSession(callID: callID, format: format, labels: labels,
-                                      order: Array(0..<min(Int(format.channelCount), 2)), wav: nil,
+                                      order: Self.channelOrder(format, split: call.split), wav: nil,
                                       replacingSegments: true, store: store, transcriber: transcriber,
-                                      whisper: whisper)
+                                      whisper: whisper, progress: { onProgress(min(1, $0 / max(seconds, 0.001))) })
+        do {
+            if try await Self.feed(audio, into: session) == .cancelled {
+                session.close()
+                throw CancellationError()
+            }
+        } catch {
+            session.close()
+            throw error
+        }
+        let ended = await finish(session) ?? call
+        lock.withLockUnchecked { importPeak = max(importPeak, session.highWater) }
+        return ended
+    }
+
+    /// A split call keeps its two sides; anything else is one mix of every channel in the file.
+    private static func channelOrder(_ format: AVAudioFormat, split: Bool) -> [Int] {
+        Array(0..<(split ? min(Int(format.channelCount), 2) : Int(format.channelCount)))
+    }
+
+    private enum Fed { case done, cancelled }
+
+    /// Reads the file a second at a time into the session, holding back while more than
+    /// `CallSession.maxQueued` chunks wait for whisper, so memory stays flat for a file of hours.
+    private static func feed(_ audio: AVAudioFile, into session: CallSession) async throws -> Fed {
+        let format = audio.processingFormat
         let step = AVAudioFrameCount(format.sampleRate)
         while audio.framePosition < audio.length {
+            while session.queued > CallSession.maxQueued, !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(25))
+            }
+            if Task.isCancelled { return .cancelled }
             guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: step) else { break }
             try audio.read(into: buffer, frameCount: step)
+            guard buffer.frameLength > 0 else { break }
             session.ingest(buffer)
         }
-        return await finish(session) ?? call
+        return .done
     }
 
     /// What `beginImport` made or found.
@@ -235,45 +268,77 @@ public final class CallRecorder: @unchecked Sendable {
         public var duplicate: Bool
     }
 
-    /// Starts an import: hashes the file off the calling thread, and unless a call already
-    /// holds the same bytes, makes the row at once so the history shows it while it waits.
-    /// The row's time is when it was imported, and its end is set once the file's length is known.
+    /// Starts an import: copies the file beside the calls, hashes the copy, and unless a call
+    /// already holds the same bytes, makes the row at once so the history shows it while it
+    /// waits. Once this returns the original can be moved or deleted. The row's time is when it
+    /// was imported, and its end is set once the file's length is known.
     public func beginImport(_ source: URL, at: Date = Date()) async throws -> ImportStart {
-        let hash = try await Task.detached(priority: .utility) { try AudioImport.sha256(of: source) }.value
-        if let existing = try store.importedCall(hash: hash) { return ImportStart(call: existing, duplicate: true) }
-        let call = try store.createCall(NewCall(startedAt: at, split: false, fileName: source.lastPathComponent,
-                                                fileHash: hash, endedAt: at, status: .transcribing))
-        return ImportStart(call: call, duplicate: false)
+        let id = UUID().uuidString
+        let ext = source.pathExtension.lowercased()
+        let stored = directory.appending(path: "\(Int(at.timeIntervalSince1970 * 1000))-\(id.prefix(8)).\(ext)")
+        let hash = try await Task.detached(priority: .utility) { () -> String in
+            try AudioImport.requireRegularFile(source)
+            try FileManager.default.createDirectory(at: self.directory, withIntermediateDirectories: true)
+            try AudioImport.copyAtomically(source, to: stored)
+            do {
+                return try AudioImport.sha256(of: stored)
+            } catch {
+                try? FileManager.default.removeItem(at: stored)
+                throw error
+            }
+        }.value
+        do {
+            let made = try store.createImport(NewCall(id: id, startedAt: at, split: false, audioPath: stored.path,
+                                                      fileName: source.lastPathComponent, fileHash: hash,
+                                                      endedAt: at, status: .transcribing))
+            if made.duplicate { try? FileManager.default.removeItem(at: stored) }
+            return ImportStart(call: made.call, duplicate: made.duplicate)
+        } catch {
+            try? FileManager.default.removeItem(at: stored)
+            throw error
+        }
     }
 
-    /// The most chunks that waited for whisper at once during any import, for a test of the
-    /// back-pressure.
+    /// Removes the half-written copies a quit mid-import left in the calls folder. The app runs
+    /// it at launch, before anything else reads the folder.
+    public func sweepPartials() {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+        for name in names where name.hasSuffix(".partial") {
+            try? FileManager.default.removeItem(at: directory.appending(path: name))
+        }
+    }
+
+    /// The most chunks that waited for whisper at once during any import or rebuild, for a test
+    /// of the back-pressure.
     var importHighWater: Int { lock.withLockUnchecked { importPeak } }
     private var importPeak = 0
 
-    /// Stores a copy of the file beside the recorded calls and transcribes it as one track,
-    /// the way a rebuild does, with reading held back while whisper has a few chunks to catch up on.
-    /// Whatever goes wrong ends the call as failed with a reason a person can read. `onProgress` gets
-    /// 0 to 1, the part of the file the transcript reaches. Returns the call as it ends up.
-    public func transcribeImport(_ callID: String, from source: URL, transcriber: any ChunkTranscribing,
+    /// Transcribes the stored copy of an import as one track, the way a rebuild does, with
+    /// reading held back while whisper has a few chunks to catch up on. A copy AVAudioFile can't
+    /// open, or that carries video, is first reduced to its audio as an .m4a. Whatever goes wrong
+    /// ends the call as failed with a reason a person can read. `onProgress` gets 0 to 1, the part
+    /// of the file the transcript reaches. Returns the call as it ends up.
+    public func transcribeImport(_ callID: String, transcriber: any ChunkTranscribing,
                                  whisper: WhisperOptions = WhisperOptions(),
                                  onProgress: @escaping @Sendable (Double) -> Void = { _ in }) async -> Call? {
         guard let call = try? store.call(callID) else { return nil }
-        func fail(_ reason: String) -> Call? {
+        func fail(_ reason: String, removing file: URL? = nil) -> Call? {
+            if let file {
+                try? FileManager.default.removeItem(at: file)
+                try? store.clearAudioPath(callID)
+            }
             try? store.failCall(callID, error: reason)
             return try? store.call(callID)
         }
-        guard FileManager.default.fileExists(atPath: source.path) else {
-            return fail("The file was moved before Dictate could read it.")
+        guard let path = call.audioPath, FileManager.default.fileExists(atPath: path) else {
+            return fail("This file's copy is missing. Import it again.")
         }
-        let stored: (url: URL, duration: Double)
+        let copy = URL(fileURLWithPath: path)
+        let stored: AudioImport.Prepared
         do {
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            let base = directory.appending(
-                path: "\(Int(call.startedAt.timeIntervalSince1970 * 1000))-\(callID.prefix(8))")
-            stored = try await AudioImport.storeCopy(of: source, as: base)
+            stored = try await AudioImport.prepare(copy: copy)
         } catch {
-            return fail((error as? AudioImportError)?.description ?? "Dictate couldn't read this file's audio.")
+            return fail((error as? AudioImportError)?.description ?? AudioImport.unreadable, removing: copy)
         }
         let audio: AVAudioFile
         do {
@@ -281,41 +346,27 @@ public final class CallRecorder: @unchecked Sendable {
             try store.setImportedAudio(callID, path: stored.url.path,
                                        endedAt: call.startedAt.addingTimeInterval(stored.duration))
         } catch {
-            try? FileManager.default.removeItem(at: stored.url)
-            return fail("Dictate couldn't read this file's audio.")
+            return fail(AudioImport.unreadable, removing: stored.url)
         }
         let format = audio.processingFormat
         let duration = stored.duration
         let session: CallSession
         do {
             session = try CallSession(callID: callID, format: format, labels: [.mix],
-                                      order: Array(0..<min(Int(format.channelCount), 2)), wav: nil, store: store,
+                                      order: Self.channelOrder(format, split: false), wav: nil, store: store,
                                       transcriber: transcriber, whisper: whisper,
                                       progress: { onProgress(min(1, $0 / duration)) })
         } catch {
-            return fail("Dictate couldn't read this file's audio.")
+            return fail(AudioImport.unreadable)
         }
-        let step = AVAudioFrameCount(format.sampleRate)
-        var cancelled = false
-        while audio.framePosition < audio.length {
-            while session.queued > CallSession.maxQueued {
-                if Task.isCancelled { break }
-                try? await Task.sleep(for: .milliseconds(25))
-            }
-            if Task.isCancelled { cancelled = true; break }
-            guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: step) else { break }
-            do {
-                try audio.read(into: buffer, frameCount: step)
-            } catch {
+        do {
+            if try await Self.feed(audio, into: session) == .cancelled {
                 session.close()
-                return fail("Dictate couldn't read this file's audio.")
+                return fail("The import was cancelled.")
             }
-            guard buffer.frameLength > 0 else { break }
-            session.ingest(buffer)
-        }
-        if cancelled {
+        } catch {
             session.close()
-            return fail("The import was cancelled.")
+            return fail(AudioImport.unreadable)
         }
         let ended = await finish(session)
         lock.withLockUnchecked { importPeak = max(importPeak, session.highWater) }
@@ -333,7 +384,7 @@ public final class CallRecorder: @unchecked Sendable {
         defer { release(callID) }
         let wav = URL(fileURLWithPath: path)
         do {
-            let m4a = try await Task.detached(priority: .utility) { try CallAudio.encode(wav) }.value
+            let m4a = try await Task.detached(priority: .utility) { try CallAudio.encode(wav, stereoAtMost: call.fileName != nil) }.value
             do {
                 try store.setAudioPath(callID, m4a.path)
             } catch {
@@ -622,8 +673,12 @@ final class CallSession: @unchecked Sendable {
          progress: (@Sendable (_ seconds: Double) -> Void)? = nil) throws {
         self.callID = callID
         self.order = order
-        fileFormat = AVAudioFormat(standardFormatWithSampleRate: format.sampleRate,
-                                   channels: AVAudioChannelCount(order.count))!
+        // Standard formats of more than two channels need a layout.
+        fileFormat = order.count <= 2
+            ? AVAudioFormat(standardFormatWithSampleRate: format.sampleRate, channels: AVAudioChannelCount(order.count))!
+            : AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: format.sampleRate, interleaved: false,
+                            channelLayout: AVAudioChannelLayout(
+                                layoutTag: kAudioChannelLayoutTag_DiscreteInOrder | UInt32(order.count))!)
         if let wav {
             let settings: [String: Any] = [
                 AVFormatIDKey: kAudioFormatLinearPCM,
