@@ -535,9 +535,10 @@ final class AppModel {
             show("\(lost) and \(ownWindow ? "copied" : "pasted") what it heard before.")
         } else if fellBackToDefault {
             show(copied + "The chosen microphone isn't connected, so the default one recorded.")
-        } else if ownWindow {
+        } else if ownWindow && changes.isEmpty {
             show("Copied.")
         } else if !changes.isEmpty {
+            // In Dictate's own window the text is on the clipboard too; the edits are what is worth showing.
             showEdits(changes)
         } else {
             phase = .idle

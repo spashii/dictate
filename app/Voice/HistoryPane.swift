@@ -280,11 +280,14 @@ final class HistoryModel {
                 return (detail, DisplayBlock.make(detail, generation: generation))
             }.value
             guard let read, opened == loads, selection == entry.id else { return }
+            // Nothing new since the last read: the blocks, and what is selected in them, stay.
+            guard read.0 != detail else { return }
+            let kept = DisplayBlock.keeping(blocks, in: read.1)
             player.lineAt = { seconds in read.0.line(at: seconds)?.id }
             detail = read.0
-            blocks = read.1
+            blocks = kept
             rebuildMatches(restart: false)
-            blockOfLine = Dictionary(read.1.flatMap { block in block.lines.map { ($0.id, block.id) } },
+            blockOfLine = Dictionary(kept.flatMap { block in block.lines.map { ($0.id, block.id) } },
                                      uniquingKeysWith: { first, _ in first })
         }
     }
@@ -551,7 +554,7 @@ private struct HistoryRow: View, @MainActor Equatable {
                     if renaming {
                         RenameField(initial: entry.customTitle ?? "", prompt: entry.fileName ?? date, commit: commit, cancel: cancel)
                     } else {
-                        Text(entry.customTitle ?? entry.fileName ?? date).fontWeight(.semibold).lineLimit(1)
+                        Text(entry.customTitle ?? entry.fileName ?? date).fontWeight(.semibold).lineLimit(1).truncationMode(.middle)
                         if entry.customTitle == nil, entry.fileName == nil, let zone = entry.originalZoneLabel {
                             Text(zone).font(.caption).foregroundStyle(.secondary)
                         }
@@ -597,7 +600,7 @@ private struct HistoryRow: View, @MainActor Equatable {
             case .failed(let reason): return reason
             default: break
             }
-            if entry.customTitle == nil { return entry.firstLine }
+            if entry.customTitle == nil { return entry.firstLine.isEmpty ? date : entry.firstLine }
         }
         let preview = entry.firstLine.isEmpty ? entry.title : entry.firstLine
         if entry.customTitle != nil {
@@ -678,6 +681,7 @@ private struct HistoryDetailView: View {
                     Text(entry.customTitle ?? entry.fileName ?? date)
                         .font(.title3.weight(.semibold))
                         .lineLimit(2)
+                        .truncationMode(.middle)
                     // An untitled file is already named by its title, so its subtitle starts at the date.
                     Text([entry.fileName != nil && entry.customTitle == nil ? nil : entry.kindLabel,
                           entry.customTitle == nil && entry.fileName == nil ? nil : date,

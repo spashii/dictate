@@ -52,4 +52,32 @@ final class HistoryImportTests: XCTestCase {
         XCTAssertTrue(PasteDecision.pastes(frontmostPID: 7, ownPID: 42))
         XCTAssertTrue(PasteDecision.pastes(frontmostPID: nil, ownPID: 42))
     }
+
+    private func blocks(_ texts: [String], generation: Int) throws -> [DisplayBlock] {
+        let url = FileManager.default.temporaryDirectory
+            .appending(path: "dictate-tests-\(UUID().uuidString)", directoryHint: .isDirectory)
+            .appending(path: "voice.sqlite")
+        let store = try CallStore(url: url)
+        let call = try store.createCall(NewCall(split: true))
+        _ = try store.appendSegments(call.id, texts.enumerated().map {
+            NewCallSegment(channel: $0.offset % 2 == 0 ? .me : .call, startMs: $0.offset * 2000,
+                           endMs: $0.offset * 2000 + 1500, text: $0.element)
+        })
+        let entry = try XCTUnwrap(try store.historyEntries().first)
+        return DisplayBlock.make(try XCTUnwrap(try store.historyDetail(entry)), generation: generation)
+    }
+
+    func testAReloadKeepsBlocksWhoseTextIsUnchanged() throws {
+        let old = try blocks(["Budget with Alex", "Fine by me"], generation: 1)
+        let fresh = try blocks(["Budget with Alex", "Fine by me", "Next steps"], generation: 2)
+        let merged = DisplayBlock.keeping(old, in: fresh)
+        XCTAssertEqual(merged.map(\.generation), [1, 1, 2])
+        XCTAssertEqual(merged.count, 3)
+    }
+
+    func testAReloadRedrawsABlockWhoseTextChanged() throws {
+        let old = try blocks(["Budget with Alex", "Fine by me"], generation: 1)
+        let fresh = try blocks(["Budget with Alexa", "Fine by me"], generation: 2)
+        XCTAssertEqual(DisplayBlock.keeping(old, in: fresh).map(\.generation), [2, 1])
+    }
 }

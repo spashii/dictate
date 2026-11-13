@@ -46,6 +46,24 @@ struct DisplayBlock: Identifiable, Equatable, Sendable {
 
     static func == (a: Self, b: Self) -> Bool { a.id == b.id && a.generation == b.generation }
 
+    /// Whether the block reads and marks the same as `other`, whatever the generation.
+    func sameContent(as other: Self) -> Bool {
+        id == other.id && speaker == other.speaker && showsSpeaker == other.showsSpeaker && string == other.string
+            && marks == other.marks && start == other.start && clock == other.clock && elapsed == other.elapsed
+            && spans.map(\.id) == other.spans.map(\.id) && spans.map(\.start) == other.spans.map(\.start)
+            && changes == other.changes && correctionDescriptions == other.correctionDescriptions
+    }
+
+    /// `fresh` with the generation of the block `old` already shows wherever the content is the
+    /// same, so a reload redraws only what changed and keeps selection and an open popover.
+    static func keeping(_ old: [DisplayBlock], in fresh: [DisplayBlock]) -> [DisplayBlock] {
+        let before = Dictionary(old.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return fresh.map { block in
+            guard let kept = before[block.id], kept.sameContent(as: block) else { return block }
+            return kept
+        }
+    }
+
     func contains(line: Int) -> Bool { lines.contains { $0.id == line } }
 
     /// The block's text with `line`, when it is one of its lines, highlighted.
