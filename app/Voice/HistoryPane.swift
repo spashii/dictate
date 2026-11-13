@@ -995,7 +995,14 @@ private struct HistoryDetailView: View {
                 }
             }
             Divider()
-            PlayBar(player: player, waveform: history.waveform, duration: detail.entry.duration)
+            // A finished recording whose file is gone says so, in the player's place and height.
+            if detail.entry.audioFile == nil, !detail.entry.isLive, detail.entry.error == nil {
+                Text(RetentionText.audioDeleted)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, minHeight: 56)
+            } else {
+                PlayBar(player: player, waveform: history.waveform, duration: detail.entry.duration)
+            }
         }
     }
 }
