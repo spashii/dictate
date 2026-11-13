@@ -13,6 +13,7 @@ file=${2:-$root/CHANGELOG.md}
 html=$(awk -v v="$version" '
   function flush() {
     if (item != "") {
+      sub(/[ \t]+$/, "", item)
       gsub(/&/, "\\&amp;", item); gsub(/</, "\\&lt;", item); gsub(/>/, "\\&gt;", item)
       out = out "<li>" item "</li>"; n++
     }

@@ -128,7 +128,8 @@ final class UpdaterDelegate: NSObject, SPUUpdaterDelegate {
         notFound?()
     }
 
-    /// A skipped version is not offered again until the next check, so About stops showing it.
+    /// Sparkle offers a skipped version again only when the person checks for updates, so About
+    /// stops showing it.
     /// Install and dismiss keep it: the update still waits.
     func updater(_ updater: SPUUpdater, userDidMake choice: SPUUserUpdateChoice,
                  forUpdate updateItem: SUAppcastItem, state: SPUUserUpdateState) {

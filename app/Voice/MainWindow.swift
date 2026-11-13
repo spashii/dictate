@@ -103,7 +103,6 @@ struct MainView: View {
 /// a bitmap draw of the window leaves the sidebar blank.
 struct MainSidebar: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.controlActiveState) private var activeState
     let navigation: MainNavigation
 
     var body: some View {
