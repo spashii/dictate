@@ -54,12 +54,13 @@
   function toEuro(prices) {
     if (!inEurozone()) return;
     for (var i = 0; i < prices.length; i++) prices[i].textContent = prices[i].textContent.replace("$", "\u20ac");
-    var other = document.querySelectorAll("[data-eur]");
-    for (var j = 0; j < other.length; j++) other[j].textContent = other[j].getAttribute("data-eur");
   }
 
   function currency() {
+    if (!inEurozone()) return;
     toEuro(document.querySelectorAll("[data-price]"));
+    var other = document.querySelectorAll("[data-eur]");
+    for (var j = 0; j < other.length; j++) other[j].textContent = other[j].getAttribute("data-eur");
   }
 
   function liveRegion(parent) {
@@ -200,9 +201,10 @@
     var n = 0;
     for (var g = 0; g < groups.length; g++) {
       if (!groups[g].querySelector("[data-left]") || groups[g].querySelector(".notify")) continue;
-      // The page's own price line would be a second one. It stays in the markup for the spots-left state.
+      // The injected price line already carries the requirements, so the page's own requirements and price
+      // lines would repeat it. They stay in the markup for the spots-left state.
       var old = groups[g].querySelectorAll(".meta[data-install-hide]");
-      for (var k = 0; k < old.length; k++) if (old[k].querySelector("[data-price]")) old[k].hidden = true;
+      for (var k = 0; k < old.length; k++) old[k].hidden = true;
       buildPriceLine(groups[g]);
       notify(buildForm(groups[g], n++));
     }
