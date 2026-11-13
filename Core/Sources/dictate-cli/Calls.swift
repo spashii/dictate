@@ -84,8 +84,12 @@ func importCommand(_ arguments: [String], transcriber: Transcriber, whisper: Whi
     do {
         let source = try AudioImport.validate(path: arguments[0].hasPrefix("/") || arguments[0].hasPrefix("~/")
             ? arguments[0] : FileManager.default.currentDirectoryPath + "/" + arguments[0])
-        let store = try CallStore(url: dbPath.map { URL(fileURLWithPath: $0) } ?? Paths.database)
-        let recorder = CallRecorder(store: store)
+        let database = dbPath.map { URL(fileURLWithPath: $0) }
+        let store = try CallStore(url: database ?? Paths.database)
+        // A database given with --db keeps its copies beside it, never in the app's own folder.
+        let recorder = CallRecorder(store: store, directory: database.map {
+            $0.deletingLastPathComponent().appending(path: "calls", directoryHint: .isDirectory)
+        } ?? Paths.calls)
         let start = try await recorder.beginImport(source)
         if start.duplicate {
             print("Already imported: \(start.call.id)")
