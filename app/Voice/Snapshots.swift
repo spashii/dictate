@@ -36,6 +36,12 @@ enum Snapshots {
                 let history = HistoryModel(store: store)
                 let window = try await historyWindow(model, history, dark: dark)
                 await write(folder, "history-\(suffix)", window)
+                await write(folder, "history-search-\(suffix)",
+                            try await historyWindow(model, HistoryModel(store: store), search: "pilot", dark: dark))
+                for (name, width) in [("narrow", 260.0), ("wide", 400.0)] {
+                    await write(folder, "history-\(name)-list-\(suffix)",
+                                try await historyWindow(model, HistoryModel(store: store), listWidth: width, dark: dark))
+                }
                 await write(folder, "history-plus-menu-\(suffix)", try await plusMenu(model, store: store, dark: dark))
                 await write(folder, "history-import-progress-\(suffix)",
                             try await importWindow(model, store: store, selecting: "call:interview", dark: dark))
@@ -136,12 +142,13 @@ enum Snapshots {
     }
 
     static func historyWindow(_ model: AppModel, _ history: HistoryModel, calls: CallsModel = CallsModel(),
-                              selecting id: String = "call:rollout", dark: Bool) async throws -> NSBitmapImageRep? {
+                              selecting id: String = "call:rollout", search: String = "", listWidth: CGFloat? = nil, dark: Bool) async throws -> NSBitmapImageRep? {
         let navigation = MainNavigation()
         navigation.selection = .history
         let size = NSSize(width: 1060, height: 680)
         let window = makeWindow(MainView(navigation: navigation, history: history).environment(model)
             .environment(calls), size: size, dark: dark, titled: true)
+        history.search = search
         history.reload()
         for _ in 0..<40 where history.visible.isEmpty { try await Task.sleep(for: .milliseconds(100)) }
         guard let call = history.visible.first(where: { $0.id == id }) else {
@@ -150,8 +157,11 @@ enum Snapshots {
         history.selection = call.id
         history.select(call.id)
         for _ in 0..<40 where history.detail == nil || history.waveform.isEmpty { try await Task.sleep(for: .milliseconds(100)) }
+        if let listWidth { widenList(window, to: listWidth) }
+        let toolbar = await toolbarFrames(window, height: size.height)
         let sidebar = await withSidebar(await capture(window, size: size, titled: true), model, .history, size: size, dark: dark)
-        return withPlusButton(sidebar, size: size, dark: dark)
+        let plus = withPlusButton(sidebar, size: size, dark: dark, frame: toolbar.plus ?? plusButton)
+        return toolbar.search.map { withSearchField(plus, frame: $0, text: search, size: size, dark: dark) } ?? plus
     }
 
     /// Where History's + sits in the window, in points from its top left: the toolbar button the bitmap draw puts at the
@@ -160,7 +170,7 @@ enum Snapshots {
 
     /// A bitmap draw of the window leaves the toolbar's button without its round background and
     /// greys its symbol, so the button is drawn over it the way the sidebar symbol is.
-    static func withPlusButton(_ window: NSBitmapImageRep?, size: NSSize, dark: Bool) -> NSBitmapImageRep? {
+    static func withPlusButton(_ window: NSBitmapImageRep?, size: NSSize, dark: Bool, frame placed: NSRect = plusButton) -> NSBitmapImageRep? {
         guard let window,
               let out = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: window.pixelsWide, pixelsHigh: window.pixelsHigh,
                                          bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
@@ -171,7 +181,7 @@ enum Snapshots {
         NSGraphicsContext.current = context
         context.cgContext.scaleBy(x: 2, y: 2)
         window.draw(in: NSRect(origin: .zero, size: size))
-        let frame = NSRect(x: plusButton.minX, y: size.height - plusButton.maxY, width: plusButton.width, height: plusButton.height)
+        let frame = NSRect(x: placed.minX, y: size.height - placed.maxY, width: placed.width, height: placed.height)
         NSAppearance(named: dark ? .darkAqua : .aqua)?.performAsCurrentDrawingAppearance {
             NSGraphicsContext.saveGraphicsState()
             let shadow = NSShadow()

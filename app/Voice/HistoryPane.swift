@@ -10,7 +10,10 @@ final class HistoryModel {
 
     private var entries: [HistoryEntry] = []
     var filter: Filter = .all
-    var search = ""
+    /// One field filters the list and, in the open recording, marks where the words are.
+    var search = "" {
+        didSet { if search != oldValue { rebuildMatches(restart: true) } }
+    }
     var selection: HistoryEntry.ID?
     /// The row whose title is being edited, and the recording a Delete is waiting on.
     var renaming: HistoryEntry.ID?
@@ -22,12 +25,8 @@ final class HistoryModel {
     private(set) var detail: HistoryDetail?
     /// The detail's blocks, made once when it loads instead of on every redraw.
     private(set) var blocks: [DisplayBlock] = []
-    /// The words searched for inside the open recording, and where each is: a stretch of one
-    /// block's text, as TextKit counts it. Searching walks each block's string once; nothing
-    /// is laid out per match.
-    var findText = "" {
-        didSet { if findText != oldValue { rebuildMatches(restart: true) } }
-    }
+    /// Where the search words are inside the open recording: a stretch of one block's text, as
+    /// TextKit counts it. Searching walks each block's string once; nothing is laid out per match.
     struct FindMatch: Equatable {
         let block: Int
         let range: Range<Int>
@@ -72,7 +71,7 @@ final class HistoryModel {
     }
 
     private func rebuildMatches(restart: Bool) {
-        let needle = findText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let needle = search.trimmingCharacters(in: .whitespacesAndNewlines)
         var found: [FindMatch] = []
         if !needle.isEmpty {
             for block in blocks {
@@ -338,6 +337,7 @@ struct HistoryPane: View {
     @Environment(CallsModel.self) private var calls
     let history: HistoryModel
     @State private var dropTargeted = false
+    @FocusState private var searchFocused: Bool
 
     var body: some View {
         @Bindable var history = history
@@ -362,6 +362,9 @@ struct HistoryPane: View {
             }
             .frame(minWidth: 380, maxWidth: .infinity)
         }
+        .searchable(text: $history.search, placement: .toolbar, prompt: "Search")
+        .searchFocused($searchFocused)
+        .onSubmit(of: .search) { history.stepMatch(1) }
         .dropDestination(for: URL.self) { urls, _ in
             let supported = ImportDrop.supported(urls)
             guard !supported.isEmpty else {
@@ -383,12 +386,17 @@ struct HistoryPane: View {
             }
         }
         .background {
-            // Cmd+O has no place of its own on screen.
-            Button("Import Audio File\u{2026}") { chooseFiles() }
-                .keyboardShortcut("o")
-                .frame(width: 0, height: 0)
-                .opacity(0)
-                .accessibilityHidden(true)
+            // Shortcuts with no place of their own on screen.
+            Group {
+                Button("Import Audio File\u{2026}") { chooseFiles() }.keyboardShortcut("o")
+                Button("Search") { searchFocused = true }.keyboardShortcut("f", modifiers: .command)
+                Button("Next match") { history.stepMatch(1) }.keyboardShortcut("g", modifiers: .command)
+                Button("Previous match") { history.stepMatch(-1) }.keyboardShortcut("g", modifiers: [.command, .shift])
+                Button("Previous match") { history.stepMatch(-1) }.keyboardShortcut(.return, modifiers: .shift)
+            }
+            .frame(width: 0, height: 0)
+            .opacity(0)
+            .accessibilityHidden(true)
         }
         .onAppear {
             history.changed = { model.refreshRecents() }
@@ -461,17 +469,10 @@ private struct HistoryList: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            TextField("Search", text: $history.search)
-                .textFieldStyle(.roundedBorder)
-                .padding(.horizontal, 12)
-                .padding(.top, 12)
-            Picker("Show", selection: $history.filter) {
-                ForEach(HistoryModel.Filter.allCases) { Text($0.rawValue).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
+            FilterSegments(selection: $history.filter)
             .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.top, 12)
+            .padding(.bottom, 10)
             if history.visible.isEmpty {
                 if history.search.isEmpty {
                     ContentUnavailableView("Nothing yet", systemImage: "clock",
@@ -509,6 +510,54 @@ private struct HistoryList: View {
                     }
                 }
             }
+        }
+    }
+}
+
+/// The All, Dictations and Calls control. SwiftUI's segmented Picker keeps its natural width on
+/// macOS, so this is the AppKit control with its segments stretched across the column.
+private struct FilterSegments: NSViewRepresentable {
+    @Binding var selection: HistoryModel.Filter
+
+    func makeNSView(context: Context) -> StretchedSegments {
+        let control = StretchedSegments(labels: HistoryModel.Filter.allCases.map(\.rawValue),
+                                         trackingMode: .selectOne, target: context.coordinator,
+                                         action: #selector(Coordinator.changed(_:)))
+        control.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        control.setAccessibilityLabel("Show")
+        return control
+    }
+
+    func updateNSView(_ control: StretchedSegments, context: Context) {
+        context.coordinator.parent = self
+        control.selectedSegment = HistoryModel.Filter.allCases.firstIndex(of: selection) ?? 0
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView control: StretchedSegments, context: Context) -> CGSize? {
+        CGSize(width: proposal.width ?? control.fittingSize.width, height: control.fittingSize.height)
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    /// AppKit's own distribution leaves the segments at the width of the first layout when the
+    /// column is dragged, so each is sized from its label whenever the control's width changes.
+    final class StretchedSegments: NSSegmentedControl {
+        override func setFrameSize(_ size: NSSize) {
+            super.setFrameSize(size)
+            let weights = (0..<segmentCount).map { (label(forSegment: $0) ?? "").size(withAttributes: [.font: NSFont.systemFont(ofSize: 13)]).width + 20 }
+            let total = weights.reduce(0, +)
+            guard total > 0 else { return }
+            let scale = max(1, (size.width - 4) / total)
+            for (index, weight) in weights.enumerated() { setWidth((weight * scale).rounded(.down), forSegment: index) }
+        }
+    }
+
+    final class Coordinator: NSObject {
+        var parent: FilterSegments
+        init(_ parent: FilterSegments) { self.parent = parent }
+        @objc func changed(_ sender: NSSegmentedControl) {
+            let all = Array(HistoryModel.Filter.allCases)
+            if all.indices.contains(sender.selectedSegment) { parent.selection = all[sender.selectedSegment] }
         }
     }
 }
@@ -683,7 +732,7 @@ private struct HistoryDetailView: View {
         let entry = history.selected ?? detail.entry
         let date = HistoryTime.title(start: entry.at, zone: entry.timeZone)
         VStack(spacing: 0) {
-            HStack(alignment: .top) {
+            HStack(alignment: .top, spacing: 8) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(entry.customTitle ?? entry.fileName ?? date)
                         .font(.title3.weight(.semibold))
@@ -703,30 +752,34 @@ private struct HistoryDetailView: View {
                     }
                 }
                 Spacer(minLength: 12)
-                FindBar(history: history)
-                Menu {
-                    Picker("Time", selection: $preferences.historyTimes) {
-                        ForEach(HistoryTimeMode.allCases) { Text($0.title).tag($0) }
+                // Centred on the title's first line, whatever the second line holds.
+                HStack(spacing: 8) {
+                    MatchSteppers(history: history)
+                    Menu {
+                        Picker("Time", selection: $preferences.historyTimes) {
+                            ForEach(HistoryTimeMode.allCases) { Text($0.title).tag($0) }
+                        }
+                        .pickerStyle(.inline)
+                        .disabled(isImport)
+                        Divider()
+                        Toggle("Show corrections", isOn: $preferences.showCorrections)
+                        Divider()
+                        Button("Save As\u{2026}") { history.saveAudio(detail.entry) }
+                            .disabled(detail.entry.audioFile == nil)
+                        Button("Copy") { Task { await history.copy(detail.entry) } }
+                            .disabled(!detail.entry.hasText)
+                        Divider()
+                        Button("Rename") { history.beginRename(entry) }
+                        Button("Delete\u{2026}", role: .destructive) { history.pendingDelete = entry }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
                     }
-                    .pickerStyle(.inline)
-                    .disabled(isImport)
-                    Divider()
-                    Toggle("Show corrections", isOn: $preferences.showCorrections)
-                    Divider()
-                    Button("Save As\u{2026}") { history.saveAudio(detail.entry) }
-                        .disabled(detail.entry.audioFile == nil)
-                    Button("Copy") { Task { await history.copy(detail.entry) } }
-                        .disabled(!detail.entry.hasText)
-                    Divider()
-                    Button("Rename") { history.beginRename(entry) }
-                    Button("Delete\u{2026}", role: .destructive) { history.pendingDelete = entry }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .help("More")
                 }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .fixedSize()
-                .help("More")
+                .frame(height: 24)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
@@ -769,7 +822,7 @@ private struct HistoryDetailView: View {
                 .onChange(of: history.currentMatch) {
                     if let block = history.activeMatch?.block { proxy.scrollTo(block, anchor: .center) }
                 }
-                .onChange(of: history.findText) {
+                .onChange(of: history.search) {
                     if let block = history.activeMatch?.block { proxy.scrollTo(block, anchor: .center) }
                 }
                 .onChange(of: playingBlock) { _, id in
@@ -794,15 +847,13 @@ extension HistoryDetailView {
     }
 }
 
-/// The search inside the open recording: a field with the count and steppers. Return and Cmd+G
-/// go to the next match, Shift+Return and Shift+Cmd+G to the one before, and Cmd+F comes here.
-private struct FindBar: View {
-    @Bindable var history: HistoryModel
-    @FocusState private var focused: Bool
+/// Where the search is in the open recording: the count and the steppers, shown while a search is set.
+private struct MatchSteppers: View {
+    let history: HistoryModel
 
     var body: some View {
-        HStack(spacing: 6) {
-            if !history.findText.isEmpty {
+        if !history.search.isEmpty {
+            HStack(spacing: 6) {
                 Text(history.matches.isEmpty ? "No matches" : "\(history.currentMatch + 1) of \(history.matches.count)")
                     .font(.callout)
                     .monospacedDigit()
@@ -816,29 +867,9 @@ private struct FindBar: View {
                     .help("Next match")
                     .accessibilityLabel("Next match")
             }
-            TextField("Find", text: $history.findText)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 170)
-                .focused($focused)
-                .onSubmit { history.stepMatch(1) }
-                .onExitCommand {
-                    history.findText = ""
-                    focused = false
-                }
-                .accessibilityLabel("Find in this recording")
-            // Shortcuts with no place of their own on screen.
-            Group {
-                Button("Previous match") { history.stepMatch(-1) }.keyboardShortcut(.return, modifiers: .shift)
-                Button("Next match") { history.stepMatch(1) }.keyboardShortcut("g", modifiers: .command)
-                Button("Previous match") { history.stepMatch(-1) }.keyboardShortcut("g", modifiers: [.command, .shift])
-                Button("Find") { focused = true }.keyboardShortcut("f", modifiers: .command)
-            }
-            .frame(width: 0, height: 0)
-            .opacity(0)
-            .accessibilityHidden(true)
+            .buttonStyle(.borderless)
+            .controlSize(.small)
         }
-        .buttonStyle(.borderless)
-        .controlSize(.small)
     }
 }
 
