@@ -28,7 +28,7 @@ final class Preferences {
     var runPrompt: Bool { didSet { UserDefaults.standard.set(runPrompt, forKey: "runPrompt") } }
     var ollamaModel: String { didSet { save(ollamaModel, "ollamaModel") } }
     /// The model the person picked in Settings, for the fix and for titles; nil until they
-    /// pick, so the default follows what this Mac offers (see `effectiveModel`).
+    /// pick, so the default applies (see `effectiveModel`).
     var localModel: LocalModel? {
         didSet {
             if let localModel { save(localModel.storedValue, "localModel") }
@@ -36,7 +36,7 @@ final class Preferences {
         }
     }
     /// Whether a call that ends is named from its transcript.
-    var titleCalls: Bool { didSet { UserDefaults.standard.set(titleCalls, forKey: "titleCalls") } }
+    var titleCalls: Bool { didSet { TitleCallsDefault.save(titleCalls, to: .standard) } }
     /// Comma or newline separated.
     var keyTerms: String { didSet { save(keyTerms, "keyTerms") } }
     var whisperModel: WhisperModel { didSet { save(whisperModel.rawValue, "whisperModel") } }
@@ -58,12 +58,13 @@ final class Preferences {
     init() {
         let defaults = UserDefaults.standard
         ollamaConfiguredBefore = LocalModelChoice.ollamaConfigured(in: defaults)
+        LocalModelChoice.keepOllamaInUse(in: defaults, appleState: AppleModel.state)
         microphoneUID = defaults.string(forKey: "microphoneUID") ?? ""
         runPrompt = defaults.object(forKey: "runPrompt") as? Bool ?? false
         let ollama = defaults.string(forKey: "ollamaModel") ?? "qwen3.5:9b"
         ollamaModel = ollama
         localModel = defaults.string(forKey: "localModel").flatMap { $0 == "apple" ? .apple : $0 == "ollama" ? .ollama(ollama) : nil }
-        titleCalls = defaults.object(forKey: "titleCalls") as? Bool ?? true
+        titleCalls = TitleCallsDefault.load(from: defaults)
         keyTerms = defaults.string(forKey: "keyTerms") ?? Self.defaultKeyTerms
         whisperModel = defaults.string(forKey: "whisperModel").flatMap(WhisperModel.init) ?? .largeV3Turbo
         history = defaults.string(forKey: "history").flatMap(History.init) ?? .forever
@@ -84,11 +85,10 @@ final class Preferences {
     /// Whether Ollama was set up before this version; fixed at the first launch.
     let ollamaConfiguredBefore: Bool
 
-    /// The model in use: the pick, or the default for this Mac. The caller says whether Apple's
-    /// model is available now, which Preferences doesn't watch.
-    func effectiveModel(appleAvailable: Bool) -> LocalModel {
+    /// The model in use: the pick, or Apple's unless Ollama was set up before.
+    var effectiveModel: LocalModel {
         LocalModelChoice.effective(stored: localModel, ollamaConfigured: ollamaConfiguredBefore,
-                                   ollamaModel: ollamaModel, appleAvailable: appleAvailable)
+                                   ollamaModel: ollamaModel)
     }
 
     var ollamaEndpoint: URL {

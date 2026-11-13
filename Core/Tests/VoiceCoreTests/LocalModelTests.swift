@@ -4,28 +4,25 @@ import Testing
 
 @Suite struct LocalModelTests {
     @Test(arguments: [
-        // stored, ollamaConfigured, appleAvailable, expected
-        ("apple", false, false, LocalModel.apple),
-        ("apple", true, false, .apple),
-        ("ollama", false, true, .ollama("qwen3.5:9b")),
-        ("ollama", true, true, .ollama("qwen3.5:9b")),
-        (nil, true, true, .ollama("qwen3.5:9b")),
-        (nil, true, false, .ollama("qwen3.5:9b")),
-        (nil, false, true, .apple),
-        (nil, false, false, .ollama("qwen3.5:9b")),
-        ("unknown", false, true, .apple),
-    ] as [(String?, Bool, Bool, LocalModel)])
-    func resolves(stored: String?, configured: Bool, apple: Bool, expected: LocalModel) {
-        #expect(LocalModel.resolve(stored: stored, ollamaConfigured: configured, appleAvailable: apple,
-                                   fixModel: "qwen3.5:9b") == expected)
+        // stored, ollamaConfigured, expected
+        ("apple", false, LocalModel.apple),
+        ("apple", true, .apple),
+        ("ollama", false, .ollama("qwen3.5:9b")),
+        ("ollama", true, .ollama("qwen3.5:9b")),
+        (nil, true, .ollama("qwen3.5:9b")),
+        (nil, false, .apple),
+        ("unknown", false, .apple),
+        ("unknown", true, .ollama("qwen3.5:9b")),
+    ] as [(String?, Bool, LocalModel)])
+    func resolves(stored: String?, configured: Bool, expected: LocalModel) {
+        #expect(LocalModel.resolve(stored: stored, ollamaConfigured: configured, fixModel: "qwen3.5:9b") == expected)
     }
 
     @Test func storedValuesRoundTripThroughTheResolver() {
         #expect(LocalModel.apple.storedValue == "apple")
         #expect(LocalModel.ollama("x").storedValue == "ollama")
         for choice in [LocalModel.apple, .ollama("m")] {
-            #expect(LocalModel.resolve(stored: choice.storedValue, ollamaConfigured: false, appleAvailable: false,
-                                       fixModel: "m") == choice)
+            #expect(LocalModel.resolve(stored: choice.storedValue, ollamaConfigured: false, fixModel: "m") == choice)
         }
     }
 
@@ -168,9 +165,15 @@ private struct FakeEditor: FixEditor {
 
     @Test func appleChosenButUnavailableFailsLikeAStoppedOllama() async throws {
         let outcome = await Pipeline.fix(transcript(["call Alex"]), settings: apple, scope: .every,
-                                         editor: UnavailableFixEditor())
+                                         editor: UnavailableFixEditor(state: .turnedOff))
 
         #expect(outcome.text == "call Alex")
-        #expect(outcome.error != nil)
+        #expect(outcome.error?.contains("turned off in System Settings") == true)
+    }
+
+    @Test func theUnavailableReasonNamesWhatToChange() {
+        #expect(UnavailableFixEditor(state: .notReady).reason == "Apple Intelligence isn't ready yet.")
+        #expect(UnavailableFixEditor(state: .unsupported).reason == "Apple Intelligence isn't available on this Mac.")
+        #expect(UnavailableFixEditor(state: .needsNewerMacOS).reason == "Apple Intelligence needs macOS 26.")
     }
 }

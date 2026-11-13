@@ -18,30 +18,48 @@ public enum LocalModel: Codable, Hashable, Sendable {
         }
     }
 
-    /// The model a Mac uses when nothing is stored: Ollama for anyone who already set it up
-    /// (fix-up turned on, or a model picked), else Apple's when this Mac offers it, else
-    /// Ollama's fix-up model. Computed each time and never stored, so turning on Apple
-    /// Intelligence later takes effect without a pick.
-    public static func resolve(stored: String?, ollamaConfigured: Bool, appleAvailable: Bool,
-                               fixModel: String) -> LocalModel {
+    /// Ollama for anyone who set it up before or picked it, else Apple's, whether or not this
+    /// Mac has it now. Never stored, so someone who never picked follows the default.
+    public static func resolve(stored: String?, ollamaConfigured: Bool, fixModel: String) -> LocalModel {
         switch stored {
         case "apple": return .apple
         case "ollama": return .ollama(fixModel)
         default: break
         }
-        if ollamaConfigured { return .ollama(fixModel) }
-        return appleAvailable ? .apple : .ollama(fixModel)
+        return ollamaConfigured ? .ollama(fixModel) : .apple
     }
 }
 
+/// Why Apple's on-device model can or can't answer now.
+public enum AppleModelState: Sendable, Equatable {
+    case available
+    /// Apple Intelligence is off in System Settings.
+    case turnedOff
+    /// The model is still downloading or preparing.
+    case notReady
+    /// This Mac can't run it, or the framework reports a reason this version doesn't know.
+    case unsupported
+    /// macOS before 26, where the framework doesn't exist.
+    case needsNewerMacOS
+}
+
 /// Whether Apple's on-device model can answer now. Read at the moment of use: the person
-/// can turn Apple Intelligence on or off while the app runs. False before macOS 26, where the
+/// can turn Apple Intelligence on or off while the app runs. Unavailable before macOS 26, where the
 /// framework doesn't exist, so a build for macOS 15 still runs.
 public enum AppleModel {
-    public static var isAvailable: Bool {
+    public static var state: AppleModelState {
         #if canImport(FoundationModels)
-        if #available(macOS 26, *) { return SystemLanguageModel.default.availability == .available }
+        if #available(macOS 26, *) {
+            switch SystemLanguageModel.default.availability {
+            case .available: return .available
+            case .unavailable(.appleIntelligenceNotEnabled): return .turnedOff
+            case .unavailable(.modelNotReady): return .notReady
+            case .unavailable: return .unsupported
+            }
+        }
         #endif
-        return false
+        return .needsNewerMacOS
     }
+
+    public static var isAvailable: Bool { state == .available }
 }

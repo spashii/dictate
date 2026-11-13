@@ -52,8 +52,9 @@ final class AppModel {
     var recent: [Dictation] = []
     /// What Ollama has installed; nil while it isn't running.
     var ollamaModels: [String]?
-    /// Whether Apple's on-device model can answer; refreshed with `ollamaModels`.
-    var appleModelAvailable = AppleModel.isAvailable
+    /// Whether Apple's on-device model can answer, and if not why; refreshed with `ollamaModels`.
+    var appleModelState = AppleModel.state
+    var appleModelAvailable: Bool { appleModelState == .available }
     var devices: [InputDevice] = []
     /// The app holding macOS secure keyboard input, which silences global shortcuts; nil when none does.
     private(set) var secureInput: SecureInput.Holder?
@@ -142,7 +143,7 @@ final class AppModel {
         #if DEBUG
         if let snapshotModel { return snapshotModel }
         #endif
-        return preferences.effectiveModel(appleAvailable: appleModelAvailable)
+        return preferences.effectiveModel
     }
 
     /// Whether the prompt will run: it is on, and the chosen model can answer.
@@ -292,7 +293,7 @@ final class AppModel {
         #if DEBUG
         if snapshotModelsHeld { return }
         #endif
-        appleModelAvailable = AppleModel.isAvailable
+        appleModelState = AppleModel.state
         ollamaModels = try? await Ollama().installedModels(at: preferences.ollamaEndpoint)
     }
 
@@ -574,9 +575,9 @@ final class AppModel {
     private(set) var snapshotModel: LocalModel?
     private var snapshotModelsHeld = false
 
-    func setModelsForSnapshots(appleAvailable: Bool, ollama: [String]?, choice: LocalModel) {
+    func setModelsForSnapshots(apple: AppleModelState, ollama: [String]?, choice: LocalModel) {
         snapshotModelsHeld = true
-        appleModelAvailable = appleAvailable
+        appleModelState = apple
         ollamaModels = ollama
         snapshotModel = choice
     }
@@ -701,11 +702,6 @@ final class AppModel {
         self.pipeline = pipeline
         pipelineModel = model
         return pipeline
-    }
-
-    /// Ollama lists "name:latest" for a model pulled as "name".
-    static func contains(_ models: [String], _ name: String) -> Bool {
-        models.contains(name) || models.contains(name + ":latest")
     }
 
     static func clock(_ seconds: TimeInterval) -> String {

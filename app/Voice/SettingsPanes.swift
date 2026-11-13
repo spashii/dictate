@@ -145,8 +145,6 @@ struct CallAudioPermissionRow: View {
     }
 }
 
-/// The speech: which model hears you, with which names, how unsure words are retried, and the
-/// step that fixes the text afterwards. The language is always detected.
 struct ModelPane: View {
     @Environment(AppModel.self) private var model
 
@@ -162,6 +160,11 @@ struct ModelPane: View {
                     }
                 }
                 SpeechModelStatus(whisperModel: preferences.whisperModel)
+                Toggle(isOn: $preferences.retrySegments) {
+                    Text("Retry unsure segments")
+                    Text("Words Whisper was unsure of are transcribed again, more carefully. This can add a moment before the paste.")
+                }
+                RetryStatsView()
                 TextField(text: $preferences.keyTerms, axis: .vertical) {
                     Text("Key terms")
                     Text("Names, product names and jargon Whisper gets wrong, as they should be spelled.")
@@ -169,22 +172,15 @@ struct ModelPane: View {
                 SuggestedTermsView()
             }
             Section {
-                Toggle(isOn: $preferences.retrySegments) {
-                    Text("Retry unsure segments")
-                    Text("Words Whisper was unsure of are transcribed again, more carefully. This can add a moment before the paste.")
-                }
-                RetryStatsView()
-            }
-            Section {
+                LocalModelRow()
                 Toggle(isOn: $preferences.runPrompt) {
                     Text("Fix the text before pasting")
-                    Text("A model on this Mac reads the text with your key terms and can change a few misheard words. This adds a moment before the paste.")
+                    Text("Reads the text with your key terms and can change a few misheard words. This adds a moment before the paste.")
                 }
                 Toggle(isOn: $preferences.titleCalls) {
-                    Text("Title calls")
-                    Text("A model on this Mac names each call from its transcript when it ends.")
+                    Text("Add a title to each call automatically")
+                    Text("Names each call from its transcript when it ends.")
                 }
-                LocalModelRow()
             }
         }
         .formStyle(.grouped)
@@ -195,63 +191,27 @@ struct ModelPane: View {
     }
 }
 
-/// The model for the fix and for titles: Apple's when this Mac has it, then the models Ollama
-/// has, or why there are none to pick.
+/// The intelligence model for the fix and for titles. Always listed, with Apple's entry saying
+/// why it can't be used when it can't, and Ollama's saying when it isn't running.
 struct LocalModelRow: View {
     @Environment(AppModel.self) private var model
 
-    /// What the picker lists: Apple's model first, then the Ollama ones, with a divider between
-    /// the two groups. Nil when there is nothing to pick and the row only says Ollama is not running.
-    struct Options {
-        struct Entry: Hashable {
-            var title: String
-            var model: LocalModel
-        }
-        var apple: Entry?
-        var ollama: [Entry]
-    }
-
-    static func options(appleAvailable: Bool, current: LocalModel, ollamaModels: [String]?, ollamaModel: String) -> Options? {
-        let appleListed = appleAvailable || current == .apple
-        if ollamaModels == nil && !appleListed { return nil }
-        var options = Options(
-            apple: appleListed ? .init(title: appleAvailable ? "Apple Intelligence" : "Apple Intelligence (unavailable)", model: .apple) : nil,
-            ollama: [])
-        if let models = ollamaModels {
-            options.ollama = models.map { .init(title: $0, model: .ollama($0)) }
-            if !AppModel.contains(models, ollamaModel) {
-                options.ollama.append(.init(title: "\(ollamaModel) (not installed)", model: .ollama(ollamaModel)))
-            }
-        } else if case .ollama(let name) = current {
-            options.ollama = [.init(title: "\(name) (Ollama is not running)", model: current)]
-        }
-        return options
-    }
-
     var body: some View {
         let preferences = model.preferences
-        let current = model.effectiveModel
-        if let options = Self.options(appleAvailable: model.appleModelAvailable, current: current,
-                                      ollamaModels: model.ollamaModels, ollamaModel: preferences.ollamaModel) {
-            let selection = Binding<String>(
-                get: { LocalModelChoice.tag(model.effectiveModel) },
-                set: { tag in
-                    guard let choice = LocalModelChoice.model(tag: tag) else { return }
-                    if case .ollama(let name) = choice { preferences.ollamaModel = name }
-                    preferences.localModel = choice
-                })
-            Picker("Model", selection: selection) {
-                if let apple = options.apple {
-                    Text(apple.title).tag(LocalModelChoice.tag(apple.model))
-                }
-                if options.apple != nil && !options.ollama.isEmpty { Divider() }
-                ForEach(options.ollama, id: \.self) { entry in
-                    Text(entry.title).tag(LocalModelChoice.tag(entry.model))
-                }
-            }
-        } else {
-            LabeledContent("Model") {
-                Text("Ollama is not running").foregroundStyle(.secondary)
+        let options = LocalModelChoice.pickerOptions(apple: model.appleModelState, current: model.effectiveModel,
+                                                     ollamaModels: model.ollamaModels, ollamaModel: preferences.ollamaModel)
+        let selection = Binding<String>(
+            get: { LocalModelChoice.tag(model.effectiveModel) },
+            set: { tag in
+                guard let choice = LocalModelChoice.model(tag: tag) else { return }
+                if case .ollama(let name) = choice { preferences.ollamaModel = name }
+                preferences.localModel = choice
+            })
+        Picker("Intelligence model", selection: selection) {
+            Text(options.apple.title).tag(LocalModelChoice.tag(options.apple.model))
+            Divider()
+            ForEach(options.ollama, id: \.self) { entry in
+                Text(entry.title).tag(LocalModelChoice.tag(entry.model))
             }
         }
     }
