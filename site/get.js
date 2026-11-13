@@ -7,7 +7,8 @@
    time zone, then the language region. [data-price] is Dictate's own price, where only the sign changes.
    [data-eur] holds the euro text for a price that is not the same number in both, such as another app's.
    The founding spots count is fetched once and appends "N spots left." to the founding sentence in every [data-left]; if the
-   request fails the sentence stands alone. */
+   request fails the sentence stands alone. At zero the sentence says the spots are taken and each
+   [data-notify] form appears under it, collecting an address for the launch email. */
 (function () {
   var STEPS = ["Open the DMG and drag Dictate to Applications.", "Open Dictate.", "In the window Dictate opens, press Activate in Browser."];
   var FOUNDING = "https://dictate.firstversion.in/api/activate/founding";
@@ -20,7 +21,7 @@
     } catch (e) { return false; }
   }
 
-  // Time zones of the 21 euro countries, France's overseas departments included because they use the euro.
+  // Time zones of the countries that use the euro, France's overseas departments included because they use it too.
   // Europe/Busingen is left out on purpose: Germany's exclave on the Swiss side bills in francs.
   var EURO_ZONES = ("Europe/Vienna Europe/Brussels Europe/Sofia Europe/Zagreb Asia/Nicosia Asia/Famagusta Europe/Nicosia " +
     "Europe/Tallinn Europe/Helsinki Europe/Mariehamn Europe/Paris Europe/Berlin Europe/Athens Europe/Dublin Eire " +
@@ -65,10 +66,136 @@
     if (!spots.length || !window.fetch) return;
     for (var k = 0; k < spots.length; k++) spots[k].setAttribute("data-base", spots[k].textContent);
     fetch(FOUNDING).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
-      if (j && Number.isInteger(j.left) && j.left >= 0) {
-        for (var i = 0; i < spots.length; i++) { spots[i].textContent = spots[i].getAttribute("data-base") + " " + j.left + (j.left === 1 ? " spot left." : " spots left."); }
-      }
+      if (!j || !Number.isInteger(j.left) || j.left < 0) return;
+      if (j.left === 0) { soldOut(spots); return; }
+      for (var i = 0; i < spots.length; i++) { spots[i].textContent = spots[i].getAttribute("data-base") + " " + j.left + (j.left === 1 ? " spot left." : " spots left."); }
     }).catch(function () {});
+  }
+
+  var LAUNCH = "https://dictate.firstversion.in/api/launch-list";
+  var SITEKEY = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? "1x00000000000000000000AA" : "0x4AAAAAAF-MEHP47FLn7LEY";
+  var NOTIFY_ERRORS = {
+    bad_email: "That email address does not look right.",
+    turnstile: "I could not confirm you are a person. Try again in a moment.",
+    rate_limited: "Too many tries. Wait a minute and try again."
+  };
+  var NOTIFY_FAILED = "I could not save your address. Try again in a minute.";
+  var NOTIFY_DONE = "You are on the list.";
+  var tsScript = null, tsBlocked = false, tsBlockedListeners = [];
+
+  // Turnstile loads only when the sold-out state shows, so visitors who never see the form never load it.
+  function loadTurnstile(cb) {
+    if (window.turnstile) return cb();
+    if (!tsScript) {
+      tsScript = document.createElement("script");
+      tsScript.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+      tsScript.async = true;
+      tsScript.addEventListener("error", function () {
+        tsBlocked = true;
+        tsBlockedListeners.forEach(function (l) { l(); });
+      });
+      document.head.appendChild(tsScript);
+    }
+    tsScript.addEventListener("load", cb);
+  }
+
+  // A blocked or failed script never reports back on its own, so each form listens for the error and stops waiting.
+  function onTurnstileBlocked(cb) {
+    if (tsBlocked) return cb();
+    tsBlockedListeners.push(cb);
+  }
+
+  function soldOut(spots) {
+    for (var i = 0; i < spots.length; i++) spots[i].textContent = "All 50 founding spots are taken.";
+    var forms = document.querySelectorAll("[data-notify]");
+    for (var f = 0; f < forms.length; f++) notify(forms[f]);
+  }
+
+  function notify(form) {
+    var input = form.querySelector("input");
+    var button = form.querySelector("button");
+    var row = form.querySelector(".notify-row");
+    var err = form.querySelector(".notify-err");
+    var done = form.querySelector(".notify-done");
+    var tsBox = form.querySelector(".notify-ts");
+    var token = "", widget = null, busy = false, failed = false, waiting = null;
+    form.hidden = false;
+
+    // The token comes ahead of the submit; "interaction-only" keeps the widget invisible unless Cloudflare needs the person to act.
+    loadTurnstile(function () {
+      widget = window.turnstile.render(tsBox, {
+        sitekey: SITEKEY,
+        appearance: "interaction-only",
+        callback: function (t) { token = t; failed = false; if (waiting) waiting(); },
+        "expired-callback": function () { token = ""; },
+        "error-callback": function () { token = ""; failed = true; if (waiting) waiting(); }
+      });
+    });
+
+    onTurnstileBlocked(function () { failed = true; if (waiting) waiting(); });
+
+    // Only a bad address marks the field invalid; any other failure is not the visitor's to fix in the field.
+    function fail(text, field) {
+      err.textContent = text;
+      if (field) input.setAttribute("aria-invalid", "true"); else input.removeAttribute("aria-invalid");
+    }
+
+    // Resolves with a token, or "" once the check has failed or taken too long.
+    function getToken() {
+      if (token) return Promise.resolve(token);
+      if (failed) return Promise.resolve("");
+      return new Promise(function (resolve) {
+        var t = setTimeout(function () { waiting = null; resolve(""); }, 15000);
+        waiting = function () { if (token || failed) { clearTimeout(t); waiting = null; resolve(token); } };
+      });
+    }
+
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      if (busy) return;
+      var email = input.value.trim();
+      err.textContent = "";
+      input.removeAttribute("aria-invalid");
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { fail(NOTIFY_ERRORS.bad_email, true); input.focus(); return; }
+      busy = true;
+      button.setAttribute("aria-disabled", "true");
+      button.classList.add("is-disabled");
+      getToken().then(function (t) {
+        if (!t) throw "turnstile";
+        return fetch(LAUNCH, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ email: email, turnstile: t, attribution: window.dictateAttribution || {} })
+        }).then(function (r) {
+          return r.json().catch(function () { return {}; }).then(function (j) { return { status: r.status, json: j }; });
+        });
+      }).then(function (r) {
+        if (r.status === 200 && r.json.ok) {
+          row.hidden = true;
+          err.textContent = "";
+          done.textContent = NOTIFY_DONE;
+          done.hidden = false;
+          // The form row is gone, so focus would fall to the body; the confirmation takes it.
+          done.setAttribute("tabindex", "-1");
+          done.focus();
+          return;
+        }
+        var code = r.json && r.json.error;
+        fail(NOTIFY_ERRORS[code] || NOTIFY_FAILED, code === "bad_email");
+        (code === "bad_email" ? input : button).focus();
+      }, function (why) {
+        fail(why === "turnstile" && !tsBlocked ? NOTIFY_ERRORS.turnstile : NOTIFY_FAILED);
+        button.focus();
+      }).then(function () {
+        busy = false;
+        button.removeAttribute("aria-disabled");
+        button.classList.remove("is-disabled");
+        // A token works once; ask for the next one now so a retry does not wait.
+        token = "";
+        if (!tsBlocked) failed = false;
+        if (widget !== null && window.turnstile) window.turnstile.reset(widget);
+      });
+    });
   }
 
   function copyText(text) {
