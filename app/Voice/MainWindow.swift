@@ -2,40 +2,6 @@ import AppKit
 import SwiftUI
 import VoiceCore
 
-/// The panes of the main window: History in the Library, and the settings.
-enum MainPane: String, CaseIterable, Identifiable {
-    case history, setup, shortcuts, microphones, model, agents, about
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .history: "History"
-        case .setup: "Setup"
-        case .shortcuts: "Shortcuts"
-        case .microphones: "Microphones"
-        case .model: "Model"
-        case .agents: "Agents"
-        case .about: "About"
-        }
-    }
-
-    var symbol: String {
-        switch self {
-        case .history: "clock.arrow.circlepath"
-        case .setup: "checkmark.circle"
-        case .shortcuts: "keyboard"
-        case .microphones: "mic"
-        case .model: "waveform"
-        case .agents: "terminal"
-        case .about: "info.circle"
-        }
-    }
-
-    static let library: [MainPane] = [.history]
-    static let settings: [MainPane] = [.setup, .shortcuts, .microphones, .model, .agents, .about]
-}
-
 @MainActor @Observable
 final class MainNavigation {
     var selection: MainPane? = .history
@@ -95,21 +61,15 @@ struct MainView: View {
 
     var body: some View {
         @Bindable var navigation = navigation
+        let policy = model.lock
         NavigationSplitView {
-            List(selection: $navigation.selection) {
-                Section("Library") {
-                    ForEach(MainPane.library) { row($0) }
-                }
-                Section("Settings") {
-                    ForEach(MainPane.settings) { row($0) }
-                }
-            }
-            .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 170, ideal: 200, max: 260)
+            MainSidebar(navigation: navigation)
+                .navigationSplitViewColumnWidth(min: 170, ideal: 200, max: 260)
         } detail: {
-            let pane = navigation.selection ?? .history
+            let pane = policy.landing(for: navigation.selection ?? .history)
             Group {
                 switch pane {
+                case .welcome: WelcomePane()
                 case .history: HistoryPane(history: history)
                 case .setup: SetupPane()
                 case .shortcuts: ShortcutsPane()
@@ -136,6 +96,32 @@ struct MainView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             model.refreshPermissions()
         }
+    }
+}
+
+/// The Library and Settings list. A view of its own so the app-shots run can draw it where
+/// a bitmap draw of the window leaves the sidebar blank.
+struct MainSidebar: View {
+    @Environment(AppModel.self) private var model
+    let navigation: MainNavigation
+
+    var body: some View {
+        @Bindable var navigation = navigation
+        let policy = model.lock
+        List(selection: $navigation.selection) {
+            if !model.activation.isActivated {
+                Section { row(.welcome) }
+            }
+            if policy.unlocked {
+                Section("Library") {
+                    ForEach(MainPane.library) { row($0) }
+                }
+            }
+            Section("Settings") {
+                ForEach(MainPane.settings.filter(policy.reaches)) { row($0) }
+            }
+        }
+        .listStyle(.sidebar)
     }
 
     private func row(_ pane: MainPane) -> some View {

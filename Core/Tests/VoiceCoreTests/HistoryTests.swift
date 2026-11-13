@@ -99,8 +99,10 @@ final class HistoryTests: StoreTestCase {
         let stored = storedChanges()
 
         XCTAssertEqual(stored.count, 11, "2 retries, 4 fix edits, 4 corrections and an undo")
-        XCTAssertEqual(Set(shown.map(\.record)), stored)
-        XCTAssertEqual(shown.count, stored.count, "each change once")
+        // A correction that touched several lines of a dictation is one change in each, told apart by a suffix.
+        let records = shown.map { String($0.record.split(separator: "#")[0]) }
+        XCTAssertEqual(Set(records), stored)
+        XCTAssertEqual(Set(shown.map(\.record)).count, shown.count, "each change once")
         XCTAssertEqual(Set(entries.map(\.id)), ["dictation:fixed", "dictation:second", "dictation:plain", "call:call"])
         XCTAssertEqual(entries.first { $0.ref == "fixed" }?.changes, 5)
         XCTAssertEqual(entries.first { $0.ref == "call" }?.changes, 3)
@@ -145,26 +147,26 @@ final class HistoryTests: StoreTestCase {
     }
 
     /// A correction replaces the whole text, so the detail shows it like the list and Copy do,
-    /// as one block that keeps the retry and fix changes of the segments it replaced.
+    /// with its words in the lines they came from and each line's own retry and fix changes.
     func testACorrectedDictationShowsTheCorrectedText() throws {
         let calls = try fixtures()
         let entry = try XCTUnwrap(try calls.historyEntries().first { $0.ref == "fixed" })
         let detail = try XCTUnwrap(try calls.historyDetail(entry))
 
         XCTAssertEqual(entry.title, "The Northwind pilot: ask Claude about it.")
-        XCTAssertEqual(detail.lines.map(\.text), ["The Northwind pilot: ask Claude about it."])
-        XCTAssertEqual(detail.lines[0].whisper, "the northwynd pilot ask Claud about it then we ship")
-        XCTAssertEqual(detail.lines[0].t0, 0)
-        XCTAssertEqual(detail.lines[0].t1, 5)
-        XCTAssertEqual(detail.lines[0].changes.map(\.source), [.retry, .fix, .fix, .fix])
+        XCTAssertEqual(detail.lines.map(\.text), ["The Northwind pilot:", "ask Claude about it.", ""])
+        XCTAssertEqual(detail.lines.map(\.t0), [0, 2, 4])
+        XCTAssertEqual(detail.lines[0].whisper, "the northwynd pilot")
+        XCTAssertEqual(detail.lines[0].changes.map(\.source), [.retry, .fix, .correction])
         XCTAssertEqual(detail.lines[0].changes[0].diff.changes, [.init(before: ["northwynd"], after: ["northwind"])])
-        XCTAssertEqual(detail.lines[0].changes[1].applied, false)
         XCTAssertEqual(detail.lines[0].changes[1].note, "not-flagged")
-        XCTAssertEqual(detail.lines[0].changes[2].after, "ask Claude about it")
-        XCTAssertEqual(detail.lines[0].changes[2].note, "Claude")
-        XCTAssertEqual(detail.textChanges.map(\.source), [.correction])
-        XCTAssertEqual(detail.textChanges[0].after, "The Northwind pilot: ask Claude about it.")
-        XCTAssertEqual(detail.textChanges[0].note, "agent 1")
+        XCTAssertEqual(detail.lines[0].changes[2].note, "agent 1")
+        XCTAssertEqual(detail.lines[1].changes.map(\.source), [.fix, .correction])
+        XCTAssertEqual(detail.lines[1].changes[0].after, "ask Claude about it")
+        XCTAssertEqual(detail.lines[1].changes[0].note, "Claude")
+        XCTAssertEqual(detail.lines[2].changes.map(\.source), [.fix, .correction])
+        XCTAssertEqual(detail.lines[2].changes[0].applied, false)
+        XCTAssertEqual(detail.textChanges, [])
         XCTAssertEqual(detail.audioPath, dir.appending(path: "fixed.wav").path)
     }
 

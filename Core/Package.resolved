@@ -1,0 +1,15 @@
+{
+  "originHash" : "3a446e34da0cf3b943b81681f4627ee34dbb7db3224eaac3e917970b07d2c2df",
+  "pins" : [
+    {
+      "identity" : "blend",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/spashii/blend",
+      "state" : {
+        "revision" : "389682ea49dd677c9b6723bd3292e2d76c6b1f0a",
+        "version" : "0.9.0"
+      }
+    }
+  ],
+  "version" : 3
+}

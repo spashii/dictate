@@ -8,10 +8,11 @@ extension KeyboardShortcuts.Name {
     /// The shortcut OpenSuperWhisper used, so the habit carries over.
     /// The only way to start and stop: nothing else ends a recording, so no stray key can
     /// throw one away.
-    static let dictate = Self("dictate", initial: .init(.backtick, modifiers: [.option]))
+    /// A development build has none, so it never answers the installed app's key.
+    static let dictate = Self("dictate", initial: BuildFlavor.isDev ? nil : .init(.backtick, modifiers: [.option]))
     /// Starts a call recording whether or not a call app is in a call, and stops it. Its own
     /// key, so dictating stays on Option+` during a call.
-    static let recordCall = Self("recordCall", initial: .init(.backtick, modifiers: [.option, .shift]))
+    static let recordCall = Self("recordCall", initial: BuildFlavor.isDev ? nil : .init(.backtick, modifiers: [.option, .shift]))
 }
 
 @MainActor @Observable
@@ -29,6 +30,14 @@ final class AppModel {
 
     enum NoticeAction: Equatable {
         case allowAccessibility
+        case activate
+
+        var title: String {
+            switch self {
+            case .allowAccessibility: "Allow\u{2026}"
+            case .activate: "Activate in Browser"
+            }
+        }
     }
 
     var phase: Phase = .idle {
@@ -44,6 +53,8 @@ final class AppModel {
     /// What Ollama has installed; nil while it isn't running.
     var ollamaModels: [String]?
     var devices: [InputDevice] = []
+    /// The app holding macOS secure keyboard input, which silences global shortcuts; nil when none does.
+    private(set) var secureInput: SecureInput.Holder?
     var microphoneAllowed = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
     var accessibilityAllowed = Paster.hasAccess
     var openAtLogin = SMAppService.mainApp.status == .enabled
@@ -51,6 +62,13 @@ final class AppModel {
     let downloads = ModelDownloads()
     let agents = AgentAccess()
     let updates = Updates()
+    let activation: Activation
+    /// Held only while Dictate may record.
+    /// What a locked Dictate keeps off.
+    private(set) var lock = LockPolicy(unlocked: false)
+    @ObservationIgnored let hotkeys = Hotkeys(
+        enable: { KeyboardShortcuts.enable(.dictate, .recordCall) },
+        disable: { KeyboardShortcuts.disable(.dictate, .recordCall) })
 
     /// Set at launch; dictation asks it whether a call is using whisper.
     @ObservationIgnored weak var calls: CallsModel?
@@ -66,7 +84,8 @@ final class AppModel {
     @ObservationIgnored private lazy var indicator = Indicator(model: self)
     @ObservationIgnored private lazy var mainWindow = MainWindow(model: self)
 
-    init() {
+    init(activation: Activation = Activation(store: KeychainActivationStore())) {
+        self.activation = activation
         recorder = Recorder(onLevel: { [weak self] level in
             Task { @MainActor in self?.level = level }
         }, onInputLost: { [weak self] in
@@ -122,11 +141,14 @@ final class AppModel {
     }
 
     var setupComplete: Bool {
-        microphoneAllowed && accessibilityAllowed && downloads.state(preferences.whisperModel) == .ready
+        #if DEBUG
+        if snapshotSetupComplete { return true }
+        #endif
+        return microphoneAllowed && accessibilityAllowed && downloads.state(preferences.whisperModel) == .ready
     }
 
     /// The menu bar glyph, from Assets: three pills like the app icon, outlined when idle,
-    /// the centre one filled while dictating, dots while working, and all filled with a dot
+    /// the center one filled while dictating, dots while working, and all filled with a dot
     /// while a call records. A dictation shows over the call, which the indicator still shows.
     var menuBarImage: String {
         switch phase {
@@ -139,7 +161,7 @@ final class AppModel {
     /// The first line of the menu.
     var statusText: String {
         switch phase {
-        case .idle, .notice, .edits: fixesText ? "Ready" : "Ready, whisper only"
+        case .idle, .notice, .edits: fixesText ? "Ready" : "Ready, Whisper only"
         case .recording(_, let began): "Listening " + Self.clock(now.timeIntervalSince(began))
         case .transcribing: "Transcribing"
         case .cleaningUp: "Fixing the text"
@@ -148,6 +170,7 @@ final class AppModel {
 
     func launch() {
         KeyboardShortcuts.onKeyUp(for: .dictate) { [weak self] in self?.toggle() }
+        applyLock()
         do {
             store = try Store(url: Paths.database)
             pruneHistory()
@@ -161,11 +184,19 @@ final class AppModel {
         updates.onStaged = { [weak self] in self?.installUpdateWhenQuiet() }
         installUpdateWhenQuiet()
         // Ollama can start or stop at any time; a localhost check every half minute keeps
-        // the menu's "whisper only" honest without asking on every keypress.
+        // the menu's "Whisper only" honest without asking on every keypress.
         Task {
             while !Task.isCancelled {
                 await refreshOllama()
                 try? await Task.sleep(for: .seconds(30))
+            }
+        }
+        // One flag check every few seconds; the app holding it is looked up only while it is set.
+        Task {
+            while !Task.isCancelled {
+                let holder = lock.showsRecordingMenu ? SecureInput.holder() : nil
+                if holder != secureInput { secureInput = holder }
+                try? await Task.sleep(for: .seconds(4))
             }
         }
         if setupComplete {
@@ -175,6 +206,11 @@ final class AppModel {
             recoverRecordings()
         } else {
             if downloads.state(preferences.whisperModel) == .missing { downloads.download(preferences.whisperModel) }
+        }
+        // The model keeps downloading behind Welcome, so Setup is ready once Dictate is activated.
+        if !activation.isActivated {
+            openMainWindow(.welcome)
+        } else if !setupComplete {
             openMainWindow(.setup)
         }
         #if DEBUG
@@ -198,7 +234,9 @@ final class AppModel {
     /// the start, so changing the setting mid-dictation doesn't change what this one does.
     func toggle() {
         switch phase {
-        case .idle, .notice, .edits: start(preferences.runPrompt && calls?.usesWhisper != true ? .fix : .plain)
+        case .idle, .notice, .edits:
+            guard requireActivation() else { return }
+            start(preferences.runPrompt && calls?.usesWhisper != true ? .fix : .plain)
         case .recording: stop()
         case .transcribing, .cleaningUp: break
         }
@@ -290,6 +328,7 @@ final class AppModel {
     func noticeAction(_ action: NoticeAction) {
         switch action {
         case .allowAccessibility: Paster.askForAccess()
+        case .activate: beginActivation()
         }
         phase = .idle
         refreshIndicator()
@@ -436,6 +475,12 @@ final class AppModel {
         }
     }
 
+    /// After History renames or deletes a recording.
+    func refreshRecents() {
+        recent = store?.recent(5) ?? recent
+        calls?.refreshRecent()
+    }
+
     private func finish(_ dictation: Dictation, inputLost: Bool = false, writeError: String? = nil) async {
         pruneHistory()
         recent = store?.recent(5) ?? recent
@@ -456,7 +501,7 @@ final class AppModel {
         } else if !pasted {
             show("Copied. Allow Dictate in Accessibility to paste for you.", action: .allowAccessibility)
         } else if let error = dictation.error {
-            show("Pasted whisper's text; the fix failed: \(error)")
+            show("Pasted Whisper's text. Fix the text before pasting failed: \(error)")
             await refreshOllama()
         } else if inputLost {
             show("\(lost) and pasted what it heard before.")
@@ -499,19 +544,86 @@ final class AppModel {
     /// Cmd+,, and at launch while setup is unfinished.
     func openMainWindow(_ pane: MainPane) {
         guard let calls else { return }
-        mainWindow.show(pane, calls: calls)
+        mainWindow.show(lock.landing(for: pane), calls: calls)
     }
+
+    #if DEBUG
+    /// Set by the app-shots run so the window draws as it does on a finished install.
+    var snapshotSetupComplete = false
+
+    func unlockForSnapshots() { lock = LockPolicy(activation) }
+    #endif
 
     func openHistory() { openMainWindow(.history) }
 
     /// Cmd+, and the menu's Settings: the first settings pane.
     func openSettings() { openMainWindow(.setup) }
 
+    /// True when recording may start. Otherwise the pill offers to activate.
+    func requireActivation() -> Bool {
+        activation.refresh()
+        guard (try? RecordingGate.check(activation)) != nil else {
+            notice("Activate Dictate to start recording", action: .activate)
+            return false
+        }
+        return true
+    }
+
+    /// Opens the activation page in the browser with this Mac's nonce, and Welcome here.
+    func beginActivation() {
+        activationProblem = nil
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
+        NSWorkspace.shared.open(activation.pageURL(page: BuildFlavor.activationPage, version: version,
+                                                   scheme: BuildFlavor.isDev ? BuildFlavor.urlScheme : nil))
+        openMainWindow(.welcome)
+    }
+
+    /// Why the last activation failed, kept on Welcome until the next try.
+    var activationProblem: String?
+
+    func acceptActivation(url: URL) {
+        let wasActivated = activation.isActivated
+        let result = activation.accept(url: url)
+        // The same link opened again on an activated Mac changes nothing, so it says nothing.
+        if wasActivated, case .success = result { return }
+        finishActivation(result)
+    }
+
+    private func finishActivation(_ result: Result<Void, Activation.Refusal>) {
+        switch result {
+        case .success:
+            activationProblem = nil
+            activationChanged()
+            openMainWindow(.setup)
+            notice("Dictate is activated")
+        case .failure(.otherRequest):
+            activationProblem = "This activation was for another request. Press Activate in Browser again."
+            openMainWindow(.welcome)
+        case .failure(.invalid), .failure(.notSaved):
+            activationProblem = "Dictate could not use that activation. Press Activate in Browser again."
+            openMainWindow(.welcome)
+        }
+    }
+
+    /// Brings what a locked Dictate keeps off in line with the state: the shortcuts, the agent
+    /// server and the call prompt. Runs at launch and after activation.
+    func applyLock(force: Bool = false) {
+        activation.refresh()
+        lock = LockPolicy(activation)
+        hotkeys.apply(lock, force: force)
+        agents.setUnlocked(lock.startsAgentServer)
+        calls?.activationChanged()
+    }
+
+    private func activationChanged() {
+        applyLock()
+    }
+
     /// A notice from outside dictation. Mid-dictation the indicator stays on the dictation
     /// and the menu carries the message instead.
-    func notice(_ text: String) {
+    func notice(_ text: String, action: NoticeAction? = nil) {
         switch phase {
-        case .idle, .notice, .edits: show(text)
+        case .idle, .notice, .edits: show(text, action: action)
         case .recording, .transcribing, .cleaningUp: break
         }
     }
@@ -533,7 +645,7 @@ final class AppModel {
     /// Open at login is on by default, once: after that the switch in Settings decides.
     private func setDefaultLoginItem() {
         let key = "loginItemDefaulted"
-        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        guard !BuildFlavor.isDev, !UserDefaults.standard.bool(forKey: key) else { return }
         UserDefaults.standard.set(true, forKey: key)
         setOpenAtLogin(true)
     }

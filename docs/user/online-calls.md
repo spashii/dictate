@@ -4,9 +4,11 @@ An online call has two sides. Dictate records your microphone as Me and the soun
 
 1. **Allow call audio once.** Setup has a Call audio step. macOS asks to let Dictate record the sound of other apps; it records only the app you are on a call in. Without it Dictate records your microphone alone.
 2. **Speakers or headphones.** On speakers Dictate takes the call out of what your microphone hears, so its words stay under Call. Other sound from your Mac, such as music, stays under Me. Turn this off with Cancel echo from the call in Settings, Microphones.
-3. **Start recording.** After a call app has used the microphone for 5 seconds (10 for a browser using the microphone and speakers), Dictate shows "Record this call?" with Record and Not now. ``Option+Shift+` `` and the menu's "Record this call" start one too.
+3. **Start recording.** After a call app has used the microphone for 5 seconds (10 for a browser using the microphone and speakers), Dictate shows "Record this call?" with Record and Not now. ``Option+Shift+` `` and the menu's "Record This Call" start one too.
 4. **Read the transcript.** Each side is cut at its pauses and transcribed while the call goes on, yours as Me and everyone else as Call. While it records, the call pill shows the last three lines. Click the call in the menu to copy it.
 5. **Stop.** Recording stops 15 seconds after the call app stops using audio, with ``Option+Shift+` ``, from the menu, or when an agent says so. Once the transcript is complete, the audio becomes an AAC `.m4a`: about 45 MB an hour of stereo instead of 690 MB.
+
+History and the menu name a call after its app, such as "Slack call", when Dictate could tell which app it was. A call you started for an app Dictate doesn't know is just "Call", and a name you give it replaces both.
 
 Quitting during an online call closes the WAV, and the next launch rebuilds the transcript from the file. A mute or a device switch doesn't end a recording: it ends only after 15 seconds with neither input nor output.
 

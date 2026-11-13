@@ -10,6 +10,7 @@ struct SetupPane: View {
         @Bindable var preferences = model.preferences
         Form {
             Section {
+                ActivationStep()
                 MicrophoneStep()
                 AccessibilityStep()
                 CallAudioStep()
@@ -41,7 +42,7 @@ struct ShortcutsPane: View {
         Form {
             Section("Dictate") {
                 KeyboardShortcuts.Recorder("Shortcut", name: .dictate)
-                Text("Press once to start, again to stop. Nothing else stops a recording.")
+                Text("Press once to start, again to stop.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Record call") {
@@ -85,7 +86,7 @@ struct MicrophonesPane: View {
                 }
                 Toggle("Cancel echo from the call", isOn: $calls.cancelEcho)
             } footer: {
-                Text("On speakers, Dictate takes the call out of what your microphone hears. Other sound from your Mac stays.")
+                Text("On speakers, Dictate takes the call out of what your microphone hears.")
             }
             Section {
                 BlendMicNote()
@@ -110,10 +111,16 @@ struct MicrophonesPane: View {
 /// Why a call's audio has a choice at all: Dictate records it itself, and a Blend Mic mix is
 /// the alternative for people who already use Blend Mic.
 struct BlendMicNote: View {
+    @Environment(AppModel.self) private var model
+
     var body: some View {
-        HStack(spacing: 4) {
-            Text("Dictate records a call\u{2019}s audio itself. If you use Blend Mic, you can record its mix instead.")
-            Link("About Blend Mic", destination: BlendMic.website)
+        Text("Dictate records a call\u{2019}s audio itself. If you use Blend Mic, you can record its mix instead.")
+        LabeledContent("Blend Mic") {
+            if BlendMic.isInstalled(inputNames: model.devices.map(\.name)) {
+                Text("Installed")
+            } else {
+                Link("Get Blend Mic", destination: BlendMic.website)
+            }
         }
     }
 }
@@ -125,7 +132,7 @@ struct CallAudioPermissionRow: View {
     var body: some View {
         if calls.capturePermission != .authorized {
             LabeledContent {
-                Button(calls.capturePermission == .denied ? "Open System Settings" : "Allow\u{2026}") {
+                Button(calls.capturePermission == .denied ? "Open System Settings\u{2026}" : "Allow\u{2026}") {
                     calls.askForCaptureAccess()
                 }
             } label: {
@@ -157,14 +164,14 @@ struct ModelPane: View {
                 SpeechModelStatus(whisperModel: preferences.whisperModel)
                 TextField(text: $preferences.keyTerms, axis: .vertical) {
                     Text("Key terms")
-                    Text("Names, product names and jargon whisper gets wrong, as they should be spelled.")
+                    Text("Names, product names and jargon Whisper gets wrong, as they should be spelled.")
                 }
                 SuggestedTermsView()
             }
             Section {
                 Toggle(isOn: $preferences.retrySegments) {
                     Text("Retry unsure segments")
-                    Text("Words whisper was unsure of are transcribed again, more carefully. This can add a moment before the paste.")
+                    Text("Words Whisper was unsure of are transcribed again, more carefully. This can add a moment before the paste.")
                 }
                 RetryStatsView()
             }
@@ -320,7 +327,7 @@ struct AgentsPane: View {
 
     private func tools(_ agents: AgentAccess) -> some View {
         Section {
-            Text("Tools that record or change anything start off, because what the other side of a call says is read by your agent.")
+            Text("Tools that record or change anything start off.")
                 .font(.callout).foregroundStyle(.secondary)
             ForEach(MCPServer.toolCatalog) { tool in
                 Toggle(isOn: Binding(get: { !agents.disabledTools.contains(tool.name) },

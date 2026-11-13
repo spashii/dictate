@@ -100,6 +100,14 @@ final class CallsModel {
         }
     }
 
+    #if DEBUG
+    /// The app-shots run asks the prompt to show for an app without a detector.
+    func promptForSnapshots(_ app: DetectedCall, model: AppModel) {
+        self.model = model
+        detected = [app]
+    }
+    #endif
+
     private func migrateLegacyInput() {
         let defaults = UserDefaults.standard
         guard defaults.string(forKey: "callAudio") == nil else { return }
@@ -234,6 +242,8 @@ final class CallsModel {
 
     func record(_ app: DetectedCall? = nil, title: String? = nil) async throws -> Call {
         guard let recorder, let model else { throw VoiceError.store("Dictate is still starting.") }
+        // Also the way in for an agent's start_recording, which has no pill to show.
+        try RecordingGate.check(model.activation)
         if let recording { return recording }
         guard !starting else { throw VoiceError.store("A call recording is already starting.") }
         dismissStoppedCall()
@@ -269,6 +279,7 @@ final class CallsModel {
     }
 
     func recordFromMenu(_ app: DetectedCall?) {
+        guard model?.requireActivation() != false else { return }
         Task {
             do {
                 _ = try await record(app)
@@ -426,7 +437,7 @@ final class CallsModel {
 
     /// The app the prompt asks about: the first in a call that wasn't dismissed.
     var promptApp: DetectedCall? {
-        guard askToRecord, recording == nil else { return nil }
+        guard askToRecord, recording == nil, model?.activation.isActivated == true else { return nil }
         return detected.first { !dismissed.contains($0.bundleID) }
     }
 
@@ -454,11 +465,16 @@ final class CallsModel {
         warning = text
     }
 
+    /// The prompt follows whether Dictate may record.
+    func activationChanged() {
+        updatePrompt()
+    }
+
     private func updatePrompt() {
         if promptApp != nil { prompt.show() } else { prompt.hide() }
     }
 
-    private func refreshRecent() {
+    func refreshRecent() {
         recent = (try? store?.recentCalls(limit: 3)) ?? []
     }
 }
@@ -621,10 +637,10 @@ struct CallMenuItems: View {
             if model.preferences.runPrompt {
                 Text("Whisper only during calls")
             }
-            Button("Stop recording" + keys) { Task { await calls.stop() } }
+            Button("Stop Recording" + keys) { Task { await calls.stop() } }
         } else {
             let app = calls.detected.first
-            Button((app == nil ? "Record a call" : "Record this call") + keys) { calls.recordFromMenu(app) }
+            Button((app == nil ? "Record a Call" : "Record This Call") + keys) { calls.recordFromMenu(app) }
                 .disabled(calls.starting)
         }
         if let warning = calls.warning {
@@ -636,24 +652,23 @@ struct CallMenuItems: View {
     }
 }
 
-/// Recent calls, after the dictations, each with a phone; a click copies the transcript, and
-/// a right click offers Copy Transcript.
-struct RecentCalls: View {
+/// A recent call with a phone; a click copies the transcript, and a right click offers Copy
+/// Transcript.
+struct RecentCall: View {
     @Environment(CallsModel.self) private var calls
+    let call: Call
 
     var body: some View {
-        ForEach(calls.recent) { call in
-            Button {
-                if RowMenu.rightClicked {
-                    if calls.hasTranscript(call) { RowMenu.copyTranscript { calls.copyTranscript(call) } }
-                } else {
-                    calls.copyTranscript(call)
-                }
-            } label: {
-                Label(Self.label(call), systemImage: "phone")
+        Button {
+            if RowMenu.rightClicked {
+                if calls.hasTranscript(call) { RowMenu.copyTranscript { calls.copyTranscript(call) } }
+            } else {
+                calls.copyTranscript(call)
             }
-            .help("Click to copy the transcript")
+        } label: {
+            Label(Self.label(call), systemImage: "phone")
         }
+        .help("Click to copy the transcript")
     }
 
     private static func label(_ call: Call) -> String {

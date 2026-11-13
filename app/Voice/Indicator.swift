@@ -175,7 +175,7 @@ struct IndicatorView: View {
             case .notice(let text, let action):
                 Text(text).lineLimit(2).minimumScaleFactor(0.8)
                 if let action {
-                    Button("Allow…") { model.noticeAction(action) }
+                    Button(action.title) { model.noticeAction(action) }
                         .controlSize(.small)
                 }
             case .edits(let changes):

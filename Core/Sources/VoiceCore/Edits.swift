@@ -10,6 +10,8 @@ public struct Edit: Sendable, Codable, Equatable {
         case addKeyTerms = "add_key_terms"
         case removeKeyTerms = "remove_key_terms"
         case tagCall = "tag_call"
+        /// A person gave a dictation or call a title in History, or took it away.
+        case renameRecording = "rename_recording"
         /// Settings' Dismiss on a suggested key term; its Add is an add_key_terms.
         case dismissKeyTerm = "dismiss_key_term"
         case undo
@@ -194,6 +196,17 @@ extension CallStore {
                     before = Edit.Value(tags: Self.sorted(current))
                     after = Edit.Value(tags: Self.sorted(try db.query("SELECT tag FROM call_tags WHERE call_id = ?",
                                                                       [callID]) { $0.text(0) }))
+                case .renameRecording:
+                    let (table, id) = try Self.recordingRow(edit.target)
+                    guard let current = try db.query("SELECT title FROM \(table) WHERE id = ?", [id], { $0.string(0) }).first
+                    else { throw VoiceError.store("\(edit.target) no longer exists.") }
+                    guard (current ?? "") == (edit.after?.text ?? "") else {
+                        throw VoiceError.store("\(edit.target) has been renamed since edit \(edit.id); undo that one first.")
+                    }
+                    let restored = edit.before?.text
+                    try db.run("UPDATE \(table) SET title = ? WHERE id = ?", [restored, id])
+                    before = Edit.Value(text: current)
+                    after = Edit.Value(text: restored)
                 case .addKeyTerms, .removeKeyTerms, .dismissKeyTerm, .undo:
                     throw VoiceError.store("Edit \(id) isn't undone here.")
                 }

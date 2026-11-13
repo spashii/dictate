@@ -26,6 +26,18 @@ public struct HistoryEntry: Sendable, Identifiable, Equatable, Hashable {
     public var hasText = true
     /// The recording the entry keeps, whether or not the file is still there.
     public var audioPath: String? = nil
+    /// The call's app, such as Slack, when the recorder could tell.
+    public var appName: String? = nil
+    /// The name a person gave it, which replaces the date as the row's main text.
+    public var customTitle: String? = nil
+
+    /// What kind of recording it is, as the menu names a call: "Slack call", "Call" or "Dictation".
+    public var kindLabel: String {
+        switch kind {
+        case .call: appName.map { "\($0) call" } ?? "Call"
+        case .dictation: "Dictation"
+        }
+    }
 
     public var id: String { "\(kind.rawValue):\(ref)" }
 }
@@ -39,6 +51,8 @@ public struct HistoryDetail: Sendable, Equatable {
     /// Changes to all of the text rather than one line: a dictation's corrections, and a fix
     /// edit naming a line that isn't there.
     public var textChanges: [HistoryChange]
+    /// A dictation's text as stored, which a correction edits. Nil for a call.
+    public var storedText: String? = nil
 
     /// Every change, line by line and then the text's own.
     public var allChanges: [HistoryChange] { lines.flatMap(\.changes) + textChanges }
@@ -128,18 +142,20 @@ extension CallStore {
         }
         return try queue.sync {
             let dictations = try db.query("""
-                SELECT d.id, d.created_at, d.duration, coalesce(d.corrected_text, d.final_text), d.time_zone, d.audio_path,
+                SELECT d.id, d.created_at, d.duration, coalesce(d.corrected_text, d.final_text), d.time_zone, d.audio_path, d.title,
                   (SELECT count(*) FROM segment_retries r WHERE r.dictation_id = d.id AND r.kept = 1 AND r.changed = 1)
                   + (SELECT count(*) FROM fix_edits f WHERE f.dictation_id = d.id)
-                  + (SELECT count(*) FROM edits e WHERE e.target = 'dictation:' || d.id)
+                  + (SELECT count(*) FROM edits e WHERE e.target = 'dictation:' || d.id AND e.kind <> 'rename_recording'
+                    AND NOT (e.kind = 'undo' AND e.undoes IN (SELECT id FROM edits WHERE kind = 'rename_recording')))
                 FROM dictations d WHERE d.duration >= ? AND coalesce(d.corrected_text, d.final_text) <> ''
                   AND (?3 IS NULL OR d.id IN (SELECT value FROM json_each(?3))
-                       OR coalesce(d.corrected_text, d.final_text) LIKE ?4 ESCAPE '\\')
+                       OR coalesce(d.corrected_text, d.final_text) LIKE ?4 ESCAPE '\\'
+                       OR coalesce(d.title, '') LIKE ?4 ESCAPE '\\')
                 ORDER BY d.created_at DESC LIMIT ?2
                 """, [Dictation.tooShort, limit, found, like]) { row in
                 HistoryEntry(kind: .dictation, ref: row.text(0), at: row.date(1), timeZone: row.string(4),
                              duration: row.double(2), title: Self.preview(row.text(3)), firstLine: Self.preview(row.text(3)),
-                             changes: row.int(6), audioPath: row.string(5))
+                             changes: row.int(7), audioPath: row.string(5), customTitle: row.string(6))
             }
             let calls = try db.query("""
                 SELECT c.id, c.started_at, coalesce(c.ended_at, c.started_at) - c.started_at,
@@ -150,7 +166,8 @@ extension CallStore {
                           AND trim(coalesce(s.corrected_text, s.text), ' ' || char(9, 10, 13)) <> ''),
                   (SELECT trim(coalesce(s.corrected_text, s.text)) FROM call_segments s WHERE s.call_id = c.id
                    AND trim(coalesce(s.corrected_text, s.text), ' ' || char(9, 10, 13)) <> ''
-                   ORDER BY s.start_ms, s.id LIMIT 1)
+                   ORDER BY s.start_ms, s.id LIMIT 1),
+                  c.title, c.app_name
                 FROM calls c WHERE \(Self.heardSomething("c"))
                   AND (?2 IS NULL OR c.id IN (SELECT value FROM json_each(?2))
                        OR coalesce(c.title, '') LIKE ?3 ESCAPE '\\' OR EXISTS (
@@ -160,7 +177,8 @@ extension CallStore {
                 """, [limit, found, like]) { row in
                 HistoryEntry(kind: .call, ref: row.text(0), at: row.date(1), timeZone: row.string(4),
                              duration: row.double(2), title: row.text(3), firstLine: row.string(8).map(Self.preview) ?? "",
-                             changes: row.int(6), hasText: row.int(7) != 0, audioPath: row.string(5))
+                             changes: row.int(6), hasText: row.int(7) != 0, audioPath: row.string(5), appName: row.string(10),
+                             customTitle: row.string(9))
             }
             return Array((dictations + calls).sorted { $0.at > $1.at }.prefix(limit))
         }
@@ -212,7 +230,8 @@ extension CallStore {
     private func correctionChanges(_ target: String) throws -> [Int64: [HistoryChange]] {
         let edits = try db.query("""
             SELECT id, client, old_value, new_value, target FROM edits
-            WHERE (target = ?1 OR target LIKE ?1 || '/segment:%') AND kind IN ('correct_dictation', 'correct_segment', 'undo')
+            WHERE (target = ?1 OR target LIKE ?1 || '/segment:%') AND (kind IN ('correct_dictation', 'correct_segment')
+              OR (kind = 'undo' AND undoes IN (SELECT id FROM edits WHERE kind IN ('correct_dictation', 'correct_segment'))))
             ORDER BY id
             """, [target]) { row in
             (id: row.int64(0), client: row.string(1), before: Self.editText(row.string(2)),
@@ -249,8 +268,8 @@ extension CallStore {
     }
 
     private func dictationHistory(_ entry: HistoryEntry) throws -> HistoryDetail? {
-        guard let found = try db.query("SELECT audio_path, corrected_text FROM dictations WHERE id = ?", [entry.ref],
-                                       { (audio: $0.string(0), corrected: $0.string(1)) }).first else { return nil }
+        guard let found = try db.query("SELECT audio_path, corrected_text, final_text FROM dictations WHERE id = ?", [entry.ref],
+                                       { (audio: $0.string(0), corrected: $0.string(1), final: $0.text(2)) }).first else { return nil }
         let audio = found.audio
         let segments = try db.query("""
             SELECT idx, t0, t1, text, avg_logprob FROM segments WHERE dictation_id = ? ORDER BY idx
@@ -294,17 +313,33 @@ extension CallStore {
                 textChanges.append(change)
             }
         }
-        textChanges += try correctionChanges("dictation:\(entry.ref)")[-1] ?? []
-        // An agent's correction replaces the whole text, so the list, Copy and the detail all
-        // show it. It no longer lines up with the segments, so the detail is one block over
-        // the whole recording, which still plays from the start; the segments' own retry and
-        // fix changes stay on it.
-        if let corrected = found.corrected, let first = lines.first, let last = lines.last {
+        let edits = try correctionChanges("dictation:\(entry.ref)")[-1] ?? []
+        // A correction replaces the whole text, so the list, Copy and the detail all show it.
+        // Its words are put back in the lines they came from, so each line keeps its time and
+        // the detail keeps its shape. A correction too large to line up falls back to one
+        // line over the whole recording, with the corrections listed beneath it.
+        var aligned = false
+        if let corrected = found.corrected, !lines.isEmpty,
+           let texts = LineAlignment.realign(lines.map(\.text), to: corrected) {
+            aligned = true
+            let by = edits.last { $0.source == .correction && $0.after == corrected }?.note
+                ?? edits.last { $0.source == .correction }?.note
+            let record = edits.last { $0.source == .correction }?.record ?? "edits:0"
+            for index in lines.indices where texts[index] != lines[index].text {
+                let line = lines[index]
+                lines[index].changes.append(HistoryChange(.correction, before: line.text, after: texts[index], note: by,
+                                                          record: index == 0 ? record : "\(record)#\(line.id)"))
+                lines[index].text = texts[index]
+            }
+        } else if let corrected = found.corrected, let first = lines.first, let last = lines.last {
             lines = [HistoryLine(id: first.id, speaker: nil, t0: first.t0, t1: last.t1,
                                  whisper: lines.map(\.whisper).joined(separator: " "), text: corrected,
                                  flagged: false, changes: lines.flatMap(\.changes))]
         }
-        return HistoryDetail(entry: entry, audioPath: audio, lines: lines, textChanges: textChanges)
+        // Per-line changes stand for the corrections; the key terms they suggested stay listed.
+        textChanges += aligned ? edits.filter { $0.source != .correction } : edits
+        return HistoryDetail(entry: entry, audioPath: audio, lines: lines, textChanges: textChanges,
+                             storedText: found.corrected ?? found.final)
     }
 
     private func callHistory(_ entry: HistoryEntry) throws -> HistoryDetail? {

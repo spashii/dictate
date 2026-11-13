@@ -1,6 +1,16 @@
 import SwiftUI
 import VoiceCore
 
+struct ActivationStep: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        StepRow(title: "Activated", done: model.activation.isActivated) {
+            Button("Activate in Browser") { model.beginActivation() }
+        }
+    }
+}
+
 struct MicrophoneStep: View {
     @Environment(AppModel.self) private var model
 

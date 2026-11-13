@@ -39,6 +39,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// folder moves under its open database. The agent defaults are settled before anything
     /// creates the folders that would make a new install look like an old one.
     override init() {
+        #if DEBUG
+        // The app-shots run draws views and quits: no other copy to check, nothing to migrate.
+        if Snapshots.folder != nil {
+            migration = .nothingToDo
+            model = AppModel(activation: Activation(store: MemoryActivationStore()))
+            calls = CallsModel()
+            super.init()
+            return
+        }
+        #endif
         if let renamed = BundleRename.renameIfNeeded() { BundleRename.relaunchAndExit(renamed) }
         guard OtherInstance.ensureSole() else { exit(0) }
         _ = AgentSettings.disabledTools(in: .standard, existingInstall: AgentSettings.isExistingInstall())
@@ -48,7 +58,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         super.init()
     }
 
+    private var launched = false
+
+    /// Activation comes back as a link in the app's own scheme. The log line says whether the
+    /// link arrived on a cold launch or while running, and never holds the token.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls {
+            DevLog.write("open \(url.scheme ?? "")://\(url.host ?? "") query=\(url.query?.count ?? 0) launched=\(launched)")
+            model.acceptActivation(url: url)
+        }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        #if DEBUG
+        if let folder = Snapshots.folder {
+            Task { await Snapshots.run(into: folder) }
+            return
+        }
+        #endif
+        launched = true
+        DevLog.write("launched")
         model.agents.recording = calls
         model.agents.keyTerms = PreferencesKeyTerms(preferences: model.preferences)
         model.calls = calls
@@ -57,6 +86,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if migration == .bothExist { explainBothFolders() }
         model.launch()
         calls.launch(model: model)
+        // After both shortcut handlers exist, so a locked Dictate registers neither.
+        model.applyLock(force: true)
     }
 
     /// Both Application Support/Voice and Dictate exist, so nothing was moved. Said once, with
@@ -84,44 +115,92 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+/// A dictation or a call in the menu's Recent list, newest first.
+enum RecentItem: Identifiable {
+    case dictation(Dictation)
+    case call(Call)
+
+    var id: String {
+        switch self {
+        case .dictation(let dictation): "d" + dictation.id
+        case .call(let call): "c" + call.id
+        }
+    }
+
+    var date: Date {
+        switch self {
+        case .dictation(let dictation): dictation.createdAt
+        case .call(let call): call.startedAt
+        }
+    }
+
+    static let count = 5
+
+    static func newest(dictations: [Dictation], calls: [Call]) -> [RecentItem] {
+        Array((dictations.map(RecentItem.dictation) + calls.map(RecentItem.call))
+            .sorted { $0.date > $1.date }.prefix(count))
+    }
+}
+
 struct MenuContent: View {
     @Environment(AppModel.self) private var model
     @Environment(CallsModel.self) private var calls
 
     var body: some View {
-        Text(model.statusText)
-        Button(model.isRecording ? "Stop and paste" : "Dictate  \(KeyboardShortcuts.getShortcut(for: .dictate)?.description ?? "")") {
-            model.toggle()
-        }
-        .disabled(model.isWorking)
-        CallMenuItems()
-        if !model.recent.isEmpty || !calls.recent.isEmpty {
-            Divider()
-            Section("Recent") {
-                ForEach(model.recent) { dictation in
-                    Button(Self.label(dictation)) {
-                        if RowMenu.rightClicked, !dictation.finalText.isEmpty {
-                            RowMenu.copyTranscript { model.copy(dictation) }
-                        } else {
-                            model.open(dictation)
-                        }
-                    }
-                        .help(dictation.finalText.isEmpty && dictation.error != nil ? "Click to try again" : "Click to copy")
-                        .disabled(dictation.finalText.isEmpty && dictation.error == nil)
-                }
-                RecentCalls()
-                Button("Open History") { model.openHistory() }
+        // Groups are Sections, which the menu separates with real separators. A Divider can
+        // be highlighted like an item.
+        if !model.activation.isActivated {
+            Section {
+                Button("Activate in Browser") { model.beginActivation() }
             }
         }
-        Divider()
-        Button("Settings…") { model.openSettings() }
-            .keyboardShortcut(",")
-        ForEach(SupportItem.allCases, id: \.self) { item in
-            Button(item.title) { open(item) }
-                .disabled(item == .checkForUpdates && !model.updates.canCheck)
+        if model.lock.showsRecordingMenu {
+            Section {
+                Text(model.statusText)
+                if let holder = model.secureInput {
+                    Text(holder.menuText)
+                }
+                Button(model.isRecording ? "Stop and Paste" : "Dictate  \(KeyboardShortcuts.getShortcut(for: .dictate)?.description ?? "")") {
+                    model.toggle()
+                }
+                .disabled(model.isWorking)
+                CallMenuItems()
+            }
+            let recent = RecentItem.newest(dictations: model.recent, calls: calls.recent)
+            if !recent.isEmpty {
+                Section("Recent") {
+                    ForEach(recent) { item in
+                        switch item {
+                        case .dictation(let dictation):
+                            Button(Self.label(dictation)) {
+                                if RowMenu.rightClicked, !dictation.finalText.isEmpty {
+                                    RowMenu.copyTranscript { model.copy(dictation) }
+                                } else {
+                                    model.open(dictation)
+                                }
+                            }
+                            .help(dictation.finalText.isEmpty && dictation.error != nil ? "Click to try again" : "Click to copy")
+                            .disabled(dictation.finalText.isEmpty && dictation.error == nil)
+                        case .call(let call):
+                            RecentCall(call: call)
+                        }
+                    }
+                }
+            }
+            Section {
+                Button("Open History\u{2026}") { model.openHistory() }
+                Button("Settings\u{2026}") { model.openSettings() }
+                    .keyboardShortcut(",")
+            }
         }
-        Button("Quit Dictate") { NSApplication.shared.terminate(nil) }
-            .keyboardShortcut("q")
+        Section {
+            ForEach(SupportItem.allCases, id: \.self) { item in
+                Button(item.title) { open(item) }
+                    .disabled(item == .checkForUpdates && !model.updates.canCheck)
+            }
+            Button("Quit Dictate") { NSApplication.shared.terminate(nil) }
+                .keyboardShortcut("q")
+        }
     }
 
     private func open(_ item: SupportItem) {

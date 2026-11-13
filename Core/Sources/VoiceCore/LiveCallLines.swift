@@ -1,7 +1,7 @@
 import Foundation
 
 /// The newest lines of a call while it records, for the call pill. Segments from the same
-/// side in a row join one line; a line is labelled with its side, Me and Call or the call's
+/// side in a row join one line; a line is labeled with its side, Me and Call or the call's
 /// speakers as the transcript names them, and has no label when the audio isn't split.
 /// Newest last.
 public struct LiveCallLines: Sendable, Equatable {

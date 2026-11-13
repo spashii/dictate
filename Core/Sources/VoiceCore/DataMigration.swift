@@ -26,8 +26,14 @@ public enum DataMigration {
 
     private static let log = Logger(subsystem: "io.github.spashii.voice", category: "migration")
 
+    /// Where the data folders live. A build that names its own root in Info.plist (the Debug
+    /// build, which runs beside an installed Dictate) keeps everything there, so it never opens
+    /// or moves the installed app's data.
     public static var applicationSupport: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Application Support", directoryHint: .isDirectory)
+        if let root = Bundle.main.object(forInfoDictionaryKey: "DictateDataRoot") as? String, !root.isEmpty {
+            return URL(fileURLWithPath: (root as NSString).expandingTildeInPath, isDirectory: true)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Application Support", directoryHint: .isDirectory)
     }
 
     /// The folder to use: Dictate if it exists, else Voice if only that exists (not migrated

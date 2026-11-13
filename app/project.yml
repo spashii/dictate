@@ -16,10 +16,10 @@ packages:
   VoiceCore:
     path: ../Core
   # Records both sides of a call and meters call apps (Blend Mic's engine).
-  # TEMPORARY: a local checkout on the Air, while Blend's release isn't out. D5 replaces it
-  # with the released package pinned exactVersion.
+  # Pinned to the Blend Mic release; move it by hand to the next one.
   BlendKit:
-    path: ../../blendkit-build/kit/kit
+    url: https://github.com/spashii/blend
+    exactVersion: 0.9.0
   # The global shortcuts, and the fields that record them in Settings.
   KeyboardShortcuts:
     url: https://github.com/sindresorhus/KeyboardShortcuts
@@ -55,11 +55,19 @@ targets:
         # Shown when Dictate first records the sound of the app you are on a call in.
         NSAudioCaptureUsageDescription: Dictate records the sound of the app you are on a call in, so the other side of the call is transcribed. It records nothing else.
         # The private download site serves the feed and counts update checks.
-        SUFeedURL: https://apps.firstversion.in/voice/appcast.xml
+        SUFeedURL: $(SU_FEED_URL)
         # Updates must be signed with the matching private key, kept with the Developer ID.
         SUPublicEDKey: YLvPSGEaYiPsXphy/q9LCDGs2s0qp8hM2LVBIWbl78c=
         # Sparkle names the app in its dialogs from this key first, in every process it runs.
         SUBundleName: Dictate
+        # Activation returns to the app through this scheme. Each configuration has its own, so a
+        # development build never receives the links meant for the installed app.
+        CFBundleURLTypes:
+          - CFBundleURLName: $(PRODUCT_BUNDLE_IDENTIFIER)
+            CFBundleTypeRole: Viewer
+            CFBundleURLSchemes: [$(ACTIVATION_URL_SCHEME)]
+        DictateActivationURL: $(ACTIVATION_BASE_URL)
+        DictateDataRoot: $(DICTATE_DATA_ROOT)
     entitlements:
       path: Voice/Voice.entitlements
       properties:
@@ -81,7 +89,21 @@ targets:
         # won't load the embedded whisper framework under a certificate without a team.
         ENABLE_HARDENED_RUNTIME: NO
         ENABLE_DEBUG_DYLIB: NO
+        SU_FEED_URL: https://apps.firstversion.in/voice/appcast.xml
+        ACTIVATION_URL_SCHEME: in.firstversion.dictate
+        ACTIVATION_BASE_URL: https://spashii.github.io/dictate/activate/
+        DICTATE_DATA_ROOT: ""
       configs:
+        # Debug builds are a separate app: own bundle id, URL scheme, data folder and no update
+        # feed, so running one beside the installed Dictate never touches its data, settings,
+        # shortcut or updates.
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: io.github.spashii.voice.dev
+          PRODUCT_NAME: Dictate Dev
+          SU_FEED_URL: ""
+          ACTIVATION_URL_SCHEME: in.firstversion.dictate.dev
+          ACTIVATION_BASE_URL: http://localhost:8800/activate/
+          DICTATE_DATA_ROOT: "~/Library/Application Support/DictateDev"
         # Only tools/release.sh builds Release, always with the Developer ID, and
         # notarization needs the hardened runtime. Xcode otherwise adds the debugger
         # entitlement, which notarization rejects.
@@ -102,6 +124,9 @@ targets:
   VoiceTests:
     type: bundle.unit-test
     platform: macOS
+    dependencies:
+      - package: VoiceCore
+        product: VoiceCore
     sources:
       - path: VoiceTests
       - path: Voice/SupportItems.swift
@@ -112,6 +137,11 @@ targets:
       - path: Voice/CallAudioText.swift
       - path: Voice/BundleRename.swift
       - path: Voice/OtherInstance.swift
+      - path: Voice/RecordingGate.swift
+      - path: Voice/LockPolicy.swift
+      - path: Voice/MainPane.swift
+      - path: Voice/HistoryDisplay.swift
+      - path: Voice/SecureInput.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.spashii.voice.tests

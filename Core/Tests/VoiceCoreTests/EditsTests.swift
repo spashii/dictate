@@ -395,3 +395,145 @@ private func count(_ url: URL, _ sql: String) throws -> Int {
         #expect((reply?["result"] as? [String: Any])?["isError"] as? Bool == true)
     }
 }
+
+@Suite struct HandCorrectionTests {
+    /// A detail over the lines of one call, as History reads it.
+    private func detail(_ calls: CallStore, _ id: String) throws -> HistoryDetail {
+        let entry = try #require(try calls.historyEntries().first { $0.ref == id })
+        return try #require(try calls.historyDetail(entry))
+    }
+
+    @Test func aPersonsCorrectionIsAnEditByYouThatUndoRevertsAndSearchFinds() throws {
+        let calls = try CallStore(url: temporaryCallDatabase())
+        let call = try calls.createCall(NewCall(split: true))
+        let written = try calls.appendSegments(call.id, [sampleSegment(.me, 0, "we met ana at akme today")])
+        let request = try #require(try detail(calls, call.id)
+            .correction(line: Int(written[0].id), selecting: "akme", at: 14))
+
+        let edit = try #require(try calls.correct(request, to: "Acme", known: []))
+        #expect(edit.kind == .correctSegment)
+        #expect(edit.client == "You")
+        #expect(edit.before == Edit.Value(text: "we met ana at akme today", corrected: false))
+        #expect(edit.after == Edit.Value(text: "we met ana at Acme today", corrected: true))
+        #expect(try calls.segments(call.id).first?.text == "we met ana at Acme today")
+        #expect(try calls.edits().map(\.id) == [edit.id])
+        #expect(try calls.search("acme").map(\.id) == [call.id])
+        #expect(try calls.search("akme").isEmpty)
+
+        // History marks the words and says who made the change.
+        let line = try #require(try detail(calls, call.id).lines.first)
+        #expect(line.corrections.map(\.after) == ["Acme"])
+        #expect(line.corrections.first?.client == "You")
+
+        try calls.undo(edit.id, client: nil)
+        #expect(try calls.segments(call.id).first?.text == "we met ana at akme today")
+        #expect(try calls.search("akme").map(\.id) == [call.id])
+    }
+
+    @Test func aReplacedNameBecomesAKeyTermSuggestion() throws {
+        let calls = try CallStore(url: temporaryCallDatabase())
+        let call = try calls.createCall(NewCall(split: true))
+        let written = try calls.appendSegments(call.id, [sampleSegment(.call, 0, "ask alex about the northwynd pilot")])
+        let request = try #require(try detail(calls, call.id)
+            .correction(line: Int(written[0].id), selecting: "northwynd", at: 19))
+        try calls.correct(request, to: "Northwind", known: [])
+
+        let suggestion = try #require(try calls.termSuggestions().first)
+        #expect(suggestion.term == "Northwind")
+        #expect(suggestion.heard == ["northwynd"])
+        #expect(suggestion.status == .pending)
+
+        // A term already in the list isn't proposed again.
+        let second = try calls.appendSegments(call.id, [sampleSegment(.call, 3000, "the akme plan")])
+        let again = try #require(try detail(calls, call.id)
+            .correction(line: Int(second[0].id), selecting: "akme", at: 4))
+        try calls.correct(again, to: "Acme", known: ["Acme"])
+        #expect(try calls.termSuggestions().map(\.term) == ["Northwind"])
+    }
+
+    @Test func aRepeatedWordIsFoundByWhichOneWasSelected() throws {
+        let calls = try CallStore(url: temporaryCallDatabase())
+        let call = try calls.createCall(NewCall(split: true))
+        let written = try calls.appendSegments(call.id, [sampleSegment(.me, 0, "send it to ana and then ana again")])
+        // The second "ana": 24 units into the line.
+        let request = try #require(try detail(calls, call.id).correction(line: Int(written[0].id), selecting: "ana", at: 24))
+        #expect(request.offset == 24)
+        try calls.correct(request, to: "Alex", known: [])
+        #expect(try calls.segments(call.id).first?.text == "send it to ana and then Alex again")
+    }
+
+    @Test func aDictationIsCorrectedAsOneTextAcrossItsLines() throws {
+        let url = temporaryCallDatabase()
+        let store = try Store(url: url)
+        let calls = try CallStore(url: url)
+        var dictation = sampleDictation("first ana here. then ana there")
+        dictation.segments = [
+            Segment(t0: 0, t1: 1, text: "first ana here.", avgLogprob: -0.1, noSpeechProb: 0, compressionRatio: 1,
+                    speechSeconds: 1, wordsPerSecond: 2),
+            Segment(t0: 1, t1: 2, text: "then ana there", avgLogprob: -0.1, noSpeechProb: 0, compressionRatio: 1,
+                    speechSeconds: 1, wordsPerSecond: 2),
+        ]
+        dictation.duration = 3
+        try store.insert(dictation)
+
+        let read = try detail(calls, dictation.id)
+        let request = try #require(read.correction(line: read.lines[1].id, selecting: "ana", at: 5))
+        #expect(request.target == .dictation(dictation.id))
+        #expect(request.offset == 21)
+        let edit = try #require(try calls.correct(request, to: "Alex", known: []))
+        #expect(edit.kind == .correctDictation)
+        #expect(edit.client == "You")
+        #expect(try calls.dictation(dictation.id)?.finalText == "first ana here. then Alex there")
+        #expect(try calls.search("alex").map(\.id) == [dictation.id])
+
+        // The lines stay, each with its time, and the changed word is marked in its own line.
+        let after = try detail(calls, dictation.id)
+        #expect(after.lines.map(\.text) == ["first ana here.", "then Alex there"])
+        #expect(after.lines.map(\.t0) == [0, 1])
+        #expect(after.lines[1].corrections.map(\.after) == ["Alex"])
+        #expect(after.lines[1].corrections.first?.client == "You")
+        #expect(after.lines[0].corrections.isEmpty)
+    }
+
+    @Test func theSelectionsOwnPlaceDecidesWhichRepeatChanges() throws {
+        let calls = try CallStore(url: temporaryCallDatabase())
+        let call = try calls.createCall(NewCall(split: true))
+        let written = try calls.appendSegments(call.id, [sampleSegment(.me, 0, "ha ha ha ha")])
+        let request = try #require(try detail(calls, call.id).correction(line: Int(written[0].id), selecting: "ha ha", at: 3))
+        try calls.correct(request, to: "so", known: [])
+        #expect(try calls.segments(call.id).first?.text == "ha so ha")
+    }
+
+    @Test func aDictationTheCleanUpRewroteIsNotOfferedForCorrection() throws {
+        let url = temporaryCallDatabase()
+        let store = try Store(url: url)
+        let calls = try CallStore(url: url)
+        var dictation = sampleDictation("Send it to the Northwind team.")
+        dictation.segments = [Segment(t0: 0, t1: 1, text: "send it to the northwynd team", avgLogprob: -0.1,
+                                      noSpeechProb: 0, compressionRatio: 1, speechSeconds: 1, wordsPerSecond: 2)]
+        dictation.duration = 3
+        try store.insert(dictation)
+        let read = try detail(calls, dictation.id)
+        #expect(!read.canCorrect)
+        #expect(read.correction(line: read.lines[0].id, selecting: "northwynd", at: 15) == nil)
+    }
+
+    @Test func leavesNothingToStoreWhenTheWordsAreUnchangedOrGone() throws {
+        let calls = try CallStore(url: temporaryCallDatabase())
+        let call = try calls.createCall(NewCall(split: true))
+        let written = try calls.appendSegments(call.id, [sampleSegment(.me, 0, "hello there Alex")])
+        let id = Int(written[0].id)
+        let request = try #require(try detail(calls, call.id).correction(line: id, selecting: "there", at: 6))
+        #expect(try calls.correct(request, to: " there ", known: []) == nil)
+        #expect(try calls.edits().isEmpty)
+
+        // Deleting a word takes its space; a correction can't empty the text.
+        try calls.correct(request, to: "", known: [])
+        #expect(try calls.segments(call.id).first?.text == "hello Alex")
+        #expect(throws: VoiceError.self) { try calls.correct(request, to: "again", known: []) }
+        let whole = try #require(try detail(calls, call.id).correction(line: id, selecting: "hello Alex", at: 0))
+        #expect(throws: VoiceError.self) { try calls.correct(whole, to: "  ", known: []) }
+        // Offsets that don't hold the words give no request.
+        #expect(try detail(calls, call.id).correction(line: id, selecting: "Alex", at: 0) == nil)
+    }
+}

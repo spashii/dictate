@@ -1,0 +1,81 @@
+import Foundation
+
+extension CallStore {
+    /// The table and id a `dictation:ID` or `call:ID` target names.
+    static func recordingRow(_ target: String) throws -> (String, String) {
+        if target.hasPrefix("dictation:") { return ("dictations", String(target.dropFirst("dictation:".count))) }
+        if target.hasPrefix("call:") { return ("calls", String(target.dropFirst("call:".count))) }
+        throw VoiceError.store("\(target) can't be renamed.")
+    }
+
+    /// Gives a recording a title, or takes it away with nil or blank text. Recorded as an
+    /// edit so an agent sees it and `undo_edit` reverts it. Nil when nothing changed.
+    @discardableResult
+    public func rename(_ kind: HistoryEntry.Kind, _ ref: String, to title: String?, client: String? = Edit.personClient) throws -> Edit? {
+        let name = title?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+        let target = kind == .call ? Edit.target(call: ref) : Edit.target(dictation: ref)
+        return try queue.sync {
+            try db.transaction { () -> Edit? in
+                let (table, id) = try Self.recordingRow(target)
+                guard let current = try db.query("SELECT title FROM \(table) WHERE id = ?", [id], { $0.string(0) }).first else {
+                    throw VoiceError.store("No \(kind.rawValue) \(ref).")
+                }
+                guard (current ?? "") != (name ?? "") else { return nil }
+                try db.run("UPDATE \(table) SET title = ? WHERE id = ?", [name, id])
+                return try insertEdit(.renameRecording, target: target, client: client, before: Edit.Value(text: current),
+                                      after: Edit.Value(text: name))
+            }
+        }
+    }
+
+    /// Removes a dictation or call and everything kept for it: its segments, retries, fix
+    /// edits, tags, the edits made to it (the key terms they suggested stay, since the terms
+    /// are still wanted) and its search entries, then the audio file unless another row
+    /// points at it. A call that is still recording or being transcribed is refused: its
+    /// audio is what a rebuild reads.
+    public func deleteRecording(_ kind: HistoryEntry.Kind, _ ref: String) throws {
+        let audio: String? = try queue.sync {
+            try db.transaction { () -> String? in
+                let path: String?
+                switch kind {
+                case .call:
+                    guard let row = try db.query("SELECT audio_path, status FROM calls WHERE id = ?", [ref],
+                                                 { (path: $0.string(0), status: $0.text(1)) }).first else { return nil }
+                    if Call.Status(rawValue: row.status)?.isLive == true {
+                        throw VoiceError.store("Stop the recording before deleting it.")
+                    }
+                    path = row.path
+                    // Foreign keys are off in SQLite by default, so the children go explicitly.
+                    for child in ["call_segments", "call_tags", "segment_retries"] {
+                        try db.run("DELETE FROM \(child) WHERE call_id = ?", [ref])
+                    }
+                    try db.run("DELETE FROM edits WHERE target = ?1 OR target LIKE ?1 || '/segment:%'",
+                               [Edit.target(call: ref)])
+                    try db.run("DELETE FROM calls WHERE id = ?", [ref])
+                case .dictation:
+                    guard let found = try db.query("SELECT audio_path FROM dictations WHERE id = ?", [ref],
+                                                   { $0.string(0) }).first else { return nil }
+                    path = found
+                    for child in ["segments", "segment_retries", "fix_edits"] {
+                        try db.run("DELETE FROM \(child) WHERE dictation_id = ?", [ref])
+                    }
+                    try db.run("DELETE FROM edits WHERE target = ?", [Edit.target(dictation: ref)])
+                    try db.run("DELETE FROM dictations WHERE id = ?", [ref])
+                }
+                return path
+            }
+        }
+        guard let audio else { return }
+        let shared = try queue.sync {
+            try db.query("""
+                SELECT 1 WHERE EXISTS (SELECT 1 FROM dictations WHERE audio_path = ?1)
+                  OR EXISTS (SELECT 1 FROM calls WHERE audio_path = ?1)
+                """, [audio]) { _ in 1 }.isEmpty == false
+        }
+        if !shared { try? FileManager.default.removeItem(atPath: audio) }
+    }
+}
+
+private extension String {
+    var nilIfBlank: String? { isEmpty ? nil : self }
+}

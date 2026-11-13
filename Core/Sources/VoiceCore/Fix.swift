@@ -161,7 +161,7 @@ public enum TargetedFix {
     public static func parse(_ reply: String) throws -> [FixEdit] {
         guard let object = try? JSONSerialization.jsonObject(with: Data(reply.utf8)) as? [String: Any],
               let edits = object["edits"] as? [[String: Any]] else {
-            throw VoiceError.cleanup("The fix step's answer wasn't a list of edits.")
+            throw VoiceError.cleanup("Fix the text before pasting got an answer that wasn't a list of edits.")
         }
         return edits.compactMap { edit in
             guard let span = edit["span"] as? String, let replacement = edit["replacement"] as? String else { return nil }

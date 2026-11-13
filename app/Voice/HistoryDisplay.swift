@@ -65,6 +65,40 @@ struct DisplayBlock: Identifiable, Equatable, Sendable {
             + lines.map { String($0.plain.characters) }.joined(separator: " ")
     }
 
+    /// The words around `offset` without the punctuation at their ends, so "Acme," selects Acme.
+    func word(at offset: Int) -> Range<Int>? {
+        let text = string as NSString
+        guard offset >= 0, offset < text.length else { return nil }
+        func isSpace(_ index: Int) -> Bool {
+            Unicode.Scalar(text.character(at: index)).map(CharacterSet.whitespacesAndNewlines.contains) ?? false
+        }
+        func isWord(_ index: Int) -> Bool {
+            Unicode.Scalar(text.character(at: index)).map(CharacterSet.alphanumerics.contains) ?? true
+        }
+        guard !isSpace(offset) else { return nil }
+        var lower = offset, upper = offset + 1
+        while lower > 0, !isSpace(lower - 1) { lower -= 1 }
+        while upper < text.length, !isSpace(upper) { upper += 1 }
+        while lower < upper, !isWord(lower) { lower += 1 }
+        while upper > lower, !isWord(upper - 1) { upper -= 1 }
+        return lower < upper ? lower..<upper : nil
+    }
+
+    /// The whole words a drag from `a` to `b` covers.
+    func phrase(from a: Int, to b: Int) -> Range<Int>? {
+        let (low, high) = (min(a, b), max(a, b))
+        guard let first = word(at: low) ?? word(at: low + 1), let last = word(at: high) ?? word(at: max(high - 1, 0)),
+              first.lowerBound < last.upperBound else { return nil }
+        return first.lowerBound..<last.upperBound
+    }
+
+    /// The line `offset` falls in: where it starts and ends in the block's text.
+    func lineRange(at offset: Int) -> (id: Int, range: Range<Int>)? {
+        guard let index = spans.lastIndex(where: { $0.start <= offset }) ?? spans.indices.first else { return nil }
+        let end = index + 1 < spans.count ? spans[index + 1].start - 1 : string.utf16.count
+        return (spans[index].id, spans[index].start..<end)
+    }
+
     /// The time to play from for a click at `offset` into the text: the line it is in.
     func start(at offset: Int) -> Double {
         spans.last { $0.start <= offset }?.t0 ?? start
@@ -131,12 +165,14 @@ struct DisplayBlock: Identifiable, Equatable, Sendable {
 @MainActor
 final class BlockTextLayout {
     let width: CGFloat
+    let string: String
     private let storage: NSTextStorage
     private let manager = NSLayoutManager()
     private let container: NSTextContainer
 
     init(string: String, width: CGFloat) {
         self.width = width
+        self.string = string
         // SwiftUI's default text on the Mac is the system font at its standard size.
         storage = NSTextStorage(string: string, attributes: [.font: NSFont.systemFont(ofSize: NSFont.systemFontSize)])
         container = NSTextContainer(size: CGSize(width: width, height: .greatestFiniteMagnitude))

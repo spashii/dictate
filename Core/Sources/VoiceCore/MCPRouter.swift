@@ -322,7 +322,7 @@ struct MCPRouter: Sendable {
                   "channel": ["type": "string", "enum": ["all", "me", "call", "mix"], "default": "all",
                               "description": "me is this Mac's microphone, call is everyone else, mix is a call recorded without the split."],
                   "format": ["type": "string", "enum": ["text", "segments"], "default": "text",
-                             "description": "text gives timed, labelled lines; segments gives JSON with milliseconds."]],
+                             "description": "text gives timed, labeled lines; segments gives JSON with milliseconds."]],
                  required: ["id"]),
             tool("current_call",
                  "Get the call being recorded now (null when there is none) and the cursor to wait from for only what is said next."),
