@@ -85,6 +85,10 @@ final class CallsModel {
     @ObservationIgnored private var quieting: Task<Void, Never>?
     /// Titles are made one call at a time, in the order the calls ended.
     @ObservationIgnored private var titling: Task<Void, Never>?
+    /// The request an Ollama model is answering now; a dictation cancels it.
+    @ObservationIgnored private var ollamaRequest: Task<String?, Never>?
+    /// An Ollama model is naming a call, so the Mac is not quiet: nothing should restart it.
+    private(set) var ollamaTitling = false
     private static let quiet: Duration = .seconds(20)
 
     init() {
@@ -398,14 +402,48 @@ final class CallsModel {
         let models = CallTitles.models(choice: choice, appleAvailable: model.appleModelAvailable,
                                        ollamaModels: model.ollamaModels, ollamaURL: model.preferences.ollamaEndpoint)
         guard !models.isEmpty else { return }
-        if case .ollama = choice {
-            guard await TitleGate.waitUntilQuiet(activity: { model.activity }) else { return }
-            await model.currentPipeline().transcriber.unload()
+        let usesOllama: Bool
+        if case .ollama = choice { usesOllama = true } else { usesOllama = false }
+
+        if usesOllama {
+            // Cheap and off the main actor, so a call that can't be titled never waits for a
+            // quiet Mac or takes whisper's memory.
+            guard await Task.detached(priority: .utility, operation: {
+                CallTitler().isEligible(callID, in: store)
+            }).value else { return }
+            // A dictation can start while whisper unloads, so the Mac is checked again after.
+            var ready = false
+            while !ready {
+                guard await TitleGate.waitUntilQuiet(activity: { model.activity }) else { return }
+                guard model.preferences.titleCalls, model.effectiveModel == choice else { return }
+                await model.currentPipeline().transcriber.unload()
+                ready = TitleGate.mayAsk(model.activity)
+            }
         }
-        let titled = await Task.detached(priority: .utility) {
+
+        let work = Task.detached(priority: .utility) {
             await CallTitler().title(callID, in: store, models: models)
-        }.value
+        }
+        if usesOllama {
+            ollamaRequest = work
+            ollamaTitling = true
+        }
+        let titled = await withTaskCancellationHandler { await work.value } onCancel: { work.cancel() }
+        if usesOllama {
+            ollamaRequest = nil
+            ollamaTitling = false
+        }
         if titled != nil { model.refreshRecents() }
+    }
+
+    /// A dictation is starting: whisper is about to load, and Ollama's model must not sit
+    /// beside it (16 GB Macs run out of GPU memory) or make the fix wait behind a title. The
+    /// request is cancelled and its title dropped, and Ollama is told to unload.
+    func yieldToDictation() {
+        guard let request = ollamaRequest, let model else { return }
+        request.cancel()
+        let settings = model.preferences.cleanup(using: .ollama(model.preferences.ollamaModel))
+        Task.detached(priority: .utility) { await Ollama().unload(settings) }
     }
 
     /// Reads the call's segments as they are written, from the store's wait, the one

@@ -115,6 +115,7 @@ final class AppModel {
             activity.callRecording = calls.recording != nil || calls.starting
             activity.callTranscribing = calls.transcribing
             activity.callAppInCall = !calls.detected.isEmpty
+            activity.titling = calls.ollamaTitling
         }
         return activity
     }
@@ -355,6 +356,7 @@ final class AppModel {
 
     private func start(_ mode: Dictation.Mode) {
         noticeTask?.cancel()
+        calls?.yieldToDictation()
         let url = Paths.recordings.appending(path: "\(Int(Date().timeIntervalSince1970 * 1000)).wav")
         let began = Date()
         phase = .recording(mode, began)

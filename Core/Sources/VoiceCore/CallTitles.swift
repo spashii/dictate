@@ -14,9 +14,28 @@ public enum CallTitles {
         """
 
     public static let minimumWords = 12
-    static let budget = 6000
-    static let headBudget = 4000
-    static let tailBudget = 2000
+    /// Characters of transcript the model sees, split two thirds to the start and one third to
+    /// the end. CJK and other non-Latin scripts take more tokens per character, so a call in
+    /// one gets a third of the room to keep it inside the context the fix step also uses.
+    struct Budget: Equatable {
+        var total: Int
+        var head: Int { total * 2 / 3 }
+        var tail: Int { total - head }
+        static let latin = Budget(total: 6000)
+        static let nonLatin = Budget(total: 2000)
+    }
+
+    /// Non-Latin when most letters are outside the Latin blocks.
+    static func budget(for text: String) -> Budget {
+        var letters = 0
+        var other = 0
+        for scalar in text.unicodeScalars where scalar.properties.isAlphabetic {
+            letters += 1
+            let value = scalar.value
+            if !(value < 0x250 || (0x1E00...0x1EFF).contains(value)) { other += 1 }
+        }
+        return other * 2 > letters ? .nonLatin : .latin
+    }
 
     public static func prompt(for excerpt: String) -> String { "Transcript:\n" + excerpt }
 
@@ -43,7 +62,10 @@ public enum CallTitles {
         }
         guard words >= minimumWords else { return nil }
         let full = lines.joined(separator: "\n")
-        guard full.count > budget else { return full }
+        let budget = budget(for: full)
+        guard full.count > budget.total else { return full }
+        let headBudget = budget.head
+        let tailBudget = budget.tail
 
         var head: [String] = []
         var used = 0
@@ -79,9 +101,12 @@ public enum CallTitles {
         var text = raw
         text = Ollama.stripThinking(text)
         if let open = text.range(of: "<think>") { text.removeSubrange(open.lowerBound..<text.endIndex) }
-        guard var line = text.split(whereSeparator: \.isNewline)
-            .map({ $0.trimmingCharacters(in: .whitespaces) })
-            .first(where: { !$0.isEmpty }) else { return nil }
+        var lines = text.split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        // "Here is a title for this call:" announces the answer; the answer is the next line.
+        if let first = lines.first, isLeadIn(first) { lines.removeFirst() }
+        guard var line = lines.first else { return nil }
 
         line = line.trimmingCharacters(in: leading)
         if line.lowercased().hasPrefix("title:") {
@@ -96,6 +121,12 @@ public enum CallTitles {
         let lowered = line.lowercased().replacingOccurrences(of: "\u{2019}", with: "'")
         if refusals.contains(where: { lowered.hasPrefix($0) }) { return nil }
         return line
+    }
+
+    private static func isLeadIn(_ line: String) -> Bool {
+        let lowered = line.lowercased().replacingOccurrences(of: "\u{2019}", with: "'")
+        let bare = lowered.trimmingCharacters(in: CharacterSet(charactersIn: "*_ \t"))
+        return bare.hasSuffix(":") || bare.hasPrefix("here is") || bare.hasPrefix("here's")
     }
 
     /// Ollama lists "name:latest" for a model pulled as "name". The same rule as the app's
@@ -140,7 +171,8 @@ public struct OllamaTitleModel: TitleModel {
     }
 
     /// Short and cool: a title is a few words, and the model is kept for two minutes only so a
-    /// run of calls doesn't hold memory the Mac needs for dictation.
+    /// run of calls doesn't hold memory the Mac needs for dictation. No `num_ctx`: the fix
+    /// request sets none either, and a different one makes Ollama reload the model between them.
     static func body(model: String, instructions: String, prompt: String) -> [String: Any] {
         [
             "model": model,
@@ -149,7 +181,7 @@ public struct OllamaTitleModel: TitleModel {
             "think": false,
             "stream": false,
             "keep_alive": "2m",
-            "options": ["temperature": 0.2, "num_ctx": 4096, "num_predict": 32] as [String: Any],
+            "options": ["temperature": 0.2, "num_predict": 32] as [String: Any],
         ]
     }
 
@@ -184,6 +216,14 @@ public struct CallTitler: Sendable {
 
     public init() {}
 
+    /// Whether a title could be made for the call now: it has none, nobody set one, and there
+    /// is enough transcript. Cheap, so the app can ask before it frees memory for a model.
+    public func isEligible(_ callID: String, in store: CallStore) -> Bool {
+        guard let call = try? store.call(callID), call.title == nil, call.titleSource == nil,
+              let segments = try? store.segments(callID) else { return false }
+        return CallTitles.excerpt(segments, speakers: call.speakers) != nil
+    }
+
     /// The title stored, or nil when none was: the call already has one, is too short, no
     /// model gave a usable answer, or a person named it while the model was working.
     public func title(_ callID: String, in store: CallStore, models: [any TitleModel]) async -> String? {
@@ -198,10 +238,13 @@ public struct CallTitler: Sendable {
                 do {
                     raw = try await model.title(instructions: CallTitles.instructions, prompt: prompt)
                 } catch {
+                    if Task.isCancelled { return nil }
                     // The error type only: a model's message can quote the transcript.
                     Self.log.error("\(model.name, privacy: .public) failed: \(String(describing: type(of: error)), privacy: .public)")
                     continue
                 }
+                // A dictation started and took the model's turn: the answer is dropped.
+                if Task.isCancelled { return nil }
                 guard let title = CallTitles.sanitize(raw) else {
                     Self.log.error("\(model.name, privacy: .public) answered with no usable title")
                     continue

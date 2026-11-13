@@ -38,6 +38,12 @@ import Testing
         ("...", nil),
         ("\"\"", nil),
         ("123 456", nil),
+        ("Here is a title:\nLakeside kickoff", "Lakeside kickoff"),
+        ("Here's a title for this call:\n\n\"Lakeside kickoff\"", "Lakeside kickoff"),
+        ("Here\u{2019}s a title for this call:\nLakeside kickoff", "Lakeside kickoff"),
+        ("Here is the title\nLakeside kickoff", "Lakeside kickoff"),
+        ("Sure, here you go:\nLakeside kickoff", "Lakeside kickoff"),
+        ("Here is a title:", nil),
     ] as [(String, String?)])
     func sanitize(raw: String, expected: String?) {
         #expect(CallTitles.sanitize(raw) == expected)
@@ -94,6 +100,26 @@ import Testing
         #expect(lines.allSatisfy { $0 == "[...]" || $0.hasPrefix("Me: ") || $0.hasPrefix("Call: ") })
     }
 
+    @Test func nonLatinTextGetsASmallerBudgetSplitTwoToOne() throws {
+        #expect(CallTitles.Budget.nonLatin.head == 1333 && CallTitles.Budget.nonLatin.tail == 667)
+        #expect(CallTitles.budget(for: "Northwind rollout met Alex") == .latin)
+        #expect(CallTitles.budget(for: "Plan für Östergötland, café déjà vu") == .latin)
+        #expect(CallTitles.budget(for: "我们讨论了北风项目的上线计划 and a word") == .nonLatin)
+
+        var segments: [CallSegment] = []
+        for i in 0..<120 {
+            let marker = i == 0 ? "开始 " : i == 119 ? "结束 " : ""
+            segments.append(segment(Int64(i + 1), i % 2 == 0 ? .me : .call, i * 1000,
+                                    marker + "我们需要和亚历克斯一起规划北风项目本月的上线计划,第\(i)行。"))
+        }
+        let excerpt = try #require(CallTitles.excerpt(segments, speakers: nil))
+        let lines = excerpt.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        #expect(excerpt.count <= 2000 + 8)
+        #expect(lines.first?.contains("开始") == true)
+        #expect(lines.last?.contains("结束") == true)
+        #expect(lines.filter { $0 == "[...]" }.count == 1)
+    }
+
     @Test func aSingleHugeLineIsStillCut() throws {
         let huge = String(repeating: "word ", count: 3000)
         let excerpt = try #require(CallTitles.excerpt([segment(1, .mix, 0, huge)], speakers: nil))
@@ -111,7 +137,7 @@ import Testing
         #expect(body["keep_alive"] as? String == "2m")
         let options = try #require(body["options"] as? [String: Any])
         #expect(options["temperature"] as? Double == 0.2)
-        #expect(options["num_ctx"] as? Int == 4096)
+        #expect(options["num_ctx"] == nil)
         #expect(options["num_predict"] as? Int == 32)
         #expect(JSONSerialization.isValidJSONObject(body))
     }
