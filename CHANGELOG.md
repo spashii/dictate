@@ -20,7 +20,7 @@ stops when VERSION has no entry here.
 
 ## 0.13.0 (2026-11-13)
 
-- Activate Dictate once with your email. It's free during the beta.
+- Activate Dictate once with your email. It’s free during the beta.
 - Rename and delete recordings in History.
 - Select words in History to correct them. A corrected name is offered as a key term.
 - Cmd+F searches inside the open recording.
@@ -31,7 +31,7 @@ stops when VERSION has no entry here.
 ## 0.12.1 (2026-11-12)
 
 - Me is blue and Call is purple in transcripts.
-- On speakers, the call's sound is taken out of your microphone, so its words stay under Call.
+- On speakers, the call’s sound is taken out of your microphone, so its words stay under Call.
 - History search looks inside every transcript.
 - History works with VoiceOver and the keyboard. Press Return on a block to play from there.
 - Long calls scroll and play smoothly.
