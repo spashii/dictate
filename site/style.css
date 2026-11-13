@@ -17,6 +17,22 @@
   }
 }
 
+/* Corners and insets step down from the outside in, and each container's inset matches its radius:
+   the floating nav (radius 28, inset 28), then cards and frames (24, 24), then buttons (22, 22 from
+   ds/v1.css). Where a capsule sits inside a capsule the gap is the same on every side, so the corners
+   stay concentric: the nav's 36px Download button sits 10px in, and 28 = 18 + 10. */
+:root { --nav-h: 56px; --radius-card: 24px; }
+.nav { width: min(calc(var(--page) + 56px), 100% - 24px); padding: 0 10px 0 28px; }
+@media (max-width: 734px) { .nav { padding-left: 24px; } } /* the cards' inset is 20 on a phone */
+
+/* Download groups at the left edge of a column: the primary button moves left by its own inset, so
+   its label starts on the same line as the heading and the facts under it. On a phone the button
+   fills the row and stays put. */
+@media (min-width: 735px) {
+  .hero .get .actions > .button:first-child,
+  .bottom .get .actions > .button:first-child { margin-left: -22px; }
+}
+
 /* Drawn app UI in native macOS colours. The pill values are sampled from the 0.13.0 renders. */
 .mac {
   --win: #fff; --field: #f5f5f7; --text: #1d1d1f; --text2: #6a6a70; --text3: #86868c; --sep: rgba(0,0,0,.09);
@@ -64,22 +80,22 @@
 .art .ml .w { flex: 0 0 34px; color: var(--text2); }
 .art .tool { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-radius: 8px; background: var(--app-control); box-shadow: var(--app-ring); font: 13px var(--mono); }
 
-/* History card: the Me and Call transcript lines of the real History window (a 1704 by 600 capture),
-   cropped to x 694 to 1690 starting at y 128. Below 735px the crop runs to y 530 and shows all six
-   entries whole at a fixed ratio. From 735px the well is 144px tall like its neighbour and shows the
-   first four entries (text y 152 to 428) in a crop to y 452, 24px of capture above and below the text.
-   The crop is sized by percentages of the well width, so it is identical at every width and at most
-   141px tall, which leaves no line cut on any side. The well takes the capture's own background so the
-   spare height reads as padding. The frame's hairline is drawn over the well so it stays visible. */
-.well.shot { position: relative; height: auto; min-height: 0; aspect-ratio: 996 / 402; overflow: hidden; background: #fff; }
-.well.shot picture { display: block; }
-.well.shot img { display: block; width: 171.08%; max-width: none; height: auto; margin: -12.85% 0 0 -69.68%; }
+/* History card: the real History window of Dictate 0.14 without its sidebar, the list of calls on the
+   left and the open call's transcript on the right (a 1303 by 600 crop of a 2120 by 1360 capture). At
+   the card's width the whole window would set its text near 7px, so the crop ends inside the transcript
+   and fades out to the right and at the bottom. The well takes the capture's own background so the
+   fade reads as the window going on. From 735px the other well in its row takes the same ratio, so the
+   two headings sit level. The frame's hairline is drawn over the well so it stays visible. */
+.well.shot { position: relative; height: auto; aspect-ratio: 1303 / 600; overflow: hidden; background: #fff; }
+.well.shot picture, .well.shot img { display: block; width: 100%; height: auto; }
+.well.shot img {
+  -webkit-mask-image: linear-gradient(to right, #000 82%, transparent), linear-gradient(to bottom, #000 88%, transparent);
+  mask-image: linear-gradient(to right, #000 82%, transparent), linear-gradient(to bottom, #000 88%, transparent);
+  -webkit-mask-composite: source-in; mask-composite: intersect;
+}
 .well.shot::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px var(--hairline); pointer-events: none; }
 @media (prefers-color-scheme: dark) { .well.shot { background: #1e1e1e; } }
-@media (min-width: 735px) {
-  .well.shot { height: 144px; aspect-ratio: auto; display: flex; align-items: center; }
-  .well.shot picture { width: 100%; aspect-ratio: 996 / 324; overflow: hidden; }
-}
+@media (min-width: 735px) { .well.shot-row { height: auto; aspect-ratio: 1303 / 600; } }
 
 /* Hero demo. A 420 by 500 scene of the top of a Mac screen, scaled to the column by the script so
    it reads the same at every width. Every window stays sharp; the camera leans in on the pills at
