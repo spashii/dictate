@@ -19,6 +19,9 @@ cd $root
 version=$(<VERSION)
 publish=false
 [[ ${1:-} == --publish ]] && publish=true
+# One edit per release: the entry in CHANGELOG.md is both the notes Sparkle shows before
+# installing and what About lists. The check runs first so a missing entry costs no build.
+notes=$(tools/changelog.sh $version)
 publishTool=${VOICE_PUBLISH_TOOL:-$HOME/work/dictate-web/tools/publish-release.sh}
 
 identity=${VOICE_SIGN_ID:-}
@@ -150,6 +153,7 @@ if [[ -f $sparkleKey ]]; then
     <language>en</language>
     <item>
       <title>Dictate $version</title>
+      <description><![CDATA[$notes]]></description>
       <pubDate>$(LC_ALL=C date -u '+%a, %d %b %Y %H:%M:%S +0000')</pubDate>
       <sparkle:version>$version</sparkle:version>
       <sparkle:shortVersionString>$version</sparkle:shortVersionString>

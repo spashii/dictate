@@ -419,6 +419,11 @@ private struct ConnectSheet: View {
 struct AboutPane: View {
     @Environment(AppModel.self) private var model
     @State private var showingNotices = false
+    private static let changelog: [Changelog.Entry] = {
+        guard let url = Bundle.main.url(forResource: "CHANGELOG", withExtension: "md"),
+              let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }
+        return Changelog.parse(text)
+    }()
 
     var body: some View {
         @Bindable var updates = model.updates
@@ -435,12 +440,43 @@ struct AboutPane: View {
                 }
                 .padding(.vertical, 4)
             }
+            if let update = model.updates.available {
+                Section {
+                    LabeledContent {
+                        Button("Update") { model.updates.install() }
+                            .buttonStyle(.borderedProminent)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Update available")
+                            Text("Version \(update.version)").font(.callout).foregroundStyle(.secondary)
+                        }
+                    }
+                    if !update.notes.isEmpty { BulletList(items: update.notes) }
+                }
+            }
             Section {
                 LabeledContent("Updates") {
                     Button("Check for Updates\u{2026}") { model.updates.check() }
                         .disabled(!model.updates.canCheck)
                 }
                 Toggle("Check for updates automatically", isOn: $updates.automatic)
+            }
+            if !Self.changelog.isEmpty {
+                Section("What\u{2019}s new") {
+                    ForEach(Self.changelog, id: \.version) { entry in
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(verbatim: entry.version).font(.headline)
+                                Spacer()
+                                if let date = Self.dateText(entry.date) {
+                                    Text(verbatim: date).foregroundStyle(.secondary)
+                                }
+                            }
+                            BulletList(items: entry.items)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
             }
             Section {
                 Link(destination: URL(string: "https://spashii.github.io/dictate/")!) {
@@ -459,8 +495,33 @@ struct AboutPane: View {
         .sheet(isPresented: $showingNotices) { NoticesSheet() }
     }
 
+    private static func dateText(_ components: DateComponents?) -> String? {
+        guard let components, let date = Calendar(identifier: .gregorian).date(from: components) else { return nil }
+        let formatter = DateFormatter()
+        formatter.dateStyle = .long
+        formatter.timeStyle = .none
+        return formatter.string(from: date)
+    }
+
     private static var version: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
+    }
+}
+
+/// Release notes as bullets with a hanging indent.
+private struct BulletList: View {
+    let items: [String]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                HStack(alignment: .firstTextBaseline) {
+                    Text("\u{2022}")
+                    Text(verbatim: item).lineSpacing(2).fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                }
+            }
+        }
     }
 }
 

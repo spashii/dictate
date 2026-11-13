@@ -34,6 +34,11 @@ extension Snapshots {
         return try await settingsPane(model, .agents, AgentsPane(), size: NSSize(width: 1060, height: 1000), dark: dark)
     }
 
+    /// Settings, About, tall enough to show the update and the top of What's new.
+    static func aboutWindow(_ model: AppModel, dark: Bool) async throws -> NSBitmapImageRep? {
+        try await settingsPane(model, .about, AboutPane(), size: NSSize(width: 1060, height: 1000), dark: dark)
+    }
+
     private static func settingsPane<Pane: View>(_ model: AppModel, _ selection: MainPane, _ content: Pane,
                                                  size: NSSize, dark: Bool) async throws -> NSBitmapImageRep? {
         let navigation = MainNavigation()

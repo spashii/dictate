@@ -55,6 +55,11 @@ enum Snapshots {
                             await modelPicker(model, apple: .turnedOff, ollama: nil, choice: .apple, dark: dark))
                 await write(folder, "agents-tools-\(suffix)", try await agentsSettings(model, dark: dark))
                 await write(folder, "welcome-\(suffix)", try await welcomeWindow(locked, dark: dark))
+                await write(folder, "about-\(suffix)", try await aboutWindow(model, dark: dark))
+                model.updates.setAvailableForSnapshots(Self.fixtureUpdate)
+                await write(folder, "about-update-\(suffix)", try await aboutWindow(model, dark: dark))
+                await write(folder, "sidebar-update-\(suffix)", try await historyWindow(model, history, dark: dark))
+                model.updates.setAvailableForSnapshots(nil)
                 await write(folder, "dictation-pill-\(suffix)", await dictationPill(model, dark: dark))
                 await write(folder, "call-pill-\(suffix)", await callPill(dark: dark))
                 await write(folder, "record-call-nudge-\(suffix)", await nudge(model, dark: dark))
@@ -75,6 +80,12 @@ enum Snapshots {
             .environment(CallsModel()), size: size, dark: dark, titled: true)
         return await withSidebar(await capture(window, size: size, titled: true), model, .welcome, size: size, dark: dark)
     }
+
+    private static let fixtureUpdate = AvailableUpdate(version: "0.15.0", notes: Changelog.bullets(fromDescription: """
+        <ul><li>Drop an audio or video file on History to transcribe it.</li>\
+        <li>History has a + button for a new dictation or call.</li>\
+        <li>Agents can bring in an audio file by path. The tool is off until you turn it on.</li></ul>
+        """))
 
     private static func dictationPill(_ model: AppModel, dark: Bool) async -> NSBitmapImageRep? {
         model.phase = .recording(.fix, Date().addingTimeInterval(-7))

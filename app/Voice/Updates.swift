@@ -24,6 +24,11 @@ final class Updates {
     /// Told when Sparkle stages an update.
     @ObservationIgnored var onStaged: (() -> Void)?
 
+    /// The update Sparkle last found, for About and the sidebar dot. Sparkle's dialog does the
+    /// installing.
+    private(set) var available: AvailableUpdate?
+    @ObservationIgnored private var availability = UpdateAvailability()
+
     /// False while a check is already under way.
     private(set) var canCheck = false
     var automatic: Bool {
@@ -52,6 +57,20 @@ final class Updates {
                 }
             },
         ]
+        delegate.found = { [weak self] version, description in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.availability.found(version: version, description: description, currentVersion: Self.currentVersion)
+                self.available = self.availability.available
+            }
+        }
+        delegate.notFound = { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.availability.notFound()
+                self.available = nil
+            }
+        }
         delegate.staged = { [weak self] install in
             MainActor.assumeIsolated {
                 self?.stagedInstall = install
@@ -62,6 +81,22 @@ final class Updates {
 
     func check() {
         controller.checkForUpdates(nil)
+    }
+
+    /// Sparkle's usual flow: its dialog shows the notes and Install.
+    func install() {
+        controller.checkForUpdates(nil)
+    }
+
+#if DEBUG
+    /// For the app-shots run, which has no feed.
+    func setAvailableForSnapshots(_ update: AvailableUpdate?) {
+        available = update
+    }
+#endif
+
+    private static var currentVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
     }
 
     var hasStagedUpdate: Bool { stagedInstall != nil }
@@ -80,6 +115,26 @@ final class Updates {
 final class UpdaterDelegate: NSObject, SPUUpdaterDelegate {
     /// Takes Sparkle's install-now block for a staged update; set by Updates.
     var staged: ((@escaping () -> Void) -> Void)?
+
+    /// Told what Sparkle found, with the item's notes; set by Updates.
+    var found: ((String, String?) -> Void)?
+    var notFound: (() -> Void)?
+
+    func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
+        found?(item.displayVersionString, item.itemDescription)
+    }
+
+    func updaterDidNotFindUpdate(_ updater: SPUUpdater) {
+        notFound?()
+    }
+
+    /// Sparkle offers a skipped version again only when the person checks for updates, so About
+    /// stops showing it.
+    /// Install and dismiss keep it: the update still waits.
+    func updater(_ updater: SPUUpdater, userDidMake choice: SPUUserUpdateChoice,
+                 forUpdate updateItem: SUAppcastItem, state: SPUUserUpdateState) {
+        if choice == .skip { notFound?() }
+    }
 
     /// True tells Sparkle Dictate will install the update itself, by calling the block.
     func updater(_ updater: SPUUpdater, willInstallUpdateOnQuit item: SUAppcastItem,
