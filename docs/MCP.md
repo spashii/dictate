@@ -1,6 +1,6 @@
 # Dictate over MCP
 
-Agents read dictations and call transcripts, live calls included, through an MCP server: Claude Code, Codex or any MCP client on this Mac, and, if you choose, on your other devices over Tailscale.
+Agents read dictations and call transcripts through an MCP server, live calls included. Claude Code, Codex or any MCP client on this Mac can connect. Your other devices can too if you set up Tailscale.
 
 | From | Address |
 | --- | --- |
@@ -11,7 +11,7 @@ Every request carries `Authorization: Bearer <token>`, from this Mac too; withou
 
 ## Who serves it
 
-Dictate hosts the server while it runs, unless Settings, Agents, "Agents can read transcripts" is off. That page sets the host and port (the server restarts when they change), copies or regenerates the token, copies the setup for an agent app, and switches each tool on or off. The tools that start a recording or change stored data are off until someone turns them on (existing choices are kept). A tool that is off is missing from `tools/list` and refuses `tools/call`, for agents already connected too. When Dictate isn't running nothing answers, and the tailnet address returns 502.
+Dictate hosts the server while it runs, unless "Agents can read transcripts" in the Agents settings is off. That page sets the host and port (the server restarts when they change), copies or regenerates the token, copies the setup for an agent app, and switches each tool on or off. The tools that start a recording or change stored data are off until someone turns them on (existing choices are kept). A tool that is off is missing from `tools/list` and refuses `tools/call`, for agents already connected too. When Dictate isn't running nothing answers, and the tailnet address returns 502.
 
 `dictate-cli mcp` serves the same thing without the app, against the same database:
 
@@ -19,11 +19,11 @@ Dictate hosts the server while it runs, unless Settings, Agents, "Agents can rea
 Core/.build/release/dictate-cli mcp            # [--port N] [--db PATH]
 ```
 
-Only one of the two can hold port 7766; the second to start reports that the port is in use. The server listens on 127.0.0.1 only.
+Only one of the two can hold port 7766; the second to start reports that the port is in use. `dictate-cli mcp` listens on 127.0.0.1 only.
 
 ## The token
 
-`~/Library/Application Support/Dictate/mcp-token`: 32 random bytes in hex, mode 0600, made by whichever of the app or `dictate-cli mcp` starts first. To change it, delete the file and restart whatever serves; every client then needs the new one.
+`~/Library/Application Support/Dictate/mcp-token`: 32 random bytes in hex, mode 0600, made by whichever of the app or `dictate-cli mcp` starts first. To change it, press Regenerate in the Agents settings. With `dictate-cli mcp` alone, delete the file and restart it. Every client then needs the new one.
 
 To add Dictate to Claude Code on this Mac:
 
@@ -32,9 +32,7 @@ claude mcp add --transport http --scope user dictate http://127.0.0.1:7766/mcp \
   --header "Authorization: Bearer $(cat ~/Library/Application\ Support/Dictate/mcp-token)"
 ```
 
-The server reports `"name": "dictate"` and `"title": "Dictate"` in `serverInfo`. The endpoint is still `/mcp` on port 7766, and the token is unchanged by the rename. A client registered as `voice` keeps working: a client keys on the name in its own configuration, not on `serverInfo`, and its tools stay `mcp__voice__*` until it is registered again under another name.
-
-`~/Library/Application Support/Voice` is a link to `Dictate` after the data folder moves, so `~/Library/Application Support/Voice/mcp-token` still reads the same token.
+The server reports `"name": "dictate"` and `"title": "Dictate"` in `serverInfo`. A client registered as `voice` keeps working.
 
 From another device, use the tailnet address instead, and keep the token in that device's own secret store rather than in a shell history.
 

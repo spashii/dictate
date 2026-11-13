@@ -2,9 +2,9 @@
 
 Dictate can transcribe an audio or video file you already have, such as a voice memo or a recorded meeting. It appears in History like a call.
 
-To import, choose New in History's toolbar, then Import Audio File, or drop files on History. You can import several at once: they are transcribed one after another.
+To import, open the New menu on History and choose Import Audio File. You can also drop files on History. You can import several at once: they are transcribed one after another.
 
-Supported types are m4a, mp3, wav, aiff, caf, aac, flac, m4b, mp4, mov and m4v. A file can be up to 2 GB.
+Supported types are m4a, mp3, wav, aif, aiff, aifc, caf, aac, flac, m4b, mp4, mov and m4v. A file can be up to 2 GB.
 
 - Transcribing happens on this Mac. Nothing is uploaded.
 - Dictate keeps a copy as soon as the row appears, so you can then move or delete the original.

@@ -13,13 +13,13 @@ stops when VERSION has no entry here.
 
 ## 0.15.0 (2026-11-13)
 
-- A button in History's toolbar starts a dictation, records a call or imports an audio file.
+- History has a New menu in the toolbar: New Dictation, Record a Call and Import Audio File…
 - Drop an audio or video file on History to transcribe it on your Mac. It gets a title like a call and shows up in search.
 - Agents can import an audio file by its path. The tool is off until you turn it on in Settings, Agents.
 - History has one Search field in the title row. It finds recordings and marks the words in the one you open.
-- Correct a name in History and it becomes a key term. Undo is right there.
+- Correct a name in History and it becomes a key term. You can undo it right away.
 - Call titles are three or four words. A recording shows Generating title… while its title is made.
-- Right-click a recording to generate its title, or regenerate it.
+- Right-click a recording and choose Generate Title to name it again.
 - History rows and transcript lines line up better. The play button no longer covers the time.
 - Settings, Model greys out what needs an intelligence model when none can run. It says why.
 - The menu shows the version below Check for Updates.
@@ -39,7 +39,7 @@ stops when VERSION has no entry here.
 
 ## 0.14.0 (2026-11-13)
 
-- Calls get a short title from their transcript when they end, written by a model on your Mac. A name you give a call is never replaced.
+- Calls get a short title from their transcript when they end, written by a model on your Mac. An automatic title never replaces a name you give a call.
 - Fix the text before pasting can use Apple Intelligence on Macs that have it, as well as Ollama. Choose the model in Settings, Model.
 - History shows the call app first, then the title.
 - Agents can give a recording a title. The tool is off until you turn it on in Settings, Agents.
@@ -65,7 +65,7 @@ stops when VERSION has no entry here.
 - History search looks inside every transcript.
 - History works with VoiceOver and the keyboard. Press Return on a block to play from there.
 - Long calls open and play faster in History.
-- Settings, Agents shows the setup to paste into an agent app with your token filled in, and warns when other machines can reach the server.
+- The Agents settings show the setup to paste into an agent app, with your token filled in. They warn when other machines can reach the server.
 - Settings, Microphones names each microphone and explains the call audio choice.
 
 ## 0.12.0 (2026-11-12)
@@ -73,7 +73,7 @@ stops when VERSION has no entry here.
 - Voice is now Dictate. Your recordings and settings move over on their own.
 - One window for History and Settings, opened from the menu or with Cmd+,.
 - Dictate records the other side of a call straight from the call app, without Blend Mic. Allow call audio once in Setup.
-- History has search, one block per speaker turn, corrected words underlined, play from any line, and Save As for the audio.
+- History has search and one block per speaker turn. Corrected words are underlined. You can play from any line and save the audio with Save As.
 - History shows the time of day for each recording, and its time zone when that differs from yours.
 - Suggested key terms leave out everyday English words.
 - Settings, Agents turns each tool on or off and sets the address and token. On new installs, tools that record or change anything start off.
