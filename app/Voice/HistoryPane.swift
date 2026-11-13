@@ -257,9 +257,8 @@ final class HistoryModel {
     }
 
     /// Shows a title the model just made, ahead of the reload that reads it from the database.
-    func show(title: String, forCall ref: String) {
-        guard let index = entries.firstIndex(where: { $0.kind == .call && $0.ref == ref }),
-              entries[index].customTitle == nil else { return }
+    func show(title: String, forRecording ref: String) {
+        guard let index = entries.firstIndex(where: { $0.ref == ref }) else { return }
         entries[index].customTitle = title
         entries[index].title = title
     }
@@ -412,7 +411,7 @@ struct HistoryPane: View {
                 Menu {
                     HistoryNewMenu(chooseFiles: chooseFiles)
                 } label: {
-                    Label("New", systemImage: "plus")
+                    Label("New", systemImage: "tray.and.arrow.down")
                 }
                 .menuIndicator(.hidden)
                 .help("New")
@@ -434,7 +433,7 @@ struct HistoryPane: View {
         .onAppear {
             history.changed = { model.refreshRecents() }
             history.beforeDelete = { [calls] id in await calls.cancelImport(id) }
-            calls.titled = { [history] id, title in history.show(title: title, forCall: id) }
+            calls.titled = { [history] id, title in history.show(title: title, forRecording: id) }
             history.reload()
         }
         .onKeyPress(keys: [.delete], phases: .down) { press in
@@ -524,12 +523,7 @@ private struct HistoryList: View {
                                    commit: { history.rename(entry, to: $0) }, cancel: { history.renaming = nil })
                             .equatable()
                             .onAppear { history.loadMoreIfNeeded(at: entry) }
-                            .contextMenu {
-                                Button("Copy") { Task { await history.copy(entry) } }
-                                Button("Rename") { history.beginRename(entry) }
-                                Divider()
-                                Button("Delete\u{2026}", role: .destructive) { history.pendingDelete = entry }
-                            }
+                            .contextMenu { HistoryRowMenu(entry: entry, history: history) }
                             .accessibilityAction(named: "Rename") { history.beginRename(entry) }
                             .accessibilityAction(named: "Delete") { history.pendingDelete = entry }
                     }
@@ -548,6 +542,33 @@ private struct HistoryList: View {
                 }
             }
         }
+    }
+}
+
+/// A History row's right-click menu, shared with the app-shots replica of it.
+struct HistoryRowMenu: View {
+    let entry: HistoryEntry
+    let history: HistoryModel
+    @Environment(CallsModel.self) private var calls
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        Button("Copy") { Task { await history.copy(entry) } }
+        Button("Rename") { history.beginRename(entry) }
+        // Generate Title, or Regenerate Title once the recording has one; with no model to run
+        // it, the reason sits disabled under it.
+        let item = TitleRequest.item(
+            hasTitle: entry.customTitle != nil, canTitle: entry.canTitle && !entry.isLive,
+            busy: calls.naming.contains(entry.ref),
+            noModelCanRun: LocalModelChoice.noModelCanRun(apple: model.appleModelState, ollamaModels: model.ollamaModels),
+            noModelHint: LocalModelChoice.noModelHint(apple: model.appleModelState, ollamaModels: model.ollamaModels))
+        Button(item.label) { calls.generateTitle(entry.kind, entry.ref) }
+            .disabled(!item.enabled)
+        if let hint = item.hint {
+            Button(hint) {}.disabled(true)
+        }
+        Divider()
+        Button("Delete\u{2026}", role: .destructive) { history.pendingDelete = entry }
     }
 }
 
@@ -605,7 +626,7 @@ private struct FilterSegments: NSViewRepresentable {
     }
 }
 
-/// The items of History's + menu, shared with the app-shots replica of the open menu.
+/// The items of the toolbar's New menu, shared with the app-shots replica of the open menu.
 struct HistoryNewMenu: View {
     @Environment(AppModel.self) private var model
     @Environment(CallsModel.self) private var calls

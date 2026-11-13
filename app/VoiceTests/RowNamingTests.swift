@@ -14,9 +14,10 @@ final class RowNamingTests: XCTestCase {
         XCTAssertFalse(RowNaming.shows(entry(.call), naming: [], importState: nil))
     }
 
-    func testOnlyAnUntitledCallIsNamed() {
-        XCTAssertFalse(RowNaming.shows(entry(.dictation), naming: ["short"], importState: nil))
-        XCTAssertFalse(RowNaming.shows(entry(.call, customTitle: "Budget"), naming: ["short"], importState: nil))
+    func testADictationOrATitledRecordingShowsItWhileATitleIsMade() {
+        XCTAssertTrue(RowNaming.shows(entry(.dictation), naming: ["short"], importState: nil))
+        XCTAssertTrue(RowNaming.shows(entry(.call, customTitle: "Budget"), naming: ["short"], importState: nil))
+        XCTAssertFalse(RowNaming.shows(entry(.dictation), naming: ["other"], importState: nil))
     }
 
     func testAnImportShowsItsOwnState() {
@@ -28,6 +29,29 @@ final class RowNamingTests: XCTestCase {
     }
 
     func testTheLabelUsesTheEllipsisCharacter() {
-        XCTAssertEqual(RowNaming.label, "Naming\u{2026}")
+        XCTAssertEqual(RowNaming.label, "Generating title\u{2026}")
+    }
+
+    func testTheRowMenuSaysGenerateOrRegenerate() {
+        func item(hasTitle: Bool) -> TitleRequest.Item {
+            TitleRequest.item(hasTitle: hasTitle, canTitle: true, busy: false, noModelCanRun: false, noModelHint: "")
+        }
+        XCTAssertEqual(item(hasTitle: false).label, "Generate Title")
+        XCTAssertEqual(item(hasTitle: true).label, "Regenerate Title")
+        XCTAssertTrue(item(hasTitle: true).enabled)
+        XCTAssertNil(item(hasTitle: true).hint)
+    }
+
+    func testTheRowMenuItemIsDisabledForShortTextOrABusyRow() {
+        XCTAssertFalse(TitleRequest.item(hasTitle: false, canTitle: false, busy: false, noModelCanRun: false, noModelHint: "").enabled)
+        XCTAssertFalse(TitleRequest.item(hasTitle: false, canTitle: true, busy: true, noModelCanRun: false, noModelHint: "").enabled)
+    }
+
+    func testWithNoModelTheItemIsDisabledAndGivesTheReason() {
+        let item = TitleRequest.item(hasTitle: true, canTitle: true, busy: false, noModelCanRun: true,
+                                     noModelHint: "Start Ollama or turn on Apple Intelligence.")
+        XCTAssertFalse(item.enabled)
+        XCTAssertEqual(item.label, "Regenerate Title")
+        XCTAssertEqual(item.hint, "Start Ollama or turn on Apple Intelligence.")
     }
 }

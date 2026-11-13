@@ -100,7 +100,7 @@ final class CallsModel {
     @ObservationIgnored private var ollamaRequest: Task<String?, Never>?
     /// An Ollama model is naming a call, so the Mac is not quiet: nothing should restart it.
     private(set) var ollamaTitling = false
-    /// Calls whose title is being made, for History's "Naming\u{2026}".
+    /// Recordings whose title is being made, for History's "Generating title\u{2026}".
     private(set) var naming: Set<String> = []
     /// Told a title the moment it is made, before the call leaves `naming`, so History can
     /// show it without a frame of the date in between.
@@ -436,8 +436,21 @@ final class CallsModel {
         }
     }
 
-    private func makeTitle(_ callID: String, store: CallStore, since asked: ContinuousClock.Instant) async {
-        guard let model, model.preferences.titleCalls else { return }
+    /// An explicit Generate or Regenerate Title: the same model and the same queue, whatever the
+    /// recording's title or the automatic setting is. The old title stays unless a new one is made.
+    func generateTitle(_ kind: HistoryEntry.Kind, _ ref: String) {
+        guard let store, !naming.contains(ref) else { return }
+        let previous = titling
+        let asked = ContinuousClock.now
+        titling = Task { [weak self] in
+            await previous?.value
+            await self?.makeTitle(ref, kind: kind, force: true, store: store, since: asked)
+        }
+    }
+
+    private func makeTitle(_ callID: String, kind: HistoryEntry.Kind = .call, force: Bool = false, store: CallStore,
+                           since asked: ContinuousClock.Instant) async {
+        guard let model, force || model.preferences.titleCalls else { return }
         let choice = model.effectiveModel
         if case .ollama = choice { await model.refreshOllama() } else { model.appleModelState = AppleModel.state }
         let models = CallTitles.models(choice: choice, appleAvailable: model.appleModelAvailable,
@@ -449,16 +462,18 @@ final class CallsModel {
         // Cheap and off the main actor, so a call that can't be titled never waits for a
         // quiet Mac or takes whisper's memory, and never shows as being named.
         guard await Task.detached(priority: .utility, operation: {
-            CallTitler().isEligible(callID, in: store)
+            force ? CallTitler().canTitle(kind, callID, in: store) : CallTitler().isEligible(callID, in: store)
         }).value else { return }
         defer { naming.remove(callID) }
+        // A click is answered at once, even while the Mac is busy.
+        if force { naming.insert(callID) }
 
         if usesOllama {
             // A dictation can start while whisper unloads, so the Mac is checked again after.
             var ready = false
             while !ready {
                 guard await TitleGate.waitUntilQuiet(activity: { model.activity }) else { return }
-                guard model.preferences.titleCalls, model.effectiveModel == choice else { return }
+                guard force || model.preferences.titleCalls, model.effectiveModel == choice else { return }
                 await model.currentPipeline().transcriber.unload()
                 ready = TitleGate.mayAsk(model.activity)
             }
@@ -467,7 +482,11 @@ final class CallsModel {
         // Marked only once the model is asked: the wait for a quiet Mac shows nothing.
         naming.insert(callID)
         let work = Task.detached(priority: .utility) {
-            await CallTitler().timedTitle(callID, in: store, models: models, kind: usesOllama ? .ollama : .apple, since: asked)
+            let timing: ModelTimings.Kind = usesOllama ? .ollama : .apple
+            if force {
+                return await CallTitler().timedRetitle(kind, callID, in: store, models: models, kind: timing, since: asked)
+            }
+            return await CallTitler().timedTitle(callID, in: store, models: models, kind: timing, since: asked)
         }
         if usesOllama {
             ollamaRequest = work
@@ -479,6 +498,8 @@ final class CallsModel {
             ollamaTitling = false
         }
         if let title = made {
+            // Out of the set first, so the row goes from "Generating title" to the title.
+            naming.remove(callID)
             self.titled(callID, title)
             model.refreshRecents()
         }
