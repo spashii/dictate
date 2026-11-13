@@ -148,6 +148,10 @@ struct CallAudioPermissionRow: View {
 struct ModelPane: View {
     @Environment(AppModel.self) private var model
 
+    private var noModel: Bool {
+        LocalModelChoice.noModelCanRun(apple: model.appleModelState, ollamaModels: model.ollamaModels)
+    }
+
     var body: some View {
         @Bindable var preferences = model.preferences
         Form {
@@ -177,14 +181,22 @@ struct ModelPane: View {
                     Text("Fix the text before pasting")
                     Text("Reads the text with your key terms and can change a few misheard words. This adds a moment before the paste.")
                 }
+                .disabled(noModel)
                 Toggle(isOn: $preferences.titleCalls) {
                     Text("Add a title to each call automatically")
                     Text("Names each call from its transcript when it ends.")
                 }
+                .disabled(noModel)
             }
         }
         .formStyle(.grouped)
-        .onAppear { Task { await model.refreshOllama() } }
+        // Ollama and Apple's model can come up while Settings is open; the toggles wake without a reopen.
+        .task {
+            while !Task.isCancelled {
+                await model.refreshOllama()
+                try? await Task.sleep(for: .seconds(3))
+            }
+        }
         .onChange(of: preferences.whisperModel) { _, whisperModel in
             model.downloads.download(whisperModel)
         }
@@ -207,11 +219,16 @@ struct LocalModelRow: View {
                 if case .ollama(let name) = choice { preferences.ollamaModel = name }
                 preferences.localModel = choice
             })
-        Picker("Intelligence model", selection: selection) {
+        Picker(selection: selection) {
             Text(options.apple.title).tag(LocalModelChoice.tag(options.apple.model))
             Divider()
             ForEach(options.ollama, id: \.self) { entry in
                 Text(entry.title).tag(LocalModelChoice.tag(entry.model))
+            }
+        } label: {
+            Text("Intelligence model")
+            if LocalModelChoice.noModelCanRun(apple: model.appleModelState, ollamaModels: model.ollamaModels) {
+                Text(LocalModelChoice.noModelHint(apple: model.appleModelState))
             }
         }
     }

@@ -188,4 +188,18 @@ final class LocalModelChoiceTests: XCTestCase {
                                                     timeout: .milliseconds(20), poll: .milliseconds(5))
         XCTAssertFalse(gaveUp)
     }
+
+    func testNoModelCanRunNeedsBothToBeOut() {
+        XCTAssertTrue(LocalModelChoice.noModelCanRun(apple: .turnedOff, ollamaModels: nil))
+        XCTAssertTrue(LocalModelChoice.noModelCanRun(apple: .unsupported, ollamaModels: []))
+        XCTAssertFalse(LocalModelChoice.noModelCanRun(apple: .available, ollamaModels: nil))
+        XCTAssertFalse(LocalModelChoice.noModelCanRun(apple: .notReady, ollamaModels: ["qwen3.5:9b"]))
+    }
+
+    func testNoModelHintByState() {
+        XCTAssertEqual(LocalModelChoice.noModelHint(apple: .turnedOff), "Start Ollama or turn on Apple Intelligence.")
+        XCTAssertEqual(LocalModelChoice.noModelHint(apple: .notReady), "Start Ollama or turn on Apple Intelligence.")
+        XCTAssertEqual(LocalModelChoice.noModelHint(apple: .unsupported), "Start Ollama to use these.")
+        XCTAssertEqual(LocalModelChoice.noModelHint(apple: .needsNewerMacOS), "Start Ollama to use these.")
+    }
 }

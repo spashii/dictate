@@ -90,6 +90,21 @@ enum LocalModelChoice {
         }
     }
 
+    /// Whether neither intelligence model can answer: Apple's is not available and Ollama is not
+    /// running or has no models. What depends on a model is greyed out then.
+    static func noModelCanRun(apple: AppleModelState, ollamaModels: [String]?) -> Bool {
+        apple != .available && (ollamaModels?.isEmpty ?? true)
+    }
+
+    /// Why nothing can run and what to do, short enough to sit under the picker's label. Where
+    /// Apple's model can never work on this Mac, only Ollama is left to suggest.
+    static func noModelHint(apple: AppleModelState) -> String {
+        switch apple {
+        case .unsupported, .needsNewerMacOS: "Start Ollama to use these."
+        default: "Start Ollama or turn on Apple Intelligence."
+        }
+    }
+
     /// The picker's tag for a model, and back.
     static func tag(_ model: LocalModel) -> String {
         switch model {
