@@ -307,6 +307,7 @@
 .tier .fig { margin-top: var(--sp-4); font-size: 48px; line-height: 1; font-weight: 600; letter-spacing: -.03em; font-variant-numeric: lining-nums tabular-nums; white-space: nowrap; }
 .tier .fig .per { font-size: 26px; letter-spacing: -.01em; }
 .tier .terms { margin-top: var(--sp-3); }
+.tier .terms p + p { margin-top: var(--sp-2); }
 .tier .get { margin-top: var(--sp-5); }
 .tier-dictate { background: var(--surface); border-radius: var(--radius-card); box-shadow: var(--app-float); padding: var(--sp-5); }
 .tier-dictate .name { display: flex; align-items: center; gap: var(--sp-4); }

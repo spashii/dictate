@@ -3,8 +3,9 @@
    founding line stays. The download itself is the button's own link. On a phone there is no Mac to
    install on, so every Download button becomes a "Send to my Mac" button (or "Copy link" where the
    share sheet is missing) for the page address and never navigates to the DMG.
-   Prices are written with a dollar sign; for visitors in a eurozone country the [data-price] amounts
-   switch to euros, decided from the time zone, then the language region.
+   Prices are written in dollars; for visitors in a eurozone country they switch to euros, decided from the
+   time zone, then the language region. [data-price] is Dictate's own price, where only the sign changes.
+   [data-eur] holds the euro text for a price that is not the same number in both, such as another app's.
    The founding spots count is fetched once and appends "N spots left." to the founding sentence in every [data-left]; if the
    request fails the sentence stands alone. */
 (function () {
@@ -46,6 +47,8 @@
     if (!inEurozone()) return;
     var prices = document.querySelectorAll("[data-price]");
     for (var i = 0; i < prices.length; i++) prices[i].textContent = prices[i].textContent.replace("$", "\u20ac");
+    var other = document.querySelectorAll("[data-eur]");
+    for (var j = 0; j < other.length; j++) other[j].textContent = other[j].getAttribute("data-eur");
   }
 
   function liveRegion(parent) {
