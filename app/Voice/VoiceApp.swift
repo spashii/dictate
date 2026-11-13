@@ -197,6 +197,9 @@ struct MenuContent: View {
             ForEach(SupportItem.allCases, id: \.self) { item in
                 Button(item.title) { open(item) }
                     .disabled(item == .checkForUpdates && !model.updates.canCheck)
+                if item == .checkForUpdates {
+                    Text(SupportItem.versionTitle(appVersion: SupportItem.appVersion))
+                }
             }
             Button("Quit Dictate") { NSApplication.shared.terminate(nil) }
                 .keyboardShortcut("q")

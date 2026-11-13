@@ -13,6 +13,14 @@ enum SupportItem: CaseIterable {
         }
     }
 
+    /// The disabled line under Check for Updates….
+    static func versionTitle(appVersion: String) -> String { "Version \(appVersion)" }
+
+    /// CFBundleShortVersionString of this copy of Dictate.
+    static var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
+    }
+
     static let repository = URL(string: "https://github.com/spashii/dictate")!
 
     /// A new issue whose body holds the two versions and nothing else from this Mac: no logs,
@@ -30,8 +38,7 @@ enum SupportItem: CaseIterable {
 
     /// The issue link for this copy of Dictate on this Mac.
     static var issueURL: URL {
-        issueURL(appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-                     ?? "unknown",
+        issueURL(appVersion: appVersion,
                  macOS: ProcessInfo.processInfo.operatingSystemVersionString)
     }
 
