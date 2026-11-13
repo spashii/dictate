@@ -5,16 +5,25 @@ import VoiceCore
 /// the fix step and for titling. Kept apart from Preferences so it can be tested without the
 /// app's global state.
 enum LocalModelChoice {
-    /// The person set up Ollama before Apple's model existed: they turned the fix on, or
-    /// picked an Ollama model. Read from what is stored, since a default isn't a choice.
+    static let configuredKey = "ollamaConfiguredBefore"
+
+    /// Whether Ollama was set up before this version: the fix turned on, or a model picked.
+    /// Worked out once, on the first launch that finds no answer stored, and kept under its
+    /// own key. Read live it would flip a fresh install that defaults to Apple over to Ollama
+    /// the moment the person turns the fix on.
+    @discardableResult
     static func ollamaConfigured(in defaults: UserDefaults = .standard) -> Bool {
-        defaults.bool(forKey: "runPrompt") || defaults.object(forKey: "ollamaModel") != nil
+        if let stored = defaults.object(forKey: configuredKey) as? Bool { return stored }
+        let configured = defaults.bool(forKey: "runPrompt") || defaults.object(forKey: "ollamaModel") != nil
+        defaults.set(configured, forKey: configuredKey)
+        return configured
     }
 
-    static func effective(defaults: UserDefaults = .standard, ollamaModel: String,
+    /// The model in use from the observed pick, not from what is stored, so a pick in Settings
+    /// shows at once.
+    static func effective(stored: LocalModel?, ollamaConfigured: Bool, ollamaModel: String,
                           appleAvailable: Bool) -> LocalModel {
-        LocalModel.resolve(stored: defaults.string(forKey: "localModel"),
-                           ollamaConfigured: ollamaConfigured(in: defaults),
+        LocalModel.resolve(stored: stored?.storedValue, ollamaConfigured: ollamaConfigured,
                            appleAvailable: appleAvailable, fixModel: ollamaModel)
     }
 

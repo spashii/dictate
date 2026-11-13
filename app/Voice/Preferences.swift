@@ -57,6 +57,7 @@ final class Preferences {
 
     init() {
         let defaults = UserDefaults.standard
+        ollamaConfiguredBefore = LocalModelChoice.ollamaConfigured(in: defaults)
         microphoneUID = defaults.string(forKey: "microphoneUID") ?? ""
         runPrompt = defaults.object(forKey: "runPrompt") as? Bool ?? false
         let ollama = defaults.string(forKey: "ollamaModel") ?? "qwen3.5:9b"
@@ -80,10 +81,14 @@ final class Preferences {
         if stored != keyTerms { keyTerms = stored }
     }
 
+    /// Whether Ollama was set up before this version; fixed at the first launch.
+    let ollamaConfiguredBefore: Bool
+
     /// The model in use: the pick, or the default for this Mac. The caller says whether Apple's
     /// model is available now, which Preferences doesn't watch.
     func effectiveModel(appleAvailable: Bool) -> LocalModel {
-        LocalModelChoice.effective(ollamaModel: ollamaModel, appleAvailable: appleAvailable)
+        LocalModelChoice.effective(stored: localModel, ollamaConfigured: ollamaConfiguredBefore,
+                                   ollamaModel: ollamaModel, appleAvailable: appleAvailable)
     }
 
     var ollamaEndpoint: URL {

@@ -10,10 +10,14 @@ final class LocalModelChoiceTests: XCTestCase {
         return defaults
     }
 
+    private func effective(stored: LocalModel? = nil, configured: Bool = false, apple: Bool) -> LocalModel {
+        LocalModelChoice.effective(stored: stored, ollamaConfigured: configured, ollamaModel: "qwen3.5:9b",
+                                   appleAvailable: apple)
+    }
+
     func testNothingStoredFollowsTheMac() {
-        XCTAssertEqual(LocalModelChoice.effective(defaults: defaults(), ollamaModel: "qwen3.5:9b", appleAvailable: true), .apple)
-        XCTAssertEqual(LocalModelChoice.effective(defaults: defaults(), ollamaModel: "qwen3.5:9b", appleAvailable: false),
-                       .ollama("qwen3.5:9b"))
+        XCTAssertEqual(effective(apple: true), .apple)
+        XCTAssertEqual(effective(apple: false), .ollama("qwen3.5:9b"))
     }
 
     func testAnOllamaSetupBeforeKeepsOllama() {
@@ -21,15 +25,36 @@ final class LocalModelChoiceTests: XCTestCase {
         XCTAssertFalse(LocalModelChoice.ollamaConfigured(in: defaults(["runPrompt": false])))
         XCTAssertTrue(LocalModelChoice.ollamaConfigured(in: defaults(["runPrompt": true])))
         XCTAssertTrue(LocalModelChoice.ollamaConfigured(in: defaults(["ollamaModel": "llama3"])))
-        XCTAssertEqual(LocalModelChoice.effective(defaults: defaults(["runPrompt": true]), ollamaModel: "qwen3.5:9b",
-                                                  appleAvailable: true), .ollama("qwen3.5:9b"))
+        XCTAssertEqual(effective(configured: true, apple: true), .ollama("qwen3.5:9b"))
     }
 
-    func testAPickWins() {
-        XCTAssertEqual(LocalModelChoice.effective(defaults: defaults(["localModel": "apple", "ollamaModel": "x"]),
-                                                  ollamaModel: "x", appleAvailable: false), .apple)
-        XCTAssertEqual(LocalModelChoice.effective(defaults: defaults(["localModel": "ollama"]), ollamaModel: "x",
-                                                  appleAvailable: true), .ollama("x"))
+    func testTurningOnTheFixLaterDoesNotMoveAFreshInstallToOllama() {
+        let store = defaults()
+        XCTAssertFalse(LocalModelChoice.ollamaConfigured(in: store))
+        XCTAssertEqual(effective(configured: LocalModelChoice.ollamaConfigured(in: store), apple: true), .apple)
+
+        store.set(true, forKey: "runPrompt")
+        store.set("llama3", forKey: "ollamaModel")
+
+        let configured = LocalModelChoice.ollamaConfigured(in: store)
+        XCTAssertFalse(configured)
+        XCTAssertEqual(effective(configured: configured, apple: true), .apple)
+    }
+
+    func testAnInstallThatHadTheFixOnKeepsOllamaWhateverHappensAfter() {
+        let store = defaults(["runPrompt": true])
+        XCTAssertTrue(LocalModelChoice.ollamaConfigured(in: store))
+        store.set(false, forKey: "runPrompt")
+        XCTAssertTrue(LocalModelChoice.ollamaConfigured(in: store))
+        XCTAssertEqual(effective(configured: true, apple: true), .ollama("qwen3.5:9b"))
+    }
+
+    func testAPickWinsAndFollowsTheObservedValue() {
+        XCTAssertEqual(effective(stored: .apple, configured: true, apple: false), .apple)
+        XCTAssertEqual(effective(stored: .ollama("x"), apple: true), .ollama("qwen3.5:9b"))
+        // Picking Apple over a configured Ollama shows at once, with no stored default read.
+        XCTAssertEqual(effective(stored: nil, configured: true, apple: true), .ollama("qwen3.5:9b"))
+        XCTAssertEqual(effective(stored: .apple, configured: true, apple: true), .apple)
     }
 
     func testCanRun() {
