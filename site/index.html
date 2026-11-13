@@ -329,9 +329,9 @@
 
   <section class="why measure">
     <h2 class="sr">Why I made it</h2>
-    <p>I wanted fast, simple and robust dictation and transcription for calls, running on my Mac without sending data to the cloud. Local transcription on Apple silicon is so good now that there's simply no need <span class="nowrap">to.<span class="note"><button type="button" class="note-mark" aria-label="Note" aria-describedby="note-local" aria-expanded="false">*</button><span class="note-pop" id="note-local" role="tooltip" hidden>Mostly. Local models still slip when you switch languages mid-sentence. They also do worse in languages Whisper knows less well. A noisy room trips up every model, cloud ones included.</span></span></span> <a href="https://handy.computer">Handy</a> and <a href="https://github.com/Starmel/OpenSuperWhisper">OpenSuperWhisper</a> are my all-time favorites, and I've learned a lot from them.</p>
-    <p>I spent a lot of time using those tools, and built on top of them to solve some challenges I ran into. Sometimes I'd talk and the mic was off, so Dictate shows a level meter and your words as you talk. Sometimes I'd hit Escape by accident and lose what I'd said, so only Dictate's own shortcut stops a recording. And I wanted something lightweight, hackable and customizable, that could also record my online calls and let my agents read them.</p>
-    <p>Along the way I found that Whisper, the model that turns your speech into text, can tell which words it wasn't sure of. Having it listen to just those parts again catches words it got wrong, at almost no extra time. That became Dictate.</p>
+    <p>I wanted fast, simple and robust local dictation and transcription for calls, running on my Mac. Local transcription on Apple silicon is so good now that <span class="note"><button type="button" class="note-mark" aria-describedby="note-local" aria-expanded="false">there's simply no need to</button><span class="note-pop" id="note-local" role="tooltip" hidden>Mostly. Local models still slip when you switch languages mid-sentence. They also do worse in languages Whisper knows less well. A noisy room trips up every model, cloud ones included.</span></span> process your data in the cloud. <a href="https://handy.computer">Handy</a> and <a href="https://github.com/Starmel/OpenSuperWhisper">OpenSuperWhisper</a> are my all-time favorites for local dictation, and I've learned a lot from them.</p>
+    <p>I spent a lot of time using those tools and ran into a few problems. Sometimes I'd talk and the mic was off, so Dictate shows a level meter and your words as you talk. Sometimes I'd hit Escape by accident and lose what I'd said, so only Dictate's own shortcut stops a recording.</p>
+    <p>So I made Dictate lightweight, hackable and customizable. It transcribes your online calls with the same local setup, and no bot joins the call the way it does with Fireflies. Your agents can read all of it.</p>
   </section>
 
   <section class="faq" id="questions">
@@ -429,10 +429,10 @@ if (location.hostname === "spashii.github.io") {
 }
 </script>
 <script>
-/* The note behind an asterisk: it opens on hover, on keyboard focus and on a tap, and closes when the
+/* A note behind a phrase: it opens on hover, on keyboard focus and on a tap, and closes when the
    pointer leaves, focus moves on, Escape is pressed or a tap lands outside. A tap or click pins it open
    until the next one, so a phone, which has no hover, can read it. The note is clamped to the window
-   with a 16px gutter, because the asterisk can sit anywhere along the line. */
+   with a 16px gutter, because the phrase can sit anywhere along the line. */
 document.querySelectorAll(".note").forEach(note => {
   const mark = note.querySelector(".note-mark"), pop = note.querySelector(".note-pop");
   let pinned = false;
@@ -468,8 +468,8 @@ document.querySelectorAll(".note").forEach(note => {
    the drawn call, and the stopped pill shows that same elapsed time. One function of
    t feeds the call window, the recording pill and the stopped pill, so they always agree. Then the
    pointer clicks Record and the pill shows the call's seven lines as they are said, one a second, so
-   each can be read; the pill grows to hold all seven, older lines dimming. The call holds three seconds
-   on the last line, ends, and the stopped pill rests for a second before the next step. Steps 2 and 3
+   each can be read; like the app it holds the latest three, the oldest rolling up and out as each new
+   one arrives. The call holds three seconds on the last line, ends, and the stopped pill rests for a second before the next step. Steps 2 and 3
    are timed from the start of step 2, so a longer call moves them without changing them. The agent's
    answer starts 7.9 s into step 2; the finished
    message rests 1.2 s before Send and the answer and mail 2.5 s before the fade. Every frame is a
@@ -477,8 +477,8 @@ document.querySelectorAll(".note").forEach(note => {
    pre-Join state without drift; CSS transitions carry the motion between states. It runs only
    while the stage is on screen and the tab is visible, holds 2.5 seconds on the answer, fades, and
    starts again. The phase buttons jump to a step and play on from there. Reduced motion shows one
-   still frame per phase, picked with the phase buttons; the first, shown on load, is the call with all
-   seven lines. The meeting
+   still frame per phase, picked with the phase buttons; the first, shown on load, is the call with its last
+   three lines. The meeting
    app is drawn generic, named Meeting, so the drawing endorses no particular product. */
 (() => {
   const $ = id => document.getElementById(id);
@@ -506,7 +506,7 @@ document.querySelectorAll(".note").forEach(note => {
     fade: S + 12600, loop: S + 13200
   };
   const STEPS = [0, T.step2, T.step3, T.fade];
-  // One still frame per phase for reduced motion: the call with every line in, two chunks of words, the answer.
+  // One still frame per phase for reduced motion: the call with its last three lines, two chunks of words, the answer.
   const STILL = [LINES[LINES.length - 1] + 1500, T.chunks[1] + 200, T.mail[1]];
   const SAID = ["Summarize my call with Alex", "and draft a follow-up email.", "Check our earlier calls too,", "and add any names you misheard to my key terms."];
 
@@ -574,8 +574,9 @@ document.querySelectorAll(".note").forEach(note => {
     cls(callpill, "on", on(T.rec, T.end));
     const n = T.lines.filter(a => t >= a).length;
     cls(callpill, "open", n);
-    // The newest line is full strength and each older one a step dimmer, down to .4, so all seven stay readable.
-    lines.forEach((el, i) => { cls(el, "on", i < n); el.style.opacity = i < n ? Math.max(.4, 1 - .12 * (n - 1 - i)).toFixed(2) : ""; });
+    // As in the app, the pill holds the latest three lines: each new line opens at the bottom while the
+    // oldest closes and fades at the top, so the lines roll up through all seven.
+    lines.forEach((el, i) => { const k = n - 1 - i; cls(el, "on", k >= 0 && k < 3); el.style.opacity = k >= 0 ? (k < 3 ? [1, .6, .35][k] : 0) : ""; });
     txt(ptime, clock(sec(Math.min(t, T.end))));
     cls(stopped, "on", on(T.end, T.step2 + 200));
     txt(stime, clock(sec(T.end)));

@@ -130,9 +130,8 @@
 .stage .lights i:nth-child(2) { background: #febc2e; }
 .stage .lights i:nth-child(3) { background: #28c840; }
 
-/* The window sits low enough that the call pill, grown to all seven lines, ends above Alex's avatar. */
-.callwin { left: 60px; top: 160px; width: 300px; height: 264px; }
-.callwin .tile { margin: 10px; height: 162px; border-radius: 10px; background: var(--tile); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+.callwin { left: 60px; top: 136px; width: 300px; height: 288px; }
+.callwin .tile { margin: 10px; height: 186px; border-radius: 10px; background: var(--tile); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
 .callwin .avatar { width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center; background: var(--fill2); color: var(--text2); font: 600 28px/1 var(--sans); margin-bottom: 4px; }
 .callwin .who { font: 600 15px/1.2 var(--sans); }
 .callwin .slot { position: relative; display: grid; place-items: center; width: 100%; height: 24px; }
@@ -202,8 +201,6 @@
 /* Dictate's pills, at the top of the screen. */
 .pill { position: absolute; z-index: 5; left: 0; right: 0; top: 36px; width: max-content; margin-inline: auto; padding: 6px 14px; min-height: 28px; border-radius: 14px; background: var(--pill); box-shadow: 0 0 0 .5px var(--pill-edge), var(--pill-shadow); color: var(--p1); opacity: 0; transform: translateY(-8px) scale(.97); transition: opacity .45s ease, transform .6s cubic-bezier(.2,.8,.2,1); }
 .pill.on { opacity: 1; transform: none; }
-/* Blurred like the app's material, so the window under a grown pill does not read through its lines. */
-.stage .pill { -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); }
 .pill .row { display: flex; align-items: center; gap: 8px; height: 16px; white-space: nowrap; }
 .pill .s { color: var(--p2); }
 .pill .tn { font-variant-numeric: tabular-nums; }
@@ -215,9 +212,10 @@
 .nudge .bt { padding: 0 9px; line-height: 20px; border-radius: 5px; background: var(--pbtn); transition: background-color .12s, transform .12s; }
 .nudge .bt.down { background: var(--track); filter: brightness(.82); transform: scale(.96); }
 .callpill.open, .dpill { border-radius: 16px; }
-.callpill .ln { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .4s ease-out, opacity .4s ease-out; }
+.callpill .ln { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .45s cubic-bezier(.2,.8,.2,1), opacity .4s ease-out; }
 .callpill .ln.on { grid-template-rows: 1fr; }
-.callpill .ln > div { min-height: 0; overflow: hidden; }
+/* Each line's text sits at the bottom of its row, so a closing line slides up and out and an opening one rises in. */
+.callpill .ln > div { min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; }
 .callpill .ln span { display: flex; gap: 6px; width: 320px; padding-top: 4px; white-space: nowrap; }
 .callpill .me { color: var(--me); }
 .callpill .them { color: var(--call); }
@@ -386,10 +384,11 @@
 .nowrap { white-space: nowrap; }
 
 
-/* A note behind an asterisk in running text: the asterisk is a button drawn as a link, the note a
-   surface card under it with the page's soft shadow and radius. Body size, text colour, no weight. */
+/* A note behind a phrase in running text: the phrase is a button drawn with a dotted underline in the
+   text colour, the note a surface card under it with the page's soft shadow and radius. Body size,
+   text colour, no weight. */
 .note { position: relative; }
-.note-mark { appearance: none; -webkit-appearance: none; border: 0; padding: 0; background: none; color: inherit; font: inherit; line-height: inherit; cursor: pointer; text-decoration: underline; text-decoration-thickness: 1px; text-decoration-color: var(--link-line); text-underline-offset: .22em; border-radius: 4px; }
-.note-mark:hover, .note-mark[aria-expanded="true"] { text-decoration-color: currentColor; text-decoration-thickness: 2px; }
+.note-mark { appearance: none; -webkit-appearance: none; border: 0; padding: 0; background: none; color: inherit; font: inherit; line-height: inherit; text-align: inherit; cursor: pointer; text-decoration: underline dotted; text-decoration-thickness: 1.5px; text-decoration-color: var(--link-line); text-underline-offset: .22em; border-radius: 4px; transition: text-decoration-color .15s; }
+.note-mark:hover, .note-mark[aria-expanded="true"] { text-decoration-color: currentColor; }
 .note-pop { position: absolute; z-index: 30; top: calc(100% + var(--sp-2)); left: 0; width: min(420px, calc(100vw - 32px)); padding: var(--sp-4) var(--sp-5); hyphens: manual; border-radius: var(--radius-card); background: var(--surface); box-shadow: 0 0 0 1px var(--hairline), var(--float); color: var(--text); text-align: left; white-space: normal; }
 .note-pop:not([hidden]) { display: block; }
