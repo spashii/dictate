@@ -24,8 +24,8 @@ final class Updates {
     /// Told when Sparkle stages an update.
     @ObservationIgnored var onStaged: (() -> Void)?
 
-    /// The update Sparkle last found, for About and the sidebar dot. Sparkle's own dialog still
-    /// does the installing.
+    /// The update Sparkle last found, for About and the sidebar dot. Sparkle's dialog does the
+    /// installing.
     private(set) var available: AvailableUpdate?
     @ObservationIgnored private var availability = UpdateAvailability()
 
@@ -126,6 +126,13 @@ final class UpdaterDelegate: NSObject, SPUUpdaterDelegate {
 
     func updaterDidNotFindUpdate(_ updater: SPUUpdater) {
         notFound?()
+    }
+
+    /// A skipped version is not offered again until the next check, so About stops showing it.
+    /// Install and dismiss keep it: the update still waits.
+    func updater(_ updater: SPUUpdater, userDidMake choice: SPUUserUpdateChoice,
+                 forUpdate updateItem: SUAppcastItem, state: SPUUserUpdateState) {
+        if choice == .skip { notFound?() }
     }
 
     /// True tells Sparkle Dictate will install the update itself, by calling the block.
