@@ -9,7 +9,7 @@
    The founding spots count is fetched once and appends "N spots left." to the founding sentence in every [data-left]; if the
    request fails the sentence stands alone. At zero the sentence says the spots are taken and each
    Download block that holds a [data-left] gets, under it, the price line ("Free until launch, then a
-   one-time $49", in euros where the rest switch) and an email form collecting an address for the launch email, so
+   one-time $49. Works on Apple silicon.", in euros where the rest switch) and an email form collecting an address for the launch email, so
    every page with the block gets them without markup. The price appears only in that state. Preview hosts
    (localhost and the tailnet) can add ?spots=0 to show that sold-out state without the fetch. */
 (function () {
@@ -187,7 +187,8 @@
     price.setAttribute("data-price", "");
     nowrap.appendChild(price);
     outer.appendChild(nowrap);
-    outer.appendChild(document.createTextNode("."));
+    outer.appendChild(document.createTextNode(". "));
+    outer.appendChild(el("span", "nowrap", "Works on Apple silicon."));
     p.appendChild(outer);
     toEuro([price]);
     after.parentNode.insertBefore(p, after.nextSibling);
