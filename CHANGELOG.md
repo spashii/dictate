@@ -12,6 +12,14 @@ stops when VERSION has no entry here.
 - History has a + button: New Dictation, Record a Call and Import Audio File….
 - Drop an audio or video file on History to transcribe it on your Mac. It joins History and search, gets a title like a call, and agents can read it.
 - Agents can import an audio file by its path. The tool is off until you turn it on in Settings, Agents.
+- History has one Search field in the title row. It finds recordings and marks the words in the one you open.
+- Correct a name in History and it becomes a key term. Undo is right there.
+- Call titles are three or four words. A call shows Naming… while its title is made.
+- History rows and transcript lines line up better. The play button no longer covers the time.
+- When no intelligence model can run, Settings, Model greys out what needs one and says why.
+- The menu shows the version below Check for Updates.
+- The menu's highlight no longer slips onto the line above it.
+- Developer mode in About adds Advanced, with charts of how long the models take. The numbers stay on your Mac.
 
 ## 0.14.2 (2026-11-13)
 
