@@ -157,7 +157,7 @@
   function founding(json) {
     // The group the activation put this Mac in, named once on the done step.
     const n = json.founding_no;
-    $("ent").textContent = json.ent === "founding" && Number.isInteger(n) ? `You're number ${n} of the first 50, so Dictate is free for you forever.` : "Dictate is free for you for now.";
+    $("ent").textContent = json.ent === "founding" && Number.isInteger(n) ? `You're early access user ${n} of 50, so Dictate is free for you forever.` : "Dictate is free for you for now.";
   }
 
   $("open-app").addEventListener("click", () => {
@@ -208,7 +208,7 @@
 
   // Spots left, shown under the email field. If the request fails the line stays hidden.
   fetch(API + "/api/activate/founding").then((r) => (r.ok ? r.json() : null)).then((j) => {
-    if (j && Number.isInteger(j.left) && j.left > 0) { $("founding").textContent = `Free forever for the first 50 people. ${j.left} ${j.left === 1 ? "spot" : "spots"} left.`; $("founding").hidden = false; }
+    if (j && Number.isInteger(j.left) && j.left > 0) { $("founding").textContent = `Free forever for the first 50 early access users. ${j.left} ${j.left === 1 ? "spot" : "spots"} left.`; $("founding").hidden = false; }
   }).catch(() => {});
 
   if (!/^[A-Za-z0-9_-]{16,64}$/.test(nonce)) {
