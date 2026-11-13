@@ -6,6 +6,16 @@ import Network
 public protocol RecordingControl: Sendable {
     func startRecording(title: String?) async throws -> Call
     func stopRecording() async throws -> Call
+    /// Imports an audio or video file the router has already validated: the call comes back
+    /// at once and is transcribed in the background.
+    func importAudioFile(path: String) async throws -> CallRecorder.ImportStart
+}
+
+extension RecordingControl {
+    /// For a host that doesn't import files, such as one that only records.
+    public func importAudioFile(path: String) async throws -> CallRecorder.ImportStart {
+        throw ToolError("Importing files is only available in the Dictate app.")
+    }
 }
 
 public enum MCPServerError: Error, CustomStringConvertible {

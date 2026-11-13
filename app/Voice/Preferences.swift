@@ -50,6 +50,8 @@ final class Preferences {
     var historyTimes: HistoryTimeMode { didSet { save(historyTimes.rawValue, HistoryTimeMode.defaultsKey) } }
     /// Whether History shows each retry and fix under its line, beside the underlined words.
     var showCorrections: Bool { didSet { UserDefaults.standard.set(showCorrections, forKey: "showCorrections") } }
+    /// Shows Advanced in the sidebar, and nothing else.
+    var developerMode: Bool { didSet { UserDefaults.standard.set(developerMode, forKey: "developerMode") } }
     /// Not in Settings: Ollama is on this Mac on its own port, and nothing else is expected.
     let ollamaURL: String
     /// dictate-cli mcp writes the key terms from another process; this brings them in.
@@ -71,6 +73,7 @@ final class Preferences {
         retrySegments = defaults.object(forKey: "retrySegments") as? Bool ?? true
         historyTimes = defaults.string(forKey: HistoryTimeMode.defaultsKey).flatMap(HistoryTimeMode.init) ?? .standard
         showCorrections = defaults.bool(forKey: "showCorrections")
+        developerMode = defaults.bool(forKey: "developerMode")
         ollamaURL = defaults.string(forKey: "ollamaURL") ?? "http://127.0.0.1:11434"
         keyTermsObserver = DefaultsObserver("keyTerms") { [weak self] in
             Task { @MainActor in self?.reloadKeyTerms() }

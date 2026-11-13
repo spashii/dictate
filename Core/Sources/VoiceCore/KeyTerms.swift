@@ -310,7 +310,7 @@ actor KeyTermsEditor {
         }
         let fits = fit.isEmpty ? "none of these terms fits." : "these fit: \(fit.joined(separator: ", "))."
         throw ToolError("Nothing added: whisper's prompt would be \(tokens) tokens, and whisper reads at most "
-                        + "\(limit). \(left) tokens are left; \(fits)")
+                        + "\(limit). \(left) tokens are left; \(fits)", isFull: true)
     }
 
     private func count(_ terms: [String]) -> (Int?, Int?) {

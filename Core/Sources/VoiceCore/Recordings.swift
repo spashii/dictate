@@ -30,27 +30,40 @@ extension CallStore {
     @discardableResult
     public func rename(_ kind: HistoryEntry.Kind, _ ref: String, to title: String?, client: String? = Edit.personClient,
                        source: TitleSource? = nil) throws -> Edit? {
+        try renameChecked(kind, ref, to: title, client: client, source: source, expecting: nil).edit
+    }
+
+    /// `rename`, but with `expecting` it writes only while the title and its source are still
+    /// those, checked in the same transaction as the write, so a rename landing in between is
+    /// never overwritten. `applied` is false when they had changed.
+    func renameChecked(_ kind: HistoryEntry.Kind, _ ref: String, to title: String?, client: String? = Edit.personClient,
+                       source: TitleSource? = nil,
+                       expecting: (title: String?, source: TitleSource?)?) throws -> (applied: Bool, edit: Edit?) {
         let name = title?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
         let target = kind == .call ? Edit.target(call: ref) : Edit.target(dictation: ref)
         return try queue.sync {
-            try db.transaction { () -> Edit? in
+            try db.transaction { () -> (applied: Bool, edit: Edit?) in
                 let (table, id) = try Self.recordingRow(target)
                 guard let row = try db.query("SELECT title, title_source FROM \(table) WHERE id = ?", [id],
                                              { ($0.string(0), $0.string(1)) }).first else {
                     throw VoiceError.store("No \(kind.rawValue) \(ref).")
                 }
                 let current = row.0
+                if let expecting, current != expecting.title || row.1 != expecting.source?.rawValue {
+                    return (false, nil)
+                }
                 let newSource = (source ?? Self.titleSource(client: client)).rawValue
                 guard (current ?? "") != (name ?? "") else {
                     if source != nil, name != nil, row.1 != newSource {
                         try db.run("UPDATE \(table) SET title_source = ? WHERE id = ?", [newSource, id])
                     }
-                    return nil
+                    return (true, nil)
                 }
                 try db.run("UPDATE \(table) SET title = ?, title_source = ? WHERE id = ?", [name, newSource, id])
-                return try insertEdit(.renameRecording, target: target, client: client,
-                                      before: Edit.Value(text: current, source: row.1),
-                                      after: Edit.Value(text: name, source: newSource))
+                let edit = try insertEdit(.renameRecording, target: target, client: client,
+                                          before: Edit.Value(text: current, source: row.1),
+                                          after: Edit.Value(text: name, source: newSource))
+                return (true, edit)
             }
         }
     }
@@ -66,10 +79,11 @@ extension CallStore {
                 let path: String?
                 switch kind {
                 case .call:
-                    guard let row = try db.query("SELECT audio_path, status FROM calls WHERE id = ?", [ref],
-                                                 { (path: $0.string(0), status: $0.text(1)) }).first else { return nil }
+                    guard let row = try db.query("SELECT audio_path, status, file_name FROM calls WHERE id = ?", [ref],
+                                                 { (path: $0.string(0), status: $0.text(1), file: $0.string(2)) }).first else { return nil }
                     if Call.Status(rawValue: row.status)?.isLive == true {
-                        throw VoiceError.store("Stop the recording before deleting it.")
+                        throw VoiceError.store(row.file == nil ? "Stop the recording before deleting it."
+                                               : "Wait for the import to finish or stop it before deleting it.")
                     }
                     path = row.path
                     // Foreign keys are off in SQLite by default, so the children go explicitly.
