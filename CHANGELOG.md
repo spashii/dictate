@@ -7,6 +7,10 @@ the entry for VERSION into the update feed, which Sparkle shows before installin
 stops when VERSION has no entry here.
 -->
 
+## 0.15.1 (2026-11-13)
+
+- History fills the window again when a filter has nothing in it.
+
 ## 0.15.0 (2026-11-13)
 
 - A button in History's toolbar starts a dictation, records a call or imports an audio file.

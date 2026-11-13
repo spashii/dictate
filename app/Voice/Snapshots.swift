@@ -30,9 +30,14 @@ enum Snapshots {
             model.unlockForSnapshots()
 
             let locked = AppModel(activation: Activation(store: MemoryActivationStore()))
+            // `--history-filters` draws only History under each filter, at three window sizes.
+            let onlyFilters = CommandLine.arguments.contains("--history-filters")
 
             for dark in [false, true] {
                 let suffix = dark ? "dark" : "light"
+                try await historyFilterShots(model, into: folder, work: work.appending(path: suffix), short: store,
+                                             allSizes: onlyFilters, suffix: suffix, dark: dark)
+                if onlyFilters { continue }
                 let history = HistoryModel(store: store)
                 let window = try await historyWindow(model, history, dark: dark)
                 await write(folder, "history-\(suffix)", window)

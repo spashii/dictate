@@ -451,7 +451,7 @@ struct HistoryPane: View {
                             .allowsHitTesting(false)
                     }
                 }
-                .frame(minWidth: 260, idealWidth: 320, maxWidth: 400)
+                .frame(minWidth: 260, idealWidth: 320, maxWidth: 400, maxHeight: .infinity)
             Group {
                 // The detail on show stays until the next is read; see HistoryModel.select.
                 if history.selection != nil, let detail = history.detail {
@@ -460,8 +460,11 @@ struct HistoryPane: View {
                     ContentUnavailableView("Select a recording", systemImage: "waveform")
                 }
             }
-            .frame(minWidth: 380, maxWidth: .infinity)
+            .frame(minWidth: 380, maxWidth: .infinity, maxHeight: .infinity)
         }
+        // A split view is only as tall as its panes ask to be, and an empty list asks for the
+        // height of its filter and its message, so both panes fill the height they are given.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .dropDestination(for: URL.self) { urls, _ in
             let supported = ImportDrop.supported(urls)
             guard !supported.isEmpty else {
@@ -582,12 +585,15 @@ private struct HistoryList: View {
             .padding(.top, 12)
             .padding(.bottom, 10)
             if history.visible.isEmpty {
-                if history.search.isEmpty {
-                    ContentUnavailableView("Nothing yet", systemImage: "clock",
-                                           description: Text("Dictations, calls and imports show up here."))
-                } else {
-                    ContentUnavailableView.search(text: history.search)
+                Group {
+                    if history.search.isEmpty {
+                        ContentUnavailableView(history.filter.emptyTitle, systemImage: "clock",
+                                               description: Text(history.filter.emptyHint))
+                    } else {
+                        ContentUnavailableView.search(text: history.search)
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollViewReader { proxy in
                     List(history.visible, selection: $history.selection) { entry in
