@@ -14,13 +14,32 @@ enum CorrectionOutcome {
 /// The key terms a correction added, and how to take them back out.
 struct KeyTermAddition {
     let terms: [String]
-    /// The errors of the terms that couldn't be taken out; empty when all were.
+    /// Takes the terms out and returns the ones that stayed in; empty when all are out. A second
+    /// call retries only those.
     let undo: () async -> [String]
 
     var message: String {
         switch terms.count {
         case 1: return "\(terms[0]) is now a key term."
         default: return "\(terms.dropLast().joined(separator: ", ")) and \(terms.last ?? "") are now key terms."
+        }
+    }
+}
+
+/// The added terms an Undo still has to take out, so a second press skips the ones already gone.
+final class UndoPending: @unchecked Sendable {
+    private let lock = NSLock()
+    private var remaining: [AddedKeyTerm]
+
+    init(_ added: [AddedKeyTerm]) { remaining = added }
+
+    var terms: [AddedKeyTerm] { lock.withLock { remaining } }
+
+    /// Keeps the terms the test passes and returns their names.
+    func keep(_ stays: (AddedKeyTerm) -> Bool) -> [String] {
+        lock.withLock {
+            remaining = remaining.filter(stays)
+            return remaining.map(\.term)
         }
     }
 }
@@ -78,10 +97,11 @@ struct KeyTermConfirmation: View {
                 if let undo {
                     Button("Undo") {
                         Task {
-                            if await undo().isEmpty {
+                            let stayed = await undo()
+                            if stayed.isEmpty {
                                 done()
                             } else {
-                                failure = "Couldn't take it out of your key terms."
+                                failure = Self.undoFailed(stayed)
                                 left = Self.seconds
                             }
                         }
@@ -111,7 +131,17 @@ extension KeyTermConfirmation {
     static func full(_ terms: [String]) -> String {
         switch terms.count {
         case 1: return "Key terms are full. \(terms[0]) wasn't added."
-        default: return "Key terms are full. \(terms.dropLast().joined(separator: ", ")) and \(terms.last ?? "") weren't added."
+        case 2: return "Key terms are full. \(terms[0]) and \(terms[1]) weren't added."
+        default: return "Key terms are full. \(terms.count) terms weren't added."
+        }
+    }
+
+    /// Said when Undo left terms in the list.
+    static func undoFailed(_ terms: [String]) -> String {
+        switch terms.count {
+        case 1: return "Couldn't undo \(terms[0])."
+        case 2: return "Couldn't undo \(terms[0]) and \(terms[1])."
+        default: return "Couldn't undo \(terms.count) terms."
         }
     }
 

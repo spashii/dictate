@@ -111,8 +111,16 @@ final class HistoryModel {
         let query = search
         let limit = limit
         let store = await openStore()
-        let read = (try? await Task.detached { try store?.historyEntries(limit: limit, matching: query) ?? [] }.value) ?? []
+        var read = (try? await Task.detached { try store?.historyEntries(limit: limit, matching: query) ?? [] }.value) ?? []
         guard query == search else { return }
+        // The open recording came from a search that reached past the newest page. Clearing the
+        // search must not drop it, so the page grows until it is read in, as `reveal` does.
+        while let open = held, open.id == selection, !read.contains(where: { $0.id == open.id }), read.count >= limit {
+            self.limit += Self.page
+            let wider = self.limit
+            read = (try? await Task.detached { try store?.historyEntries(limit: wider, matching: query) ?? [] }.value) ?? []
+            guard query == search else { return }
+        }
         let before = selected
         // An import's words arrive without its row changing, so its open detail is read again
         // on every reload while it runs.
@@ -232,7 +240,11 @@ final class HistoryModel {
         reload()
         if !result.added.isEmpty {
             let added = result.added
-            return .added(KeyTermAddition(terms: added.map(\.term), undo: { await service.undo(added).errors }))
+            let pending = UndoPending(added)
+            return .added(KeyTermAddition(terms: added.map(\.term), undo: {
+                let undone = Set(await service.undo(pending.terms).undone.map(\.term))
+                return pending.keep { !undone.contains($0.term) }
+            }))
         }
         if !result.refused.isEmpty { return .note(KeyTermConfirmation.full(result.refused)) }
         return result.failed == nil ? .saved : .note(KeyTermConfirmation.addFailed)
@@ -244,7 +256,6 @@ final class HistoryModel {
         renaming = entry.id
     }
 
-    /// Gives the recording the title, or takes it away when it is blank.
     /// Shows a title the model just made, ahead of the reload that reads it from the database.
     func show(title: String, forCall ref: String) {
         guard let index = entries.firstIndex(where: { $0.kind == .call && $0.ref == ref }),
@@ -253,6 +264,7 @@ final class HistoryModel {
         entries[index].title = title
     }
 
+    /// Gives the recording the title, or takes it away when it is blank.
     func rename(_ entry: HistoryEntry, to text: String) {
         renaming = nil
         guard text.trimmingCharacters(in: .whitespacesAndNewlines) != (entry.customTitle ?? "") else { return }
@@ -309,6 +321,7 @@ final class HistoryModel {
             let kept = DisplayBlock.keeping(blocks, in: read.1)
             player.lineAt = { seconds in read.0.line(at: seconds)?.id }
             detail = read.0
+            if held?.id == read.0.entry.id { held = read.0.entry }
             blocks = kept
             rebuildMatches(restart: false)
             blockOfLine = Dictionary(kept.flatMap { block in block.lines.map { ($0.id, block.id) } },
@@ -855,6 +868,12 @@ private struct HistoryDetailView: View {
                 }
                 // A new recording starts at the top; the swap is still one step.
                 .id(detail.entry.id)
+                .onAppear {
+                    Task {
+                        await Task.yield()
+                        if let block = history.activeMatch?.block { proxy.scrollTo(block, anchor: .center) }
+                    }
+                }
                 .onChange(of: history.currentMatch) {
                     if let block = history.activeMatch?.block { proxy.scrollTo(block, anchor: .center) }
                 }
