@@ -191,10 +191,10 @@
               <div class="msgs">
                 <div class="mw" id="m-user"><div><div class="m me">Summarize my call with Alex and draft a follow-up email. Check our earlier calls too, and add any names you misheard to my key terms.</div></div></div>
                 <div class="mw" id="m-tools"><div><div class="m tools">
-                  <div class="mw tw"><div><div class="tr"><i class="st"></i>get_transcript</div></div></div>
-                  <div class="mw tw"><div><div class="tr"><i class="st"></i>list_calls</div></div></div>
-                  <div class="mw tw"><div><div class="tr"><i class="st"></i>search_transcripts</div></div></div>
-                  <div class="mw tw"><div><div class="tr"><i class="st"></i>add_key_terms<span class="arg">Northwind, Q3 deck</span></div></div></div>
+                  <div class="mw tw"><div><div class="tr"><i class="st"></i><img class="src" src="icon.svg" alt=""><span class="by">Dictate MCP</span><span class="nm">get_transcript</span></div></div></div>
+                  <div class="mw tw"><div><div class="tr"><i class="st"></i><img class="src" src="icon.svg" alt=""><span class="by">Dictate MCP</span><span class="nm">list_calls</span></div></div></div>
+                  <div class="mw tw"><div><div class="tr"><i class="st"></i><img class="src" src="icon.svg" alt=""><span class="by">Dictate MCP</span><span class="nm">search_transcripts</span></div></div></div>
+                  <div class="mw tw"><div><div class="tr"><i class="st"></i><img class="src" src="icon.svg" alt=""><span class="by">Dictate MCP</span><span class="nm">add_key_terms</span><span class="arg">Northwind, Q3 deck</span></div></div></div>
                 </div></div></div>
                 <div class="mw" id="m-sum"><div><div class="m" id="sum">Alex will send the Northwind slides today. On your call last week, you promised the Q3 deck by Friday. I added Northwind and Q3 deck to your key terms.</div></div></div>
                 <div class="mw" id="m-mail"><div><div class="m mail"><span class="to">Draft to Alex</span><span id="mail">Hi Alex, thanks for today. I will look out for the Northwind slides, and the Q3 deck will be with you by Friday, as promised.</span></div></div></div>
@@ -400,11 +400,13 @@ if (location.hostname === "spashii.github.io") {
 }
 </script>
 <script>
-/* Hero demo, a 13.7 second loop in three steps: record the call, dictate the ask, use it with your
-   own agent. It opens on the Record this call? nudge, so the first frame already says what it is,
-   and the agent's answer starts at 8.6 s. Every frame is a function of the clock t, so the loop can
+/* Hero demo, a 19.2 second loop in three steps of about six seconds each: record the call, dictate
+   the ask, use it with your own agent. It opens on the Record this call? nudge, so the first frame
+   already says what it is, and the agent's answer starts at 13.9 s. Each step ends on a state that
+   rests before the next begins: the ended call 1.5 s, the finished message 1.2 s before Send, the
+   answer and mail 2.5 s before the fade. Every frame is a function of the clock t, so the loop can
    pause, resume, jump to a phase and reset without drift; CSS transitions carry the motion between
-   states. It runs only while the stage is on screen and the tab is visible, holds three seconds on
+   states. It runs only while the stage is on screen and the tab is visible, holds 2.5 seconds on
    the answer, fades, and starts again. The phase buttons jump to a step and play on from there.
    Reduced motion shows one still frame per phase, picked with the phase buttons. */
 (() => {
@@ -423,11 +425,11 @@ if (location.hostname === "spashii.github.io") {
   const phases = [...beats.querySelectorAll(".phase")], bars = phases.map(b => b.querySelector(".prog b"));
 
   const T = {
-    nudge: 0, cursorIn: 150, click: 800, rec: 1000, lines: [1250, 1650, 2050], end: 2600,
-    step2: 3400, keys1: 3600, press1: 3750, dict: 3850, chunks: [4000, 4400, 4800, 5200],
-    keys2: 5550, press2: 5700, busy: 5750, type: [5950, 7050], send: 7250,
-    step3: 7250, tools: [7450, 7700, 7950, 8200], sum: [8550, 9350], mail: [9550, 10550],
-    fade: 13050, loop: 13650
+    nudge: 0, cursorIn: 300, click: 1400, rec: 1600, lines: [2200, 3000, 3800], end: 4500,
+    step2: 6000, keys1: 6400, press1: 6550, dict: 6650, chunks: [7000, 7650, 8300, 8950],
+    keys2: 9300, press2: 9450, busy: 9500, type: [9800, 10600], send: 11800,
+    step3: 11800, tools: [12000, 12450, 12900, 13350], sum: [13900, 14900], mail: [15100, 16100],
+    fade: 18600, loop: 19200
   };
   // Displayed clocks start mid call so the stopped pill reads 12:38, not a few seconds.
   const REC = 757, CALL = 842;
@@ -453,7 +455,13 @@ if (location.hostname === "spashii.github.io") {
   };
   const sumW = split($("sum")), mailW = split($("mail")), fieldW = split(field.querySelector(".txt"));
   const caret = document.createElement("span"); caret.className = "caret c1"; field.querySelector(".txt").append(caret);
-  const reveal = (ws, t, [a, b]) => { const n = Math.ceil(clamp((t - a) / (b - a)) * ws.length); ws.forEach((w, i) => cls(w, "on", i < n)); };
+  // A word that appears during live play also gets "in", which settles it into place; a snap sets
+  // "on" alone so a jumped-to frame shows the words already at rest.
+  let snapping = false;
+  const reveal = (ws, t, [a, b], land) => {
+    const n = Math.ceil(clamp((t - a) / (b - a)) * ws.length);
+    ws.forEach((w, i) => { cls(w, "on", i < n); if (land) cls(w, "in", i < n && (w.classList.contains("in") || !snapping)); });
+  };
   // Where the pointer clicks, in scene units: offsets ignore the camera and the entrance motion.
   const centre = el => {
     let x = el.offsetWidth / 2, y = el.offsetHeight / 2;
@@ -509,7 +517,7 @@ if (location.hostname === "spashii.github.io") {
     // The message field is focused as the window opens and fills word by word as the words land.
     cls(field, "hot", on(T.step2, T.send));
     cls(field, "has", on(T.type[0], T.send));
-    reveal(fieldW, t < T.send ? t : 0, T.type);
+    reveal(fieldW, t < T.send ? t : 0, T.type, true);
     cls(send, "ready", on(T.type[1], T.send));
     cls(send, "down", on(T.send - 180, T.send));
 
@@ -531,7 +539,7 @@ if (location.hostname === "spashii.github.io") {
   };
 
   // Jump to a moment with no transitions, then let the next change animate again.
-  const snap = t0 => { scene.classList.add("instant"); beats.classList.add("instant"); render(t0); void scene.offsetHeight; scene.classList.remove("instant"); beats.classList.remove("instant"); };
+  const snap = t0 => { snapping = true; scene.classList.add("instant"); beats.classList.add("instant"); render(t0); snapping = false; void scene.offsetHeight; scene.classList.remove("instant"); beats.classList.remove("instant"); };
 
   const still = matchMedia("(prefers-reduced-motion: reduce)");
   let t = 0, last = 0, raf = 0, paused = false, seen = false, faded = false;
@@ -575,7 +583,7 @@ if (location.hostname === "spashii.github.io") {
 
   // For screenshots: hold the demo at a moment.
   window.__seek = t0 => { paused = true; t = t0; scene.classList.remove("out"); snap(t0); };
-  window.__moments = { start: 0, dictating: T.chunks[1] + 200, answer: T.mail[1] + 400 };
+  window.__moments = { start: 0, dictating: T.chunks[1] + 300, answer: T.mail[1] + 400 };
 })();
 </script>
 </body>

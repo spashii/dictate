@@ -135,8 +135,12 @@
 .chat .m { margin-top: 10px; }
 .chat .m.me { width: fit-content; max-width: 84%; margin-left: auto; padding: 8px 12px; border-radius: 16px 16px 4px 16px; background: var(--fill2); }
 .chat .m.tools { padding: 3px 0; border-radius: 10px; background: var(--field); box-shadow: inset 0 0 0 .5px var(--sep); }
-.chat .tr { display: flex; align-items: center; gap: 8px; padding: 3px 10px; font: 12px/18px var(--mono); color: var(--text2); }
-.chat .tr .arg { margin-left: auto; font: 500 12px/18px var(--sans); color: var(--text); }
+.chat .tr { display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; padding: 3px 10px; font: 12px/18px var(--mono); color: var(--text2); }
+/* Each call names its source, the Dictate MCP server. The icon is the one colour; an argument that does not fit drops to its own line under the name. */
+.chat .tr .src { flex: none; width: 12px; height: 12px; border-radius: 3px; }
+.chat .tr .by { font: 400 12px/18px var(--sans); color: var(--text2); }
+.chat .tr .nm { min-width: 0; }
+.chat .tr .arg { flex: 0 0 100%; padding-left: 20px; font: 500 12px/18px var(--sans); color: var(--text); }
 .chat .st { flex: none; position: relative; width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--fill2); border-top-color: var(--text2); animation: spin .8s linear infinite; }
 .chat .done .st { border: 0; animation: none; }
 .chat .done .st::after { content: ""; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid var(--text2); border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); }
@@ -152,6 +156,9 @@
 .chat .field.has .txt { display: block; }
 .chat .field .w { display: none; opacity: 1; }
 .chat .field .w.on { display: inline; }
+/* Words settle into the field as they arrive: a short blur and a 2 px drop to sharp and in place. No colour, no overshoot. */
+.chat .field .w.in { position: relative; animation: land .26s ease-out; }
+@keyframes land { from { opacity: 0; filter: blur(2px); top: 2px; } to { opacity: 1; filter: blur(0); top: 0; } }
 /* The text caret blinks while the field has focus. */
 .chat .field .caret { display: none; width: 1.5px; height: 16px; margin-right: 1px; vertical-align: -3px; background: var(--text); animation: blink 1s steps(1) infinite; }
 .chat .field.hot:not(.has) .c0, .chat .field.hot.has .c1 { display: inline-block; }
@@ -233,7 +240,7 @@
 .beats #pause { flex: none; }
 .beats.still .prog, .beats.still #pause { display: none; }
 @media (prefers-reduced-motion: reduce) { .beats .prog, .beats #pause { display: none; } }
-@media (prefers-reduced-motion: reduce) { .chat .st, .dpill .spin, .chat .field .caret { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .chat .st, .dpill .spin, .chat .field .caret, .chat .field .w.in { animation: none; } }
 /* Install steps: the number sits inside the text's left edge, and a wrapped line aligns with the step's text. */
 .get .steps ol { margin-left: 0; padding: 0; list-style: none; counter-reset: step; }
 .get .steps li { display: grid; grid-template-columns: 1.5em 1fr; counter-increment: step; }
@@ -273,4 +280,13 @@
 .nowrap { white-space: nowrap; }
 @media (min-width: 1000px) {
   .h1-part { display: inline-block; }
+}
+
+/* At 360 px the phone's "Send to my Mac" button does not fit beside both links: the nav keeps the brand icon, Questions and the button, and the footer still links GitHub. */
+@media (max-width: 380px) {
+  .nav { gap: var(--sp-2); }
+  .nav .brand { flex: none; }
+  .nav .links { gap: var(--sp-3); }
+  .nav .links a:not(.button):not([href="#questions"]) { display: none; }
+  .nav .button.small { padding: 0 12px; }
 }
