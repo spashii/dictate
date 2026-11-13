@@ -228,7 +228,7 @@ struct LocalModelRow: View {
         } label: {
             Text("Intelligence model")
             if LocalModelChoice.noModelCanRun(apple: model.appleModelState, ollamaModels: model.ollamaModels) {
-                Text(LocalModelChoice.noModelHint(apple: model.appleModelState))
+                Text(LocalModelChoice.noModelHint(apple: model.appleModelState, ollamaModels: model.ollamaModels))
             }
         }
     }

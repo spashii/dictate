@@ -197,9 +197,10 @@ final class LocalModelChoiceTests: XCTestCase {
     }
 
     func testNoModelHintByState() {
-        XCTAssertEqual(LocalModelChoice.noModelHint(apple: .turnedOff), "Start Ollama or turn on Apple Intelligence.")
-        XCTAssertEqual(LocalModelChoice.noModelHint(apple: .notReady), "Start Ollama or turn on Apple Intelligence.")
-        XCTAssertEqual(LocalModelChoice.noModelHint(apple: .unsupported), "Start Ollama to use these.")
-        XCTAssertEqual(LocalModelChoice.noModelHint(apple: .needsNewerMacOS), "Start Ollama to use these.")
+        XCTAssertEqual(LocalModelChoice.noModelHint(apple: .turnedOff, ollamaModels: nil), "Start Ollama or turn on Apple Intelligence.")
+        XCTAssertEqual(LocalModelChoice.noModelHint(apple: .turnedOff, ollamaModels: []), "Add a model in Ollama or turn on Apple Intelligence.")
+        XCTAssertEqual(LocalModelChoice.noModelHint(apple: .notReady, ollamaModels: nil), "Apple Intelligence is still getting ready.")
+        XCTAssertEqual(LocalModelChoice.noModelHint(apple: .unsupported, ollamaModels: nil), "Start Ollama to fix text and title calls.")
+        XCTAssertEqual(LocalModelChoice.noModelHint(apple: .needsNewerMacOS, ollamaModels: []), "Add a model in Ollama to fix text and title calls.")
     }
 }

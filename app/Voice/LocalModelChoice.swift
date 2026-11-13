@@ -96,12 +96,15 @@ enum LocalModelChoice {
         apple != .available && (ollamaModels?.isEmpty ?? true)
     }
 
-    /// Why nothing can run and what to do, short enough to sit under the picker's label. Where
-    /// Apple's model can never work on this Mac, only Ollama is left to suggest.
-    static func noModelHint(apple: AppleModelState) -> String {
+    /// Why nothing can run and what to do, short enough to sit under the picker's label. It
+    /// follows both models: Ollama is not running (`nil`) or has none installed, and Apple's is
+    /// off, still preparing, or can never work on this Mac.
+    static func noModelHint(apple: AppleModelState, ollamaModels: [String]?) -> String {
+        let ollama = ollamaModels == nil ? "Start Ollama" : "Add a model in Ollama"
         switch apple {
-        case .unsupported, .needsNewerMacOS: "Start Ollama to use these."
-        default: "Start Ollama or turn on Apple Intelligence."
+        case .unsupported, .needsNewerMacOS: return ollama + " to fix text and title calls."
+        case .notReady: return "Apple Intelligence is still getting ready."
+        case .turnedOff, .available: return ollama + " or turn on Apple Intelligence."
         }
     }
 
