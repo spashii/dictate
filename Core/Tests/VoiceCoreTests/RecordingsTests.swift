@@ -21,7 +21,7 @@ private func rows(_ url: URL, _ sql: String) throws -> Int {
         #expect(edit.client == "You")
         #expect(edit.target == "dictation:\(dictation.id)")
         #expect(edit.before == Edit.Value(text: nil))
-        #expect(edit.after == Edit.Value(text: "Weekly plan"))
+        #expect(edit.after == Edit.Value(text: "Weekly plan", source: "user"))
         _ = try calls.rename(.call, call.id, to: "Standup with Alex")
 
         let entries = try calls.historyEntries()
@@ -36,7 +36,7 @@ private func rows(_ url: URL, _ sql: String) throws -> Int {
         // The same name again changes nothing; blank text takes it away.
         #expect(try calls.rename(.dictation, dictation.id, to: "Weekly plan") == nil)
         let cleared = try #require(try calls.rename(.dictation, dictation.id, to: "   "))
-        #expect(cleared.after == Edit.Value(text: nil))
+        #expect(cleared.after == Edit.Value(text: nil, source: "user"))
 
         try calls.undo(cleared.id, client: "agent 1")
         #expect(try calls.historyEntries().first { $0.ref == dictation.id }?.customTitle == "Weekly plan")

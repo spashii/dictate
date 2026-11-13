@@ -14,6 +14,7 @@ final class ActivityTests: XCTestCase {
             Activity(callRecording: true),
             Activity(callTranscribing: true),
             Activity(callAppInCall: true),
+            Activity(titling: true),
         ]
 
         XCTAssertEqual(busy.map(\.isQuiet), Array(repeating: false, count: busy.count))

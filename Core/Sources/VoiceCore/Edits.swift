@@ -25,14 +25,18 @@ public struct Edit: Sendable, Codable, Equatable {
         public var terms: [String]?
         public var tags: [String]?
         public var status: String?
+        /// Who set a title (`auto`, `user`, `agent`), for a rename. Edits stored before it was
+        /// kept decode without it.
+        public var source: String?
 
         public init(text: String? = nil, corrected: Bool? = nil, terms: [String]? = nil, tags: [String]? = nil,
-                    status: String? = nil) {
+                    status: String? = nil, source: String? = nil) {
             self.text = text
             self.corrected = corrected
             self.terms = terms
             self.tags = tags
             self.status = status
+            self.source = source
         }
     }
 
@@ -198,15 +202,20 @@ extension CallStore {
                                                                       [callID]) { $0.text(0) }))
                 case .renameRecording:
                     let (table, id) = try Self.recordingRow(edit.target)
-                    guard let current = try db.query("SELECT title FROM \(table) WHERE id = ?", [id], { $0.string(0) }).first
+                    guard let row = try db.query("SELECT title, title_source FROM \(table) WHERE id = ?", [id],
+                                                 { ($0.string(0), $0.string(1)) }).first
                     else { throw VoiceError.store("\(edit.target) no longer exists.") }
+                    let current = row.0
                     guard (current ?? "") == (edit.after?.text ?? "") else {
                         throw VoiceError.store("\(edit.target) has been renamed since edit \(edit.id); undo that one first.")
                     }
                     let restored = edit.before?.text
-                    try db.run("UPDATE \(table) SET title = ? WHERE id = ?", [restored, id])
-                    before = Edit.Value(text: current)
-                    after = Edit.Value(text: restored)
+                    // An earlier title without a recorded source goes back to none.
+                    let restoredSource = edit.before?.source
+                    try db.run("UPDATE \(table) SET title = ?, title_source = ? WHERE id = ?",
+                               [restored, restoredSource, id])
+                    before = Edit.Value(text: current, source: row.1)
+                    after = Edit.Value(text: restored, source: restoredSource)
                 case .addKeyTerms, .removeKeyTerms, .dismissKeyTerm, .undo:
                     throw VoiceError.store("Edit \(id) isn't undone here.")
                 }

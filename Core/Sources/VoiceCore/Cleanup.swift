@@ -1,9 +1,16 @@
 import Foundation
 
-/// The optional step after whisper: a local model through Ollama. In the app it sees only
+/// The optional step after whisper: a local model, Ollama's or Apple's. In the app it sees only
 /// the flagged segments and answers with edits (Fix.swift); the whole-text rewrite by a
 /// prompt stays for the evaluation.
 public struct CleanupSettings: Sendable, Codable, Equatable {
+    /// Which model answers. Data saved before Apple's model existed has no engine and means Ollama.
+    public enum Engine: String, Sendable, Codable, Equatable {
+        case ollama
+        case apple
+    }
+
+    public var engine: Engine
     public var ollamaURL: URL
     public var model: String
     public var prompt: String
@@ -13,16 +20,32 @@ public struct CleanupSettings: Sendable, Codable, Equatable {
     /// evaluation sets 0 to make runs repeatable.
     public var temperature: Double
 
-    public init(ollamaURL: URL = URL(string: "http://127.0.0.1:11434")!,
+    public init(engine: Engine = .ollama,
+                ollamaURL: URL = URL(string: "http://127.0.0.1:11434")!,
                 model: String = "qwen3.5:9b",
                 prompt: String = CleanupSettings.defaultPrompt,
                 keyTerms: [String] = [], temperature: Double = 0.2) {
+        self.engine = engine
         self.ollamaURL = ollamaURL
         self.model = model
         self.prompt = prompt
         self.keyTerms = keyTerms
         self.temperature = temperature
     }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        engine = try c.decodeIfPresent(Engine.self, forKey: .engine) ?? .ollama
+        ollamaURL = try c.decode(URL.self, forKey: .ollamaURL)
+        model = try c.decode(String.self, forKey: .model)
+        prompt = try c.decode(String.self, forKey: .prompt)
+        keyTerms = try c.decode([String].self, forKey: .keyTerms)
+        temperature = try c.decode(Double.self, forKey: .temperature)
+    }
+
+    /// The name stored with a dictation as the model that fixed it.
+    public var modelName: String { engine == .apple ? Self.appleModelName : model }
+    public static let appleModelName = "apple-on-device"
 
     public static let defaultPrompt = """
         You clean up dictated text. Fix words the speech recognizer misheard, especially the \

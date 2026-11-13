@@ -186,6 +186,32 @@ struct MCPRouter: Sendable {
             if let edit { object["edit_id"] = edit.id }
             return try Self.json(object)
 
+        case "set_recording_title":
+            let id = try args.require("id")
+            // A blank title would clear the stored one; clearing is the person's to do in History.
+            guard let given = try args.string("title") else {
+                throw ToolError(args.value("title") == nil ? "title is required."
+                                                           : "title is empty.")
+            }
+            let title = given.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+            guard title.count <= Self.maxTitleLength else {
+                throw ToolError("title is \(title.count) characters; the limit is \(Self.maxTitleLength).")
+            }
+            let kind: HistoryEntry.Kind
+            if try store.call(id) != nil {
+                kind = .call
+            } else if try store.dictation(id) != nil {
+                kind = .dictation
+            } else {
+                throw ToolError("No call or dictation \(id).")
+            }
+            let edit = try store.rename(kind, id, to: title, client: client, source: .agent)
+            let source = try store.recordingTitle(kind, id)?.source
+            var object: [String: Any] = ["id": id, "kind": kind.rawValue, "title": title,
+                                         "title_source": source?.rawValue ?? NSNull()]
+            if let edit { object["edit_id"] = edit.id }
+            return try Self.json(object)
+
         case "list_dictations":
             let dictations = try store.dictations(since: try args.date("since"),
                                                   limit: try args.int("limit", default: 20, range: 1...200))
@@ -261,7 +287,12 @@ struct MCPRouter: Sendable {
 
         case "start_recording":
             guard let recording else { throw ToolError(recordingUnavailable) }
-            let call = try await recording.startRecording(title: try args.string("title"))
+            let title = try args.string("title")
+            var call = try await recording.startRecording(title: title)
+            // Core stores a title given at the start as a person's; this one is the agent's.
+            if title != nil, call.title != nil, try store.setTitleSource(call.id, .agent) {
+                call.titleSource = .agent
+            }
             return try Self.json(try Self.plain(call))
 
         case "stop_recording":
@@ -284,6 +315,9 @@ struct MCPRouter: Sendable {
         guard let keyTerms else { throw ToolError("Key terms can't be changed from this server.") }
         return keyTerms
     }
+
+    /// Long enough for a descriptive title, short enough for a History row and the menu.
+    static let maxTitleLength = 100
 
     private func requireCall(_ id: String) throws -> Call {
         if id == "current" {
@@ -343,6 +377,12 @@ struct MCPRouter: Sendable {
                   "add": ["type": "array", "items": ["type": "string"]],
                   "remove": ["type": "array", "items": ["type": "string"]]],
                  required: ["id"], readOnly: false),
+            tool("set_recording_title",
+                 "Set a call's or dictation's title, which History shows in place of its date. It replaces any title there, a person's included, and is an edit undo_edit can revert.",
+                 ["id": ["type": "string", "description": "A call's or a dictation's id."],
+                  "title": ["type": "string", "maxLength": maxTitleLength,
+                            "description": "A short title."]],
+                 required: ["id", "title"], readOnly: false),
             tool("list_dictations", "List dictations newest first with their final text.",
                  ["since": since, "limit": limit(20, 200)]),
             tool("get_dictation", "Get one dictation by id with its raw and final text, timings and segments.",
@@ -477,7 +517,9 @@ struct MCPRouter: Sendable {
     }
 
     /// A Codable value as JSON objects, with snake_case keys and ISO 8601 times.
-    private static func plain(_ value: some Encodable) throws -> [String: Any] {
+    private static func plain(_ value: some Encodable) throws -> [String: Any] { try encoded(value) }
+
+    private static func encoded(_ value: some Encodable) throws -> [String: Any] {
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
         encoder.dateEncodingStrategy = .iso8601
@@ -485,6 +527,13 @@ struct MCPRouter: Sendable {
         encoder.nonConformingFloatEncodingStrategy = .convertToString(positiveInfinity: "Infinity",
                                                                       negativeInfinity: "-Infinity", nan: "NaN")
         return try JSONSerialization.jsonObject(with: encoder.encode(value)) as? [String: Any] ?? [:]
+    }
+
+    /// A call, with `title_source` always present: null says nobody has titled it.
+    private static func plain(_ call: Call) throws -> [String: Any] {
+        var object: [String: Any] = try encoded(call)
+        object["title_source"] = call.titleSource?.rawValue ?? NSNull()
+        return object
     }
 
     /// What an agent following a call needs of a segment; the id is what correct_segment takes.
@@ -564,7 +613,7 @@ struct Arguments {
         self.values = values
     }
 
-    private func value(_ key: String) -> Any? {
+    func value(_ key: String) -> Any? {
         guard let value = values[key], !(value is NSNull) else { return nil }
         return value
     }

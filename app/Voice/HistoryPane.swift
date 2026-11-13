@@ -453,15 +453,16 @@ private struct HistoryRow: View, @MainActor Equatable {
             }
         }
         .padding(.vertical, 3)
+        .help(entry.customTitle ?? date)
     }
 
-    /// A renamed recording keeps its date and time here; one without a name shows what it
-    /// was, and the first words.
+    /// A renamed recording shows what it was, then its date and time; one without a name
+    /// shows what it was, and the first words.
     private func secondLine(date: String) -> String {
         let preview = entry.firstLine.isEmpty ? entry.title : entry.firstLine
         if entry.customTitle != nil {
-            return [date + (entry.originalZoneLabel.map { " \($0)" } ?? ""),
-                    entry.kind == .call ? entry.kindLabel : nil].compactMap { $0 }.joined(separator: " \u{00B7} ")
+            return [entry.kind == .call ? entry.kindLabel : nil,
+                    date + (entry.originalZoneLabel.map { " \($0)" } ?? "")].compactMap { $0 }.joined(separator: " \u{00B7} ")
         }
         guard entry.kind == .call else { return preview }
         return [entry.kindLabel, entry.firstLine.isEmpty ? nil : preview].compactMap { $0 }.joined(separator: " \u{00B7} ")
@@ -534,8 +535,8 @@ private struct HistoryDetailView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(entry.customTitle ?? date)
                         .font(.title3.weight(.semibold))
-                        .lineLimit(1)
-                    Text([entry.customTitle == nil ? nil : date, entry.kindLabel, HistoryTime.elapsed(entry.duration)]
+                        .lineLimit(2)
+                    Text([entry.kindLabel, entry.customTitle == nil ? nil : date, HistoryTime.elapsed(entry.duration)]
                         .compactMap { $0 }.joined(separator: " \u{00B7} "))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)

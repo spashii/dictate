@@ -98,6 +98,14 @@ done
 sign $app/Contents/Helpers/dictate-cli
 sign $app
 codesign --verify --deep --strict $app
+# Foundation Models exists only from macOS 26; a strong link would stop both binaries from
+# launching on macOS 15.
+for binary in $app/Contents/MacOS/Dictate $app/Contents/Helpers/dictate-cli; do
+  if otool -l $binary | grep -B2 FoundationModels.framework | grep -q 'cmd LC_LOAD_DYLIB'; then
+    print -u2 "${binary:t} links FoundationModels strongly; it would not launch on macOS 15."
+    exit 1
+  fi
+done
 
 stage=$out/stage
 mkdir -p $stage

@@ -83,6 +83,12 @@ final class CallsModel {
     static let copyOffer: Duration = .seconds(5)
     @ObservationIgnored private var following: Task<Void, Never>?
     @ObservationIgnored private var quieting: Task<Void, Never>?
+    /// Titles are made one call at a time, in the order the calls ended.
+    @ObservationIgnored private var titling: Task<Void, Never>?
+    /// The request an Ollama model is answering now; a dictation cancels it.
+    @ObservationIgnored private var ollamaRequest: Task<String?, Never>?
+    /// An Ollama model is naming a call, so the Mac is not quiet: nothing should restart it.
+    private(set) var ollamaTitling = false
     private static let quiet: Duration = .seconds(20)
 
     init() {
@@ -101,6 +107,9 @@ final class CallsModel {
     }
 
     #if DEBUG
+    /// The app-shots run fills the menu's Recent list without a database behind it.
+    func setRecentForSnapshots(_ calls: [Call]) { recent = calls }
+
     /// The app-shots run asks the prompt to show for an app without a detector.
     func promptForSnapshots(_ app: DetectedCall, model: AppModel) {
         self.model = model
@@ -145,8 +154,9 @@ final class CallsModel {
                 refreshRecent()
                 transcribing = true
                 for call in interrupted {
-                    _ = try? await recorder.rebuild(call.id, transcriber: model.currentPipeline().transcriber,
-                                                    whisper: model.preferences.whisper)
+                    let rebuilt = try? await recorder.rebuild(call.id, transcriber: model.currentPipeline().transcriber,
+                                                              whisper: model.preferences.whisper)
+                    if rebuilt != nil { title(call.id) }
                 }
                 transcribing = false
                 refreshRecent()
@@ -247,6 +257,8 @@ final class CallsModel {
         if let recording { return recording }
         guard !starting else { throw VoiceError.store("A call recording is already starting.") }
         dismissStoppedCall()
+        // A call's chunks load whisper as a dictation does.
+        yieldToDictation()
         starting = true
         defer { starting = false }
         await refreshSources()
@@ -301,7 +313,10 @@ final class CallsModel {
         transcribing = false
         refreshRecent()
         updatePrompt()
-        if let call { offerTranscript(call) }
+        if let call {
+            title(call.id)
+            offerTranscript(call)
+        }
         return call
     }
 
@@ -365,6 +380,72 @@ final class CallsModel {
         model?.notice(text)
         refreshRecent()
         updatePrompt()
+        if let call { title(call.id) }
+    }
+
+    /// Names a call whose transcript is complete, in the background and behind any title
+    /// already being made. Only the chosen model is asked, and nothing shows while it works
+    /// or when it fails: the call keeps today's label. Ollama's model competes with whisper
+    /// for the GPU, so it waits for a quiet Mac and then takes whisper's memory first, as
+    /// the fix step does; Apple's belongs to the system and answers at once.
+    private func title(_ callID: String) {
+        guard model?.preferences.titleCalls == true, let store else { return }
+        let previous = titling
+        titling = Task { [weak self] in
+            await previous?.value
+            await self?.makeTitle(callID, store: store)
+        }
+    }
+
+    private func makeTitle(_ callID: String, store: CallStore) async {
+        guard let model, model.preferences.titleCalls else { return }
+        let choice = model.effectiveModel
+        if case .ollama = choice { await model.refreshOllama() } else { model.appleModelAvailable = AppleModel.isAvailable }
+        let models = CallTitles.models(choice: choice, appleAvailable: model.appleModelAvailable,
+                                       ollamaModels: model.ollamaModels, ollamaURL: model.preferences.ollamaEndpoint)
+        guard !models.isEmpty else { return }
+        let usesOllama: Bool
+        if case .ollama = choice { usesOllama = true } else { usesOllama = false }
+
+        if usesOllama {
+            // Cheap and off the main actor, so a call that can't be titled never waits for a
+            // quiet Mac or takes whisper's memory.
+            guard await Task.detached(priority: .utility, operation: {
+                CallTitler().isEligible(callID, in: store)
+            }).value else { return }
+            // A dictation can start while whisper unloads, so the Mac is checked again after.
+            var ready = false
+            while !ready {
+                guard await TitleGate.waitUntilQuiet(activity: { model.activity }) else { return }
+                guard model.preferences.titleCalls, model.effectiveModel == choice else { return }
+                await model.currentPipeline().transcriber.unload()
+                ready = TitleGate.mayAsk(model.activity)
+            }
+        }
+
+        let work = Task.detached(priority: .utility) {
+            await CallTitler().title(callID, in: store, models: models)
+        }
+        if usesOllama {
+            ollamaRequest = work
+            ollamaTitling = true
+        }
+        let titled = await withTaskCancellationHandler { await work.value } onCancel: { work.cancel() }
+        if usesOllama {
+            ollamaRequest = nil
+            ollamaTitling = false
+        }
+        if titled != nil { model.refreshRecents() }
+    }
+
+    /// A dictation is starting: whisper is about to load, and Ollama's model must not sit
+    /// beside it (16 GB Macs run out of GPU memory) or make the fix wait behind a title. The
+    /// request is cancelled and its title dropped, and Ollama is told to unload.
+    func yieldToDictation() {
+        guard let request = ollamaRequest, let model else { return }
+        request.cancel()
+        let settings = model.preferences.cleanup(using: .ollama(model.preferences.ollamaModel))
+        Task.detached(priority: .utility) { await Ollama().unload(settings) }
     }
 
     /// Reads the call's segments as they are written, from the store's wait, the one
@@ -617,13 +698,6 @@ struct StoppedCallView: View {
     }
 }
 
-extension Call {
-    /// What the menu and the pill call it: its title, its app's call, or just Call.
-    var displayName: String {
-        title ?? appName.map { "\($0) call" } ?? "Call"
-    }
-}
-
 /// The menu's call items: Record at any time, the clock and Stop while a call records, each
 /// with the call shortcut.
 struct CallMenuItems: View {
@@ -666,16 +740,14 @@ struct RecentCall: View {
                 calls.copyTranscript(call)
             }
         } label: {
-            Label(Self.label(call), systemImage: "phone")
+            let lines = RecentCallLabel.lines(call)
+            if let title = lines.title {
+                Label(title, systemImage: "phone")
+                Text(lines.detail)
+            } else {
+                Label(lines.detail, systemImage: "phone")
+            }
         }
         .help("Click to copy the transcript")
-    }
-
-    private static func label(_ call: Call) -> String {
-        let name = call.displayName
-        let time = call.startedAt.formatted(date: .omitted, time: .shortened)
-        let minutes = call.endedAt.map { " · \(max(1, Int($0.timeIntervalSince(call.startedAt) / 60))) min" } ?? ""
-        let state = call.status == .failed ? " · failed" : call.status.isLive ? " · recording" : ""
-        return "\(name), \(time)\(minutes)\(state)"
     }
 }

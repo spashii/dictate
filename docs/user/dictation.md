@@ -26,9 +26,9 @@ Names and words Whisper gets wrong, spelled as they should be: people, products 
 
 ## Fix the text before pasting
 
-Optional. A model in [Ollama](https://ollama.com) suggests edits to the text, using your key terms, before it is pasted. The default model is `qwen3.5:9b`. If Ollama isn't running or the step fails, Whisper's text is pasted as it is.
+Optional. A model on this Mac suggests edits to the text, using your key terms, before it is pasted. Choose Apple Intelligence or an [Ollama](https://ollama.com) model in Settings, Model. The default Ollama model is `qwen3.5:9b`. If the chosen model isn't available or the step fails, Whisper's text is pasted as it is.
 
-On a 16 GB Mac, Whisper and a large Ollama model don't fit on the GPU together. Dictate frees Whisper before Fix the text before pasting, and skips it while an online call is using Whisper.
+On a 16 GB Mac, Whisper and a large Ollama model don't fit on the GPU together. Dictate frees Whisper before an Ollama model fixes the text, and skips the step while an online call is using Whisper.
 
 ## How it works
 

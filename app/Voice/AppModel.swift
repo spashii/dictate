@@ -52,6 +52,8 @@ final class AppModel {
     var recent: [Dictation] = []
     /// What Ollama has installed; nil while it isn't running.
     var ollamaModels: [String]?
+    /// Whether Apple's on-device model can answer; refreshed with `ollamaModels`.
+    var appleModelAvailable = AppleModel.isAvailable
     var devices: [InputDevice] = []
     /// The app holding macOS secure keyboard input, which silences global shortcuts; nil when none does.
     private(set) var secureInput: SecureInput.Holder?
@@ -113,6 +115,7 @@ final class AppModel {
             activity.callRecording = calls.recording != nil || calls.starting
             activity.callTranscribing = calls.transcribing
             activity.callAppInCall = !calls.detected.isEmpty
+            activity.titling = calls.ollamaTitling
         }
         return activity
     }
@@ -134,10 +137,18 @@ final class AppModel {
         phase == .transcribing || phase == .cleaningUp
     }
 
-    /// Whether the prompt will run: it is on, and Ollama has the model.
+    /// The model that fixes the text and titles calls.
+    var effectiveModel: LocalModel {
+        #if DEBUG
+        if let snapshotModel { return snapshotModel }
+        #endif
+        return preferences.effectiveModel(appleAvailable: appleModelAvailable)
+    }
+
+    /// Whether the prompt will run: it is on, and the chosen model can answer.
     var fixesText: Bool {
-        guard preferences.runPrompt, let models = ollamaModels else { return false }
-        return Self.contains(models, preferences.ollamaModel)
+        preferences.runPrompt
+            && LocalModelChoice.canRun(effectiveModel, appleAvailable: appleModelAvailable, ollamaModels: ollamaModels)
     }
 
     var setupComplete: Bool {
@@ -278,8 +289,11 @@ final class AppModel {
     }
 
     func refreshOllama() async {
-        let url = URL(string: preferences.ollamaURL) ?? URL(string: "http://127.0.0.1:11434")!
-        ollamaModels = try? await Ollama().installedModels(at: url)
+        #if DEBUG
+        if snapshotModelsHeld { return }
+        #endif
+        appleModelAvailable = AppleModel.isAvailable
+        ollamaModels = try? await Ollama().installedModels(at: preferences.ollamaEndpoint)
     }
 
     /// Lists inputs off the main thread: with coreaudiod stuck, the call would freeze the app.
@@ -342,6 +356,7 @@ final class AppModel {
 
     private func start(_ mode: Dictation.Mode) {
         noticeTask?.cancel()
+        calls?.yieldToDictation()
         let url = Paths.recordings.appending(path: "\(Int(Date().timeIntervalSince1970 * 1000)).wav")
         let began = Date()
         phase = .recording(mode, began)
@@ -392,7 +407,7 @@ final class AppModel {
         phase = .transcribing
         let recordMs = Int(Date().timeIntervalSince(began) * 1000)
         // A call that started mid-dictation holds whisper too.
-        let cleanup = mode == .fix && calls?.usesWhisper != true ? preferences.cleanup : nil
+        let cleanup = mode == .fix && calls?.usesWhisper != true ? preferences.cleanup(using: effectiveModel) : nil
         let whisper = preferences.whisper
         let pipeline = currentPipeline()
         var live = self.live
@@ -552,6 +567,19 @@ final class AppModel {
     var snapshotSetupComplete = false
 
     func unlockForSnapshots() { lock = LockPolicy(activation) }
+
+    /// What Settings, Model shows is set here and never stored: the choice is held in memory
+    /// instead of Preferences, which would write it to the defaults, and the refresh that asks
+    /// Ollama is switched off so no real model server is contacted.
+    private(set) var snapshotModel: LocalModel?
+    private var snapshotModelsHeld = false
+
+    func setModelsForSnapshots(appleAvailable: Bool, ollama: [String]?, choice: LocalModel) {
+        snapshotModelsHeld = true
+        appleModelAvailable = appleAvailable
+        ollamaModels = ollama
+        snapshotModel = choice
+    }
     #endif
 
     func openHistory() { openMainWindow(.history) }

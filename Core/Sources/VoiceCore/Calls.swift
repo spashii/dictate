@@ -1,5 +1,14 @@
 import Foundation
 
+/// Who set a recording's title, so a title made by the app never replaces one a person
+/// or an agent chose.
+public enum TitleSource: String, Sendable, Codable, CaseIterable {
+    /// The app named it from the transcript.
+    case auto
+    case user
+    case agent
+}
+
 /// A recorded call: a Blend mix, either split (this Mac's microphone on the left, the
 /// call's audio on the right) or mixed into one channel.
 public struct Call: Sendable, Codable, Identifiable, Equatable {
@@ -29,6 +38,8 @@ public struct Call: Sendable, Codable, Identifiable, Equatable {
     public var audioPath: String?
     public var status: Status
     public var title: String?
+    /// Who set `title`; nil when nobody has.
+    public var titleSource: TitleSource? = nil
     public var error: String?
     public var tags: [String]
     /// What the two sides of a split call are called, left then right, when neither is me:
@@ -86,12 +97,14 @@ public struct NewCall: Sendable {
     public var split: Bool
     public var audioPath: String?
     public var title: String?
+    /// Who gave `title`; nil means a person when there is one.
+    public var titleSource: TitleSource?
     public var speakers: [String]?
 
     public init(id: String = UUID().uuidString, startedAt: Date = Date(),
                 timeZone: String = TimeZone.current.identifier, appBundleID: String? = nil,
                 appName: String? = nil, deviceUID: String? = nil, split: Bool, audioPath: String? = nil,
-                title: String? = nil, speakers: [String]? = nil) {
+                title: String? = nil, titleSource: TitleSource? = nil, speakers: [String]? = nil) {
         self.id = id
         self.startedAt = startedAt
         self.timeZone = timeZone
@@ -101,6 +114,7 @@ public struct NewCall: Sendable {
         self.split = split
         self.audioPath = audioPath
         self.title = title
+        self.titleSource = titleSource
         self.speakers = speakers
     }
 }

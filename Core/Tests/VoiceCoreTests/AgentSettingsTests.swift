@@ -28,17 +28,35 @@ import Testing
         #expect(AgentSettings.disabledTools(in: store, existingInstall: true) == MCPServer.offByDefault)
     }
 
-    @Test func anExistingInstallKeepsEveryToolOn() {
+    @Test func anExistingInstallKeepsEveryToolItHadOnAndGetsANewOneOff() {
         let store = defaults()
-        #expect(AgentSettings.disabledTools(in: store, existingInstall: true).isEmpty)
-        #expect(store.stringArray(forKey: AgentSettings.disabledToolsKey) == [])
-        #expect(AgentSettings.disabledTools(in: store, existingInstall: false).isEmpty)
+        #expect(AgentSettings.disabledTools(in: store, existingInstall: true) == ["set_recording_title"])
+        #expect(store.stringArray(forKey: AgentSettings.disabledToolsKey) == ["set_recording_title"])
+        #expect(AgentSettings.disabledTools(in: store, existingInstall: false) == ["set_recording_title"])
     }
 
-    @Test func aStoredChoiceWins() {
+    @Test func aStoredChoiceWinsExceptForToolsItNeverSaw() {
         let store = defaults()
         store.set(["list_calls"], forKey: AgentSettings.disabledToolsKey)
-        #expect(AgentSettings.disabledTools(in: store, existingInstall: false) == ["list_calls"])
+        #expect(AgentSettings.disabledTools(in: store, existingInstall: false) == ["list_calls", "set_recording_title"])
+        #expect(store.stringArray(forKey: AgentSettings.disabledToolsKey) == ["list_calls", "set_recording_title"])
+    }
+
+    @Test func aToolTurnedOnStaysOnAcrossLaunches() {
+        let store = defaults()
+        store.set(["list_calls"], forKey: AgentSettings.disabledToolsKey)
+        _ = AgentSettings.disabledTools(in: store, existingInstall: true)
+        store.set(["list_calls"], forKey: AgentSettings.disabledToolsKey)
+        #expect(AgentSettings.disabledTools(in: store, existingInstall: true) == ["list_calls"])
+        #expect(AgentSettings.disabledTools(in: store, existingInstall: true) == ["list_calls"])
+        #expect(Set(store.stringArray(forKey: AgentSettings.seenToolsKey) ?? []) == MCPServer.offByDefault)
+    }
+
+    @Test func aNewInstallHasSeenEveryToolSoTurningOneOnSticks() {
+        let store = defaults()
+        _ = AgentSettings.disabledTools(in: store, existingInstall: false)
+        store.set([String](), forKey: AgentSettings.disabledToolsKey)
+        #expect(AgentSettings.disabledTools(in: store, existingInstall: true).isEmpty)
     }
 
     @Test func eitherDataFolderMeansAnExistingInstall() throws {
@@ -71,6 +89,14 @@ import Testing
         #expect(AgentSettings.disabledToolsForReading(in: store) == MCPServer.offByDefault)
         #expect(store.stringArray(forKey: AgentSettings.disabledToolsKey) == nil)
         store.set(["get_call"], forKey: AgentSettings.disabledToolsKey)
+        #expect(AgentSettings.disabledToolsForReading(in: store) == ["get_call", "set_recording_title"])
+        #expect(store.stringArray(forKey: AgentSettings.seenToolsKey) == nil)
+    }
+
+    @Test func theCLICountsAToolTheAppHasSeenAsTheStoredListSaysAndAnUnseenOneAsOff() {
+        let store = defaults()
+        store.set(["get_call"], forKey: AgentSettings.disabledToolsKey)
+        store.set(Array(MCPServer.offByDefault), forKey: AgentSettings.seenToolsKey)
         #expect(AgentSettings.disabledToolsForReading(in: store) == ["get_call"])
     }
 }

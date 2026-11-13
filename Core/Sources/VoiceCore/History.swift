@@ -28,7 +28,7 @@ public struct HistoryEntry: Sendable, Identifiable, Equatable, Hashable {
     public var audioPath: String? = nil
     /// The call's app, such as Slack, when the recorder could tell.
     public var appName: String? = nil
-    /// The name a person gave it, which replaces the date as the row's main text.
+    /// The title a person, an agent or the model gave it, which replaces the date as the row's main text.
     public var customTitle: String? = nil
 
     /// What kind of recording it is, as the menu names a call: "Slack call", "Call" or "Dictation".

@@ -20,6 +20,9 @@ final class AgentAccess {
     /// unless the address says otherwise.
     var enabled: Bool {
         didSet {
+            #if DEBUG
+            if snapshotHeld { return }
+            #endif
             UserDefaults.standard.set(enabled, forKey: "agentAccess")
             apply()
         }
@@ -50,6 +53,19 @@ final class AgentAccess {
         disabledTools = AgentSettings.disabledTools(in: defaults, existingInstall: true)
         token = try? MCPToken.load()
     }
+
+    #if DEBUG
+    @ObservationIgnored private var snapshotHeld = false
+
+    /// The app-shots run shows the pane with the server on and a fresh install's tool switches,
+    /// held in memory: nothing is stored, no server starts and no real token is shown.
+    func holdForSnapshots() {
+        snapshotHeld = true
+        enabled = true
+        disabledTools = MCPServer.offByDefault
+        token = "shots-token-0000"
+    }
+    #endif
 
     /// The server runs only while Dictate may record; set by the lock.
     @ObservationIgnored private var unlocked = false
