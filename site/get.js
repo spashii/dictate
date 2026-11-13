@@ -1,11 +1,12 @@
 /* Download buttons. On a computer, pressing one opens the three install steps directly under it, in
-   the button's place, and hides the price and requirements lines meanwhile. The download itself is the
-   button's own link. On a phone there is no Mac to install on, so every Download button becomes a
-   Share or Copy link button for the page address and never navigates to the DMG.
+   the button's place, and hides the price, requirements and activation lines meanwhile, so only the
+   founding line stays. The download itself is the button's own link. On a phone there is no Mac to
+   install on, so every Download button becomes a "Send to my Mac" button (or "Copy link" where the
+   share sheet is missing) for the page address and never navigates to the DMG.
    The founding spots count is fetched once and appends "N spots left." to the founding sentence in every [data-left]; if the
    request fails the sentence stands alone. */
 (function () {
-  var STEPS = ["Open the DMG and drag Dictate to Applications.", "Open Dictate.", "Press Activate in Browser."];
+  var STEPS = ["Open the DMG and drag Dictate to Applications.", "Open Dictate.", "In the window Dictate opens, press Activate in Browser."];
   var FOUNDING = "https://dictate.firstversion.in/api/activate/founding";
 
   // Touch, coarse pointer and a narrow screen together; the user agent alone is not trusted.
@@ -60,7 +61,7 @@
   function phone() {
     var live = liveRegion(document.body);
     var canShare = typeof navigator.share === "function";
-    var idle = canShare ? "Share" : "Copy link";
+    var idle = canShare ? "Send to my Mac" : "Copy link";
     var buttons = [];
     var nodes = document.querySelectorAll("a[data-get], nav a.button.primary");
     for (var i = 0; i < nodes.length; i++) {
@@ -72,7 +73,7 @@
       a.parentNode.replaceChild(b, a);
       buttons.push(b);
     }
-    // Hold the widest label so the button does not change width when its text swaps.
+    // Hold the wider of the idle label and "Link copied" so the width does not change when the text swaps.
     buttons.forEach(function (b) {
       var w = b.offsetWidth;
       b.textContent = "Link copied";
