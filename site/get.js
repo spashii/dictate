@@ -1,5 +1,5 @@
 /* Download buttons. On a computer, pressing one opens the three install steps directly under it, in
-   the button's place, and hides the price, requirements and activation lines meanwhile, so only the
+   the button's place, and hides the price and requirements line meanwhile, so only the
    founding line stays. The download itself is the button's own link. On a phone there is no Mac to
    install on, so every Download button becomes a "Send to my Mac" button (or "Copy link" where the
    share sheet is missing) for the page address and never navigates to the DMG.
