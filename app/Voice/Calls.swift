@@ -102,6 +102,9 @@ final class CallsModel {
     private(set) var ollamaTitling = false
     /// Calls whose title is being made, for History's "Naming\u{2026}".
     private(set) var naming: Set<String> = []
+    /// Told a title the moment it is made, before the call leaves `naming`, so History can
+    /// show it without a frame of the date in between.
+    @ObservationIgnored var titled: (_ callID: String, _ title: String) -> Void = { _, _ in }
     private static let quiet: Duration = .seconds(20)
 
     init() {
@@ -448,7 +451,6 @@ final class CallsModel {
         guard await Task.detached(priority: .utility, operation: {
             CallTitler().isEligible(callID, in: store)
         }).value else { return }
-        naming.insert(callID)
         defer { naming.remove(callID) }
 
         if usesOllama {
@@ -462,6 +464,8 @@ final class CallsModel {
             }
         }
 
+        // Marked only once the model is asked: the wait for a quiet Mac shows nothing.
+        naming.insert(callID)
         let work = Task.detached(priority: .utility) {
             await CallTitler().timedTitle(callID, in: store, models: models, kind: usesOllama ? .ollama : .apple, since: asked)
         }
@@ -469,12 +473,15 @@ final class CallsModel {
             ollamaRequest = work
             ollamaTitling = true
         }
-        let titled = await withTaskCancellationHandler { await work.value } onCancel: { work.cancel() }
+        let made = await withTaskCancellationHandler { await work.value } onCancel: { work.cancel() }
         if usesOllama {
             ollamaRequest = nil
             ollamaTitling = false
         }
-        if titled != nil { model.refreshRecents() }
+        if let title = made {
+            self.titled(callID, title)
+            model.refreshRecents()
+        }
     }
 
     /// A dictation is starting: whisper is about to load, and Ollama's model must not sit

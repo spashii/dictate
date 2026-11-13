@@ -245,6 +245,14 @@ final class HistoryModel {
     }
 
     /// Gives the recording the title, or takes it away when it is blank.
+    /// Shows a title the model just made, ahead of the reload that reads it from the database.
+    func show(title: String, forCall ref: String) {
+        guard let index = entries.firstIndex(where: { $0.kind == .call && $0.ref == ref }),
+              entries[index].customTitle == nil else { return }
+        entries[index].customTitle = title
+        entries[index].title = title
+    }
+
     func rename(_ entry: HistoryEntry, to text: String) {
         renaming = nil
         guard text.trimmingCharacters(in: .whitespacesAndNewlines) != (entry.customTitle ?? "") else { return }
@@ -413,6 +421,7 @@ struct HistoryPane: View {
         .onAppear {
             history.changed = { model.refreshRecents() }
             history.beforeDelete = { [calls] id in await calls.cancelImport(id) }
+            calls.titled = { [history] id, title in history.show(title: title, forCall: id) }
             history.reload()
         }
         .onKeyPress(keys: [.delete], phases: .down) { press in
