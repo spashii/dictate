@@ -419,11 +419,16 @@ private struct ConnectSheet: View {
 struct AboutPane: View {
     @Environment(AppModel.self) private var model
     @State private var showingNotices = false
+    @State private var showingAllReleases: Bool
     private static let changelog: [Changelog.Entry] = {
         guard let url = Bundle.main.url(forResource: "CHANGELOG", withExtension: "md"),
               let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }
         return Changelog.parse(text)
     }()
+
+    init(showingAllReleases: Bool = false) {
+        _showingAllReleases = State(initialValue: showingAllReleases)
+    }
 
     var body: some View {
         @Bindable var updates = model.updates
@@ -463,7 +468,7 @@ struct AboutPane: View {
             }
             if !Self.changelog.isEmpty {
                 Section("What\u{2019}s new") {
-                    ForEach(Self.changelog, id: \.version) { entry in
+                    ForEach(Changelog.visible(Self.changelog, showingAll: showingAllReleases), id: \.version) { entry in
                         VStack(alignment: .leading, spacing: 6) {
                             HStack(alignment: .firstTextBaseline) {
                                 Text(verbatim: entry.version).font(.headline)
@@ -475,6 +480,10 @@ struct AboutPane: View {
                             BulletList(items: entry.items)
                         }
                         .padding(.vertical, 4)
+                    }
+                    if !showingAllReleases && Self.changelog.count > Changelog.recentCount {
+                        Button("View more") { showingAllReleases = true }
+                            .buttonStyle(.link)
                     }
                 }
             }

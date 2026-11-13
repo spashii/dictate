@@ -7,6 +7,10 @@ the entry for VERSION into the update feed, which Sparkle shows before installin
 stops when VERSION has no entry here.
 -->
 
+## 0.14.2 (2026-11-13)
+
+- What’s new shows the last three releases. View more shows the rest.
+
 ## 0.14.1 (2026-11-13)
 
 - Settings, Model now has two groups. Speech holds the speech model and Retry unsure segments. Intelligence holds one model for fixing text and for call titles.
