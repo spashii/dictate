@@ -164,7 +164,6 @@
     var done = el("p", "notify-done");
     done.hidden = true;
     var err = el("p", "notify-err");
-    err.id = id + "-err";
     err.setAttribute("role", "alert");
     var ts = el("div", "notify-ts");
     var consent = el("p", "meta");
@@ -210,7 +209,7 @@
 
   function notify(form) {
     var label = form.querySelector("label");
-    var input = form.querySelector("input");
+    var input = form.querySelector("input[type=email]");
     var button = form.querySelector("button");
     var row = form.querySelector(".notify-row");
     var err = form.querySelector(".notify-err");
@@ -227,6 +226,7 @@
         widget = null;
         label.hidden = true;
         row.hidden = true;
+        tsBox.classList.remove("is-shown");
         err.textContent = "";
         done.textContent = NOTIFY_DONE;
         done.hidden = false;
