@@ -18,8 +18,7 @@ stops when VERSION has no entry here.
 - History rows and transcript lines line up better. The play button no longer covers the time.
 - Settings, Model greys out what needs an intelligence model when none can run. It says why.
 - The menu shows the version below Check for Updates.
-- The menu's highlight no longer slips onto the line above it.
-- Developer mode in About adds Advanced, with charts of how long the models take. The numbers stay on your Mac.
+- Developer mode in About adds Advanced, with charts of how long the models take.
 
 ## 0.14.2 (2026-11-13)
 
