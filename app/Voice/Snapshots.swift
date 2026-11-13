@@ -110,9 +110,9 @@ enum Snapshots {
     }
 
     private static let fixtureUpdate = AvailableUpdate(version: "0.15.0", notes: Changelog.bullets(fromDescription: """
-        <ul><li>Drop an audio or video file on History to transcribe it.</li>\
-        <li>History has a + button for a new dictation or call.</li>\
-        <li>Agents can bring in an audio file by path. The tool is off until you turn it on.</li></ul>
+        <ul><li><b>Import audio files.</b> Drop an audio or video file on History to transcribe it.</li>\
+        <li><b>A New menu.</b> History has a + button for a new dictation or call.</li>\
+        <li><b>Agents can import.</b> The tool is off until you turn it on.</li></ul>
         """))
 
     private static func dictationPill(_ model: AppModel, dark: Bool) async -> NSBitmapImageRep? {

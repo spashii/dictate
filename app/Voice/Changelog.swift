@@ -46,6 +46,13 @@ enum Changelog {
         return entries
     }
 
+    /// A bullet as styled text: **headline** in bold, the rest regular. Inline-only parsing keeps
+    /// a bullet on one line, and a line without markers or with broken ones shows as written.
+    static func styled(_ item: String) -> AttributedString {
+        let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnly)
+        return (try? AttributedString(markdown: item, options: options)) ?? AttributedString(item)
+    }
+
     /// How many releases What's new lists before View more.
     static let recentCount = 3
 
@@ -69,7 +76,7 @@ enum Changelog {
     static func bullets(fromDescription description: String) -> [String] {
         let items = matches(of: #"<li[^>]*>(.*?)</li>"#, in: description)
         if !items.isEmpty {
-            return items.map { clean(stripTags($0)) }.filter { !$0.isEmpty }
+            return items.map { clean(stripTags(boldToMarkdown($0))) }.filter { !$0.isEmpty }
         }
         let broken = description.replacingOccurrences(of: #"<(br\s*/?|/p|/div)>"#, with: "\n",
                                                       options: [.regularExpression, .caseInsensitive])
@@ -82,6 +89,12 @@ enum Changelog {
         return regex.matches(in: text, range: range).compactMap { match in
             Range(match.range(at: 1), in: text).map { String(text[$0]) }
         }
+    }
+
+    /// <b>headline</b> back into **headline**, so a feed bullet styles like a CHANGELOG.md one.
+    private static func boldToMarkdown(_ html: String) -> String {
+        html.replacingOccurrences(of: #"<b>(.*?)</b>"#, with: "**$1**",
+                                  options: [.regularExpression, .caseInsensitive])
     }
 
     private static func stripTags(_ text: String) -> String {

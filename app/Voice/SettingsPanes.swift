@@ -557,7 +557,7 @@ private struct BulletList: View {
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                 HStack(alignment: .firstTextBaseline) {
                     Text("\u{2022}")
-                    Text(verbatim: item).lineSpacing(2).fixedSize(horizontal: false, vertical: true)
+                    Text(Changelog.styled(item)).lineSpacing(2).fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
                 }
             }

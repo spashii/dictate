@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Prints the CHANGELOG.md entry for a version as HTML for the update feed: tools/changelog.sh VERSION [CHANGELOG]
 #
-# <ul><li>...</li></ul>, with & < > escaped. A bullet that wraps onto an indented line is joined
+# <ul><li>...</li></ul>, with & < > escaped and **bold** turned into <b>bold</b>. A bullet that wraps onto an indented line is joined
 # with a space. Exits 1 when the version has no heading or no bullets, so a release can't go
 # out without notes.
 set -euo pipefail
@@ -15,6 +15,9 @@ html=$(awk -v v="$version" '
     if (item != "") {
       sub(/[ \t]+$/, "", item)
       gsub(/&/, "\\&amp;", item); gsub(/</, "\\&lt;", item); gsub(/>/, "\\&gt;", item)
+      # **headline** becomes <b>, after the escaping so only the markers turn into tags.
+      while (match(item, /\*\*[^*]+\*\*/))
+        item = substr(item, 1, RSTART - 1) "<b>" substr(item, RSTART + 2, RLENGTH - 4) "</b>" substr(item, RSTART + RLENGTH)
       out = out "<li>" item "</li>"; n++
     }
     item = ""
