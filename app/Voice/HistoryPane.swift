@@ -257,8 +257,15 @@ final class HistoryModel {
     }
 
     /// Shows a title the model just made, ahead of the reload that reads it from the database.
-    func show(title: String, forRecording ref: String) {
+    /// An automatic title never goes over a row that has one (a rename may have landed first);
+    /// an explicit one does, only while the row still has the title it had when the job began.
+    func show(title: String, forRecording ref: String, replacing old: String?? = nil) {
         guard let index = entries.firstIndex(where: { $0.ref == ref }) else { return }
+        if let old {
+            guard entries[index].customTitle == old else { return }
+        } else {
+            guard entries[index].customTitle == nil else { return }
+        }
         entries[index].customTitle = title
         entries[index].title = title
     }
@@ -501,7 +508,7 @@ struct HistoryPane: View {
         .onAppear {
             history.changed = { model.refreshRecents() }
             history.beforeDelete = { [calls] id in await calls.cancelImport(id) }
-            calls.titled = { [history] id, title in history.show(title: title, forRecording: id) }
+            calls.titled = { [history] id, title, old in history.show(title: title, forRecording: id, replacing: old) }
             history.reload()
         }
         .onKeyPress(keys: [.delete], phases: .down) { press in
@@ -587,7 +594,7 @@ private struct HistoryList: View {
                         HistoryRow(entry: entry, renaming: history.renaming == entry.id,
                                    importState: ImportRowState.of(entry, progress: calls.importProgress[entry.ref],
                                                                   waiting: calls.importsWaiting.contains(entry.ref)),
-                                   naming: calls.naming.contains(entry.ref),
+                                   naming: calls.isNaming(entry.ref),
                                    commit: { history.rename(entry, to: $0) }, cancel: { history.renaming = nil })
                             .equatable()
                             .onAppear { history.loadMoreIfNeeded(at: entry) }
@@ -607,6 +614,7 @@ private struct HistoryList: View {
                     }
                     // A title that was just made is read now, not at the next refresh.
                     .onChange(of: calls.naming) { history.reload() }
+                    .onChange(of: calls.requested) { history.reload() }
                 }
             }
         }
@@ -623,13 +631,12 @@ struct HistoryRowMenu: View {
     var body: some View {
         Button("Copy") { Task { await history.copy(entry) } }
         Button("Rename") { history.beginRename(entry) }
-        // Generate Title, or Regenerate Title once the recording has one; with no model to run
-        // it, the reason sits disabled under it.
+        // Generate Title, or Regenerate Title once the recording has one; when the chosen model
+        // can't run, the reason sits disabled under it.
         let item = TitleRequest.item(
             hasTitle: entry.customTitle != nil, canTitle: entry.canTitle && !entry.isLive,
-            busy: calls.naming.contains(entry.ref),
-            noModelCanRun: LocalModelChoice.noModelCanRun(apple: model.appleModelState, ollamaModels: model.ollamaModels),
-            noModelHint: LocalModelChoice.noModelHint(apple: model.appleModelState, ollamaModels: model.ollamaModels))
+            busy: calls.isNaming(entry.ref),
+            chosen: model.effectiveModel, apple: model.appleModelState, ollamaModels: model.ollamaModels)
         Button(item.label) { calls.generateTitle(entry.kind, entry.ref) }
             .disabled(!item.enabled)
         if let hint = item.hint {

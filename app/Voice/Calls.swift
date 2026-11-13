@@ -102,9 +102,13 @@ final class CallsModel {
     private(set) var ollamaTitling = false
     /// Recordings whose title is being made, for History's "Generating title\u{2026}".
     private(set) var naming: Set<String> = []
+    /// Recordings with an explicit Generate or Regenerate Title waiting or running. Marked at the
+    /// click, so a job queued behind a slow one still shows and can't be queued twice.
+    private(set) var requested: Set<String> = []
+    func isNaming(_ ref: String) -> Bool { naming.contains(ref) || requested.contains(ref) }
     /// Told a title the moment it is made, before the call leaves `naming`, so History can
     /// show it without a frame of the date in between.
-    @ObservationIgnored var titled: (_ callID: String, _ title: String) -> Void = { _, _ in }
+    @ObservationIgnored var titled: (_ callID: String, _ title: String, _ replacing: String??) -> Void = { _, _, _ in }
     private static let quiet: Duration = .seconds(20)
 
     init() {
@@ -439,11 +443,13 @@ final class CallsModel {
     /// An explicit Generate or Regenerate Title: the same model and the same queue, whatever the
     /// recording's title or the automatic setting is. The old title stays unless a new one is made.
     func generateTitle(_ kind: HistoryEntry.Kind, _ ref: String) {
-        guard let store, !naming.contains(ref) else { return }
+        guard let store, !isNaming(ref) else { return }
+        requested.insert(ref)
         let previous = titling
         let asked = ContinuousClock.now
         titling = Task { [weak self] in
             await previous?.value
+            defer { self?.requested.remove(ref) }
             await self?.makeTitle(ref, kind: kind, force: true, store: store, since: asked)
         }
     }
@@ -465,8 +471,8 @@ final class CallsModel {
             force ? CallTitler().canTitle(kind, callID, in: store) : CallTitler().isEligible(callID, in: store)
         }).value else { return }
         defer { naming.remove(callID) }
-        // A click is answered at once, even while the Mac is busy.
-        if force { naming.insert(callID) }
+        // What an explicit title may replace on screen: the one the recording has now.
+        let old: String?? = force ? .some(await Task.detached { (try? store.recordingTitle(kind, callID))?.title }.value) : nil
 
         if usesOllama {
             // A dictation can start while whisper unloads, so the Mac is checked again after.
@@ -500,7 +506,7 @@ final class CallsModel {
         if let title = made {
             // Out of the set first, so the row goes from "Generating title" to the title.
             naming.remove(callID)
-            self.titled(callID, title)
+            self.titled(callID, title, old)
             model.refreshRecents()
         }
     }

@@ -32,10 +32,12 @@ final class RowNamingTests: XCTestCase {
         XCTAssertEqual(RowNaming.label, "Generating title\u{2026}")
     }
 
+    private func item(hasTitle: Bool = false, canTitle: Bool = true, busy: Bool = false, chosen: LocalModel = .apple,
+                      apple: AppleModelState = .available, ollama: [String]? = nil) -> TitleRequest.Item {
+        TitleRequest.item(hasTitle: hasTitle, canTitle: canTitle, busy: busy, chosen: chosen, apple: apple, ollamaModels: ollama)
+    }
+
     func testTheRowMenuSaysGenerateOrRegenerate() {
-        func item(hasTitle: Bool) -> TitleRequest.Item {
-            TitleRequest.item(hasTitle: hasTitle, canTitle: true, busy: false, noModelCanRun: false, noModelHint: "")
-        }
         XCTAssertEqual(item(hasTitle: false).label, "Generate Title")
         XCTAssertEqual(item(hasTitle: true).label, "Regenerate Title")
         XCTAssertTrue(item(hasTitle: true).enabled)
@@ -43,15 +45,27 @@ final class RowNamingTests: XCTestCase {
     }
 
     func testTheRowMenuItemIsDisabledForShortTextOrABusyRow() {
-        XCTAssertFalse(TitleRequest.item(hasTitle: false, canTitle: false, busy: false, noModelCanRun: false, noModelHint: "").enabled)
-        XCTAssertFalse(TitleRequest.item(hasTitle: false, canTitle: true, busy: true, noModelCanRun: false, noModelHint: "").enabled)
+        XCTAssertFalse(item(canTitle: false).enabled)
+        XCTAssertFalse(item(busy: true).enabled)
     }
 
     func testWithNoModelTheItemIsDisabledAndGivesTheReason() {
-        let item = TitleRequest.item(hasTitle: true, canTitle: true, busy: false, noModelCanRun: true,
-                                     noModelHint: "Start Ollama or turn on Apple Intelligence.")
-        XCTAssertFalse(item.enabled)
-        XCTAssertEqual(item.label, "Regenerate Title")
-        XCTAssertEqual(item.hint, "Start Ollama or turn on Apple Intelligence.")
+        let none = item(hasTitle: true, chosen: .apple, apple: .turnedOff, ollama: nil)
+        XCTAssertFalse(none.enabled)
+        XCTAssertEqual(none.label, "Regenerate Title")
+        XCTAssertEqual(none.hint, "Start Ollama or turn on Apple Intelligence.")
+    }
+
+    func testOnlyTheChosenModelCounts() {
+        let ollamaDown = item(chosen: .ollama("llama3"), apple: .available, ollama: nil)
+        XCTAssertFalse(ollamaDown.enabled)
+        XCTAssertEqual(ollamaDown.hint, "Start Ollama.")
+        let missing = item(chosen: .ollama("llama3"), apple: .available, ollama: ["qwen"])
+        XCTAssertFalse(missing.enabled)
+        XCTAssertEqual(missing.hint, "Add llama3 in Ollama.")
+        let appleOff = item(chosen: .apple, apple: .turnedOff, ollama: ["qwen"])
+        XCTAssertFalse(appleOff.enabled)
+        XCTAssertEqual(appleOff.hint, "Turn on Apple Intelligence.")
+        XCTAssertTrue(item(chosen: .ollama("qwen"), apple: .turnedOff, ollama: ["qwen"]).enabled)
     }
 }

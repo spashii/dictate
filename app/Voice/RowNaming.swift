@@ -23,9 +23,30 @@ enum TitleRequest {
         var hint: String?
     }
 
-    static func item(hasTitle: Bool, canTitle: Bool, busy: Bool, noModelCanRun: Bool, noModelHint: String) -> Item {
-        Item(label: hasTitle ? "Regenerate Title" : "Generate Title",
-             enabled: canTitle && !busy && !noModelCanRun,
-             hint: noModelCanRun ? noModelHint : nil)
+    /// Only the chosen model is asked, so it is the one that has to be able to run.
+    static func item(hasTitle: Bool, canTitle: Bool, busy: Bool, chosen: LocalModel, apple: AppleModelState,
+                     ollamaModels: [String]?) -> Item {
+        let canRun = LocalModelChoice.canRun(chosen, appleAvailable: apple == .available, ollamaModels: ollamaModels)
+        return Item(label: hasTitle ? "Regenerate Title" : "Generate Title",
+                    enabled: canTitle && !busy && canRun,
+                    hint: canRun ? nil : reason(chosen: chosen, apple: apple, ollamaModels: ollamaModels))
+    }
+
+    /// Why the chosen model can't answer: the shared line when neither model could, else the
+    /// chosen one's own problem.
+    static func reason(chosen: LocalModel, apple: AppleModelState, ollamaModels: [String]?) -> String {
+        if LocalModelChoice.noModelCanRun(apple: apple, ollamaModels: ollamaModels) {
+            return LocalModelChoice.noModelHint(apple: apple, ollamaModels: ollamaModels)
+        }
+        switch chosen {
+        case .apple:
+            switch apple {
+            case .turnedOff: return "Turn on Apple Intelligence."
+            case .notReady: return "Apple Intelligence is still getting ready."
+            default: return "Apple Intelligence is not available on this Mac."
+            }
+        case .ollama(let name):
+            return ollamaModels == nil ? "Start Ollama." : "Add \(name) in Ollama."
+        }
     }
 }
