@@ -7,6 +7,13 @@ the entry for VERSION into the update feed, which Sparkle shows before installin
 stops when VERSION has no entry here.
 -->
 
+## 0.15.0 (unreleased)
+
+- History has a + button: New Dictation, Record a Call and Import Audio File….
+- Drop an audio or video file on History to transcribe it on your Mac. It joins History and search, gets a title like a call, and agents can read it.
+- A file is one track, so its transcript has no Me and Call labels.
+- Agents can import an audio file by its path. The tool is off until you turn it on in Settings, Agents.
+
 ## 0.14.2 (2026-11-13)
 
 - What’s new shows the last three releases. View more shows the rest.
