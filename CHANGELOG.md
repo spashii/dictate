@@ -7,6 +7,14 @@ the entry for VERSION into the update feed, which Sparkle shows before installin
 stops when VERSION has no entry here.
 -->
 
+## 0.14.1 (2026-11-13)
+
+- Settings, Model now has two groups. Speech holds the speech model and Retry unsure segments. Intelligence holds one model for fixing text and for call titles.
+- Apple Intelligence is the default Intelligence model, and you can always open the picker.
+- Add a title to each call automatically is on by default.
+- About shows when an update is available and what's new.
+- Dictate is now in early access.
+
 ## 0.14.0 (2026-11-13)
 
 - Calls get a short title from their transcript when they end, written by a model on your Mac. A name you give a call is never replaced.
@@ -20,7 +28,7 @@ stops when VERSION has no entry here.
 
 ## 0.13.0 (2026-11-13)
 
-- Activate Dictate once with your email. It’s free during the beta.
+- Activate Dictate once with your email.
 - Rename and delete recordings in History.
 - Select words in History to correct them. A corrected name is offered as a key term.
 - Cmd+F searches inside the open recording.
