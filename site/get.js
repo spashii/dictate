@@ -8,8 +8,9 @@
    [data-eur] holds the euro text for a price that is not the same number in both, such as another app's.
    The founding spots count is fetched once and appends "N spots left." to the founding sentence in every [data-left]; if the
    request fails the sentence stands alone. At zero the sentence says the spots are taken and each
-   Download block that holds a [data-left] gets an email form built under it, collecting an address for the launch email, so
-   every page with the block gets it without markup. Preview hosts
+   Download block that holds a [data-left] gets, under it, the price line ("Free until launch, then a
+   one-time $49", in euros where the rest switch) and an email form collecting an address for the launch email, so
+   every page with the block gets them without markup. The price appears only in that state. Preview hosts
    (localhost and the tailnet) can add ?spots=0 to show that sold-out state without the fetch. */
 (function () {
   var STEPS = ["Open the DMG and drag Dictate to Applications.", "Open Dictate.", "In the window Dictate opens, press Activate in Browser."];
@@ -48,12 +49,17 @@
     return false;
   }
 
-  function currency() {
+  // Takes a list of [data-price] nodes so a price line built later (the sold-out one) gets the same switch
+  // from the same zone list, with no second copy of the rules.
+  function toEuro(prices) {
     if (!inEurozone()) return;
-    var prices = document.querySelectorAll("[data-price]");
     for (var i = 0; i < prices.length; i++) prices[i].textContent = prices[i].textContent.replace("$", "\u20ac");
     var other = document.querySelectorAll("[data-eur]");
     for (var j = 0; j < other.length; j++) other[j].textContent = other[j].getAttribute("data-eur");
+  }
+
+  function currency() {
+    toEuro(document.querySelectorAll("[data-price]"));
   }
 
   function liveRegion(parent) {
@@ -169,12 +175,35 @@
     return form;
   }
 
+  // The page names no price while spots remain; once they are gone this line states it, between the sold-out
+  // line and the form. It carries data-install-hide so it leaves with the install steps like the old price line did.
+  function buildPriceLine(group) {
+    var spot = group.querySelector("[data-left]");
+    var after = spot.closest ? spot.closest("p") : spot.parentNode;
+    var p = el("p", "meta");
+    p.setAttribute("data-install-hide", "");
+    var outer = el("span", "", "Free until launch, then ");
+    var nowrap = el("span", "nowrap", "a one-time ");
+    var price = el("span", "", "$49");
+    price.setAttribute("data-price", "");
+    nowrap.appendChild(price);
+    outer.appendChild(nowrap);
+    outer.appendChild(document.createTextNode("."));
+    p.appendChild(outer);
+    toEuro([price]);
+    after.parentNode.insertBefore(p, after.nextSibling);
+  }
+
   function soldOut(spots) {
     for (var i = 0; i < spots.length; i++) spots[i].textContent = "All 50 early access spots are taken.";
     var groups = document.querySelectorAll(".get");
     var n = 0;
     for (var g = 0; g < groups.length; g++) {
       if (!groups[g].querySelector("[data-left]") || groups[g].querySelector(".notify")) continue;
+      // The page's own price line would be a second one. It stays in the markup for the spots-left state.
+      var old = groups[g].querySelectorAll(".meta[data-install-hide]");
+      for (var k = 0; k < old.length; k++) if (old[k].querySelector("[data-price]")) old[k].hidden = true;
+      buildPriceLine(groups[g]);
       notify(buildForm(groups[g], n++));
     }
   }
