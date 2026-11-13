@@ -7,6 +7,14 @@ the entry for VERSION into the update feed, which Sparkle shows before installin
 stops when VERSION has no entry here.
 -->
 
+## 0.15.1 (unreleased)
+
+- Settings, Setup has Data retention. Keep audio recordings deletes audio after 7 days and Keep history deletes history after 30 days.
+- Developer mode keeps everything. Turning it off asks before it deletes anything.
+- A recording whose audio is gone shows Audio deleted where the player was.
+- The Record this call? prompt says Ask before you record.
+- Retry unsure segments is now Retry unsure words.
+
 ## 0.15.1 (2026-11-13)
 
 - History fills the window again when a filter has nothing in it.

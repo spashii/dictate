@@ -8,7 +8,13 @@ Everything is in `~/Library/Application Support/Dictate`:
 - `models/`: the speech models.
 - `mcp-token`: the MCP token, readable by you only.
 
-Settings are in the app's preferences (`io.github.spashii.voice`). By default Dictate deletes the audio after 7 days and the transcript after 30. You can change both in the Data retention settings. An imported file counts from the day you imported it. A call that is still recording or being transcribed is never deleted. While Developer mode is on, nothing is deleted.
+Settings are in the app's preferences (`io.github.spashii.voice`). The Data retention settings decide what Dictate deletes. By default it deletes audio after 7 days and history after 30 days.
+
+Keep audio recordings has Until transcribed, 1 day, 7 days and Forever. Forever is there only while Developer mode is on. Until transcribed deletes the audio once the transcript is saved. If the transcription failed, the audio stays so it can be tried again.
+
+Keep history has 7 days, 30 days and Forever. Deleting history removes the recording from History, search and agents. An imported file counts from the day you imported it. A call that is still recording or being transcribed is never deleted.
+
+While Developer mode is on, nothing is deleted. Turning it off asks before it deletes anything, and Cancel keeps Developer mode on.
 
 Dictate uses the microphone while you dictate or record an online call. To paste, it puts the text on the clipboard and pastes. Half a second later it puts back what was there. When Dictate itself is the app in front, the text stays on the clipboard and isn't pasted. Whisper runs on the GPU. Fix the text before pasting and the automatic call titles use the intelligence model you chose in the Model settings. That is Apple Intelligence on this Mac or Ollama on `127.0.0.1`. Nothing goes off this Mac.
 
