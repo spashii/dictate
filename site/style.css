@@ -210,7 +210,7 @@
 .pill .s { color: var(--p2); }
 .pill .tn { font-variant-numeric: tabular-nums; }
 .pill .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--rec); }
-/* As in 0.15.1: the question and the call app on one line, Ask before you record. under them. */
+/* As in 0.15.2: the question and the call app on one line, Ask before you record. under them. */
 .nudge { top: 74px; width: 340px; height: 48px; padding: 0 14px; border-radius: 16px; display: flex; align-items: center; gap: 8px; }
 .nudge .q { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .nudge .q .r { display: flex; gap: 8px; min-width: 0; }
@@ -402,7 +402,7 @@
 .note-pop { position: absolute; z-index: 30; top: calc(100% + var(--sp-2)); left: 0; width: min(420px, calc(100vw - 32px)); padding: var(--sp-4) var(--sp-5); hyphens: manual; border-radius: var(--radius-card); background: var(--surface); box-shadow: 0 0 0 1px var(--hairline), var(--float); color: var(--text); text-align: left; white-space: normal; }
 .note-pop:not([hidden]) { display: block; }
 
-/* Data retention card: the two pickers of Settings, Data retention in 0.15.1 at their defaults. The audio
+/* Data retention card: the two pickers of Settings, Data retention in 0.15.2 at their defaults. The audio
    picker is drawn open so the shorter choices show. Its menu lies over the button the way macOS opens
    a pop-up, with the checked item on the button. The rows sit low in the well to leave the menu room. */
 .art.ret { justify-content: flex-end; }
