@@ -2,7 +2,7 @@
 
 > Dictate is fast local dictation and call transcription for Mac. It types what you say into any app, and records your online calls with your side and theirs kept apart. It runs on your Mac, and no bot joins the call. Apple silicon, macOS 15 or later.
 
-- Price: free during the beta, then $49 once. The first 50 to activate keep it free for good.
+- Price: free forever for the first 50 people to activate. After that, free until launch, then $49 once.
 - Activation: you activate each Mac once in your browser with your email and a code. The app does not sign in and does not report what you do.
 - Dictation: press Option and backtick, talk, press again, and the text lands in the app you were writing in.
 - Calls: it asks before it records, and records your microphone and the call's audio separately, so every line is labelled Me or Call. Works with Zoom, Teams, Slack, Discord, FaceTime, WhatsApp, Signal, Telegram, Webex, Skype, Element and calls in a browser tab.
