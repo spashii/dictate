@@ -26,3 +26,4 @@
 - [Local Wispr Flow alternative for Mac](https://spashii.github.io/dictate/wispr-flow-alternative/)
 - [Granola alternative without the cloud](https://spashii.github.io/dictate/granola-alternative/)
 - [How to transcribe online calls on a Mac, locally](https://spashii.github.io/dictate/transcribe-calls-on-mac/)
+- [MacWhisper alternative for dictation and calls](https://spashii.github.io/dictate/macwhisper-alternative/)
