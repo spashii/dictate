@@ -10,7 +10,7 @@ Everything is in `~/Library/Application Support/Dictate`:
 
 Settings are in the app's preferences (`io.github.spashii.voice`). Keep history set to 30 days deletes dictations and online calls older than that, with their audio. It never deletes a call that is still recording or being transcribed.
 
-Dictate uses the microphone while you dictate or record an online call. To paste, it puts the text on the clipboard, pastes, and half a second later puts back what was there. Whisper runs on the GPU, and Fix the text before pasting talks to Ollama on `127.0.0.1`. Title calls sends a call's transcript to Apple Intelligence or to Ollama on `127.0.0.1`, never off this Mac.
+Dictate uses the microphone while you dictate or record an online call. To paste, it puts the text on the clipboard, pastes, and half a second later puts back what was there. Whisper runs on the GPU, and Fix the text before pasting and Title calls use the model chosen in Settings, Model: Apple Intelligence on this Mac, or Ollama on `127.0.0.1`. Nothing goes off this Mac.
 
 Updates. Dictate uses Sparkle to check for updates. A check asks apps.firstversion.in for the list of updates and tells it which version of Dictate you have. The server counts checks by app, version and country and never stores your IP address. Updates download from dictate.firstversion.in. The speech models download once from huggingface.co.
 
