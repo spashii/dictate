@@ -31,6 +31,8 @@ let package = Package(
         .executableTarget(name: "dictate-cli", dependencies: ["VoiceCore", "whisper"]),
         // whisper too, so a test can check the tokenizer against a fully loaded model.
         .testTarget(name: "VoiceCoreTests",
-                    dependencies: ["VoiceCore", "whisper", .product(name: "BlendKit", package: "blend")]),
+                    dependencies: ["VoiceCore", "whisper", .product(name: "BlendKit", package: "blend")],
+                    // Short mp3, mp4 and mov files the import tests read.
+                    resources: [.copy("Fixtures")]),
     ]
 )
