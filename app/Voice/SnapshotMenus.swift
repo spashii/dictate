@@ -14,7 +14,7 @@ extension Snapshots {
         let calls = CallsModel()
         calls.setRecentForSnapshots((try? store.recentCalls(limit: 4)) ?? [])
         model.recent = dictations.recent(5)
-        model.setModelsForSnapshots(appleAvailable: true, ollama: ["qwen3.5:9b", "gemma3:4b"], choice: .apple)
+        model.setModelsForSnapshots(apple: .available, ollama: ["qwen3.5:9b", "gemma3:4b"], choice: .apple)
         let menu = NSHostingMenu(rootView: MenuContent().environment(model).environment(calls))
         menu.update()
         return await drawMenu(ReplicaRow.rows(of: menu), dark: dark)
@@ -22,8 +22,8 @@ extension Snapshots {
 
     // MARK: Model settings
 
-    static func modelSettings(_ model: AppModel, appleAvailable: Bool, ollama: [String]?, choice: LocalModel, dark: Bool) async throws -> NSBitmapImageRep? {
-        model.setModelsForSnapshots(appleAvailable: appleAvailable, ollama: ollama, choice: choice)
+    static func modelSettings(_ model: AppModel, apple: AppleModelState, ollama: [String]?, choice: LocalModel, dark: Bool) async throws -> NSBitmapImageRep? {
+        model.setModelsForSnapshots(apple: apple, ollama: ollama, choice: choice)
         return try await settingsPane(model, .model, ModelPane(), size: NSSize(width: 1060, height: 760), dark: dark)
     }
 
@@ -32,6 +32,11 @@ extension Snapshots {
     static func agentsSettings(_ model: AppModel, dark: Bool) async throws -> NSBitmapImageRep? {
         model.agents.holdForSnapshots()
         return try await settingsPane(model, .agents, AgentsPane(), size: NSSize(width: 1060, height: 1000), dark: dark)
+    }
+
+    /// Settings, About, tall enough to show the update and the top of What's new.
+    static func aboutWindow(_ model: AppModel, dark: Bool) async throws -> NSBitmapImageRep? {
+        try await settingsPane(model, .about, AboutPane(), size: NSSize(width: 1060, height: 1000), dark: dark)
     }
 
     private static func settingsPane<Pane: View>(_ model: AppModel, _ selection: MainPane, _ content: Pane,
@@ -74,18 +79,14 @@ extension Snapshots {
 
     /// The picker's popup for the state the model was last given, from the same option list the
     /// real row builds.
-    static func modelPicker(_ model: AppModel, appleAvailable: Bool, ollama: [String]?, choice: LocalModel, dark: Bool) async -> NSBitmapImageRep? {
-        model.setModelsForSnapshots(appleAvailable: appleAvailable, ollama: ollama, choice: choice)
-        guard let options = LocalModelRow.options(appleAvailable: appleAvailable, current: model.effectiveModel,
-                                                  ollamaModels: ollama, ollamaModel: model.preferences.ollamaModel) else { return nil }
-        func row(_ entry: LocalModelRow.Options.Entry) -> ReplicaRow {
+    static func modelPicker(_ model: AppModel, apple: AppleModelState, ollama: [String]?, choice: LocalModel, dark: Bool) async -> NSBitmapImageRep? {
+        model.setModelsForSnapshots(apple: apple, ollama: ollama, choice: choice)
+        let options = LocalModelChoice.pickerOptions(apple: apple, current: model.effectiveModel,
+                                                     ollamaModels: ollama, ollamaModel: model.preferences.ollamaModel)
+        func row(_ entry: LocalModelChoice.Options.Entry) -> ReplicaRow {
             .item(title: entry.title, subtitle: nil, image: nil, enabled: true, key: nil, checked: entry.model == model.effectiveModel)
         }
-        var rows: [ReplicaRow] = []
-        if let apple = options.apple { rows.append(row(apple)) }
-        if options.apple != nil && !options.ollama.isEmpty { rows.append(.separator) }
-        rows += options.ollama.map(row)
-        return await drawMenu(rows, dark: dark)
+        return await drawMenu([row(options.apple), .separator] + options.ollama.map(row), dark: dark)
     }
 
     private static func drawMenu(_ rows: [ReplicaRow], dark: Bool) async -> NSBitmapImageRep? {

@@ -17,8 +17,8 @@ private let everyday: CommonWords.Dictionary = { ["quarterly", "roadmap", "harbo
     }
 
     @Test func oneUnknownWordKeepsTheTerm() {
-        #expect(!CommonWords.covers("Szymon", in: everyday))
-        #expect(!CommonWords.covers("Atlas Szymon", in: everyday))
+        #expect(!CommonWords.covers("Quorvin", in: everyday))
+        #expect(!CommonWords.covers("Atlas Quorvin", in: everyday))
         #expect(!CommonWords.covers("OAuth", in: everyday))
     }
 
@@ -32,7 +32,7 @@ private let everyday: CommonWords.Dictionary = { ["quarterly", "roadmap", "harbo
 
     @Test func joinersSplitTheWords() {
         #expect(CommonWords.covers("the-plan", in: everyday))
-        #expect(!CommonWords.covers("the-szymon", in: everyday))
+        #expect(!CommonWords.covers("the-quorvin", in: everyday))
     }
 
     /// The real dictionary, as the app uses it.
@@ -40,7 +40,7 @@ private let everyday: CommonWords.Dictionary = { ["quarterly", "roadmap", "harbo
         for term in ["roadmap", "quarterly roadmap", "harbour", "harbor", "atlas", "pricing update", "release"] {
             #expect(CommonWords.covers(term), "\(term)")
         }
-        for term in ["OAuth", "Szymon", "Kubernetes", "Northwind", "T3 Code"] {
+        for term in ["OAuth", "Quorvin", "Kubernetes", "Northwind", "T3 Code"] {
             #expect(!CommonWords.covers(term), "\(term)")
         }
     }
@@ -66,8 +66,8 @@ private let everyday: CommonWords.Dictionary = { ["quarterly", "roadmap", "harbo
     }
 
     @Test func aNameStillIs() throws {
-        let (_, made) = try suggest("ask simon about the atlas", "ask Szymon about the atlas", dictionary: everyday)
-        #expect(made.map(\.term) == ["Szymon"])
+        let (_, made) = try suggest("ask corvin about the atlas", "ask Quorvin about the atlas", dictionary: everyday)
+        #expect(made.map(\.term) == ["Quorvin"])
     }
 
     @Test func suggestionsStoredBeforeTheCheckAreHiddenToo() async throws {

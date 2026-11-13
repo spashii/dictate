@@ -40,6 +40,9 @@ targets:
         buildPhase: resources
       - path: ../THIRD_PARTY_NOTICES.md
         buildPhase: resources
+      # The release notes About shows; tools/release.sh also puts the newest entry in the update feed.
+      - path: ../CHANGELOG.md
+        buildPhase: resources
     info:
       path: Voice/Info.plist
       properties:
@@ -147,6 +150,8 @@ targets:
       - path: Voice/SecureInput.swift
       - path: Voice/LocalModelChoice.swift
       - path: Voice/RecentCallLabel.swift
+      - path: Voice/Changelog.swift
+      - path: Voice/UpdateAvailability.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.spashii.voice.tests

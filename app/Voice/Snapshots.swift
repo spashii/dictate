@@ -40,23 +40,26 @@ enum Snapshots {
                 await write(folder.appending(path: "site-tile"), "history-\(suffix)",
                             crop(window, x: 208, top: 52, width: 852, height: 300))
                 await write(folder, "recent-menu-\(suffix)", await recentMenu(model, store: store, dictations: dictationStore, dark: dark))
-                let apple = LocalModel.apple
                 let both = ["qwen3.5:9b", "gemma3:4b"]
                 await write(folder, "model-settings-apple-\(suffix)",
-                            try await modelSettings(model, appleAvailable: true, ollama: both, choice: apple, dark: dark))
-                await write(folder, "model-picker-\(suffix)",
-                            await modelPicker(model, appleAvailable: true, ollama: both, choice: apple, dark: dark))
-                await write(folder, "model-settings-no-apple-\(suffix)",
-                            try await modelSettings(model, appleAvailable: false, ollama: both, choice: .ollama("gemma3:4b"), dark: dark))
+                            try await modelSettings(model, apple: .available, ollama: both, choice: .apple, dark: dark))
+                await write(folder, "model-settings-apple-off-\(suffix)",
+                            try await modelSettings(model, apple: .turnedOff, ollama: both, choice: .apple, dark: dark))
                 await write(folder, "model-settings-ollama-stopped-\(suffix)",
-                            try await modelSettings(model, appleAvailable: false, ollama: nil, choice: .ollama("qwen3.5:9b"), dark: dark))
-                let missing = ["gemma3:4b"]
-                await write(folder, "model-settings-not-installed-\(suffix)",
-                            try await modelSettings(model, appleAvailable: false, ollama: missing, choice: .ollama("qwen3.5:9b"), dark: dark))
-                await write(folder, "model-picker-not-installed-\(suffix)",
-                            await modelPicker(model, appleAvailable: false, ollama: missing, choice: .ollama("qwen3.5:9b"), dark: dark))
+                            try await modelSettings(model, apple: .available, ollama: nil, choice: .apple, dark: dark))
+                await write(folder, "model-settings-apple-off-ollama-stopped-\(suffix)",
+                            try await modelSettings(model, apple: .turnedOff, ollama: nil, choice: .ollama("qwen3.5:9b"), dark: dark))
+                await write(folder, "model-picker-\(suffix)",
+                            await modelPicker(model, apple: .available, ollama: both, choice: .apple, dark: dark))
+                await write(folder, "model-picker-apple-off-ollama-stopped-\(suffix)",
+                            await modelPicker(model, apple: .turnedOff, ollama: nil, choice: .apple, dark: dark))
                 await write(folder, "agents-tools-\(suffix)", try await agentsSettings(model, dark: dark))
                 await write(folder, "welcome-\(suffix)", try await welcomeWindow(locked, dark: dark))
+                await write(folder, "about-\(suffix)", try await aboutWindow(model, dark: dark))
+                model.updates.setAvailableForSnapshots(Self.fixtureUpdate)
+                await write(folder, "about-update-\(suffix)", try await aboutWindow(model, dark: dark))
+                await write(folder, "sidebar-update-\(suffix)", try await historyWindow(model, history, dark: dark))
+                model.updates.setAvailableForSnapshots(nil)
                 await write(folder, "dictation-pill-\(suffix)", await dictationPill(model, dark: dark))
                 await write(folder, "call-pill-\(suffix)", await callPill(dark: dark))
                 await write(folder, "record-call-nudge-\(suffix)", await nudge(model, dark: dark))
@@ -77,6 +80,12 @@ enum Snapshots {
             .environment(CallsModel()), size: size, dark: dark, titled: true)
         return await withSidebar(await capture(window, size: size, titled: true), model, .welcome, size: size, dark: dark)
     }
+
+    private static let fixtureUpdate = AvailableUpdate(version: "0.15.0", notes: Changelog.bullets(fromDescription: """
+        <ul><li>Drop an audio or video file on History to transcribe it.</li>\
+        <li>History has a + button for a new dictation or call.</li>\
+        <li>Agents can bring in an audio file by path. The tool is off until you turn it on.</li></ul>
+        """))
 
     private static func dictationPill(_ model: AppModel, dark: Bool) async -> NSBitmapImageRep? {
         model.phase = .recording(.fix, Date().addingTimeInterval(-7))

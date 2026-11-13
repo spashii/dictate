@@ -27,7 +27,7 @@ public enum FixEditors {
             #if canImport(FoundationModels)
             if #available(macOS 26, *), AppleModel.isAvailable { return AppleFixEditor() }
             #endif
-            return UnavailableFixEditor()
+            return UnavailableFixEditor(state: AppleModel.state)
         }
     }
 }
@@ -48,13 +48,24 @@ public struct OllamaFixEditor: FixEditor {
 
 struct UnavailableFixEditor: FixEditor {
     var unloadsWhisper: Bool { false }
+    var state: AppleModelState
+
+    /// The reason shown to the person, since "unavailable" alone doesn't say what to change.
+    var reason: String {
+        switch state {
+        case .available, .unsupported: "Apple Intelligence isn't available on this Mac."
+        case .turnedOff: "Apple Intelligence is turned off in System Settings."
+        case .notReady: "Apple Intelligence isn't ready yet."
+        case .needsNewerMacOS: "Apple Intelligence needs macOS 26."
+        }
+    }
 
     func edits(_ segments: [Segment], flagged: [Int], settings: CleanupSettings) async throws -> [FixEdit] {
-        throw VoiceError.cleanup("Apple's on-device model isn't available on this Mac.")
+        throw VoiceError.cleanup(reason)
     }
 
     func rewrite(_ text: String, settings: CleanupSettings) async throws -> String {
-        throw VoiceError.cleanup("Apple's on-device model isn't available on this Mac.")
+        throw VoiceError.cleanup(reason)
     }
 }
 
