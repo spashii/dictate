@@ -23,7 +23,7 @@ enum Snapshots {
         let work = FileManager.default.temporaryDirectory.appending(path: "dictate-app-shots-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: work) }
         do {
-            let store = try Seed.make(in: work)
+            let (store, dictationStore) = try Seed.make(in: work)
             let model = AppModel(activation: Self.activated())
             model.snapshotSetupComplete = true
             model.unlockForSnapshots()
@@ -37,6 +37,16 @@ enum Snapshots {
                 await write(folder, "dictation-pill-\(suffix)", await dictationPill(model, dark: dark))
                 await write(folder, "call-pill-\(suffix)", await callPill(dark: dark))
                 await write(folder, "record-call-nudge-\(suffix)", await nudge(model, dark: dark))
+                await write(folder, "recent-menu-\(suffix)", await recentMenu(model, store: store, dictations: dictationStore, dark: dark))
+            }
+            for dark in [false, true] {
+                let suffix = dark ? "dark" : "light"
+                let apple = LocalModel.apple
+                await write(folder, "model-settings-apple-\(suffix)",
+                            try await modelSettings(model, appleAvailable: true, choice: apple, dark: dark))
+                await write(folder, "model-settings-no-apple-\(suffix)",
+                            try await modelSettings(model, appleAvailable: false, choice: .ollama("gemma3:4b"), dark: dark))
+                await write(folder, "model-picker-\(suffix)", await modelPicker(dark: dark))
             }
         } catch {
             DevLog.write("app-shots failed: \(error)")
@@ -54,7 +64,7 @@ enum Snapshots {
             .environment(CallsModel()), size: size, dark: dark, titled: true)
         history.reload()
         for _ in 0..<40 where history.visible.isEmpty { try await Task.sleep(for: .milliseconds(100)) }
-        guard let call = history.visible.first(where: { $0.kind == .call && $0.customTitle == nil }) else {
+        guard let call = history.visible.first(where: { $0.id == "call:zoom" }) else {
             throw VoiceError.store("The seeded call is missing.")
         }
         history.selection = call.id
@@ -74,7 +84,7 @@ enum Snapshots {
 
     /// A bitmap draw of the window leaves the sidebar blank, so the real sidebar is drawn on
     /// its own and laid over that part of the window, with the window's three buttons.
-    private static func withSidebar(_ window: NSBitmapImageRep?, _ model: AppModel, _ pane: MainPane,
+    static func withSidebar(_ window: NSBitmapImageRep?, _ model: AppModel, _ pane: MainPane,
                                     size: NSSize, dark: Bool) async -> NSBitmapImageRep? {
         guard let window else { return nil }
         let width: CGFloat = 208, bar: CGFloat = 52
@@ -156,7 +166,7 @@ enum Snapshots {
     }
 
     /// Stands in for the desktop behind a pill, which floats over other apps.
-    private struct Backdrop<Content: View>: View {
+    struct Backdrop<Content: View>: View {
         let dark: Bool
         @ViewBuilder let content: Content
 
@@ -172,7 +182,7 @@ enum Snapshots {
 
     // MARK: Drawing
 
-    private static func makeWindow<V: View>(_ view: V, size: NSSize, dark: Bool, titled: Bool) -> NSWindow {
+    static func makeWindow<V: View>(_ view: V, size: NSSize, dark: Bool, titled: Bool) -> NSWindow {
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
                               styleMask: titled ? [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView] : [.borderless],
                               backing: .buffered, defer: true)
@@ -196,7 +206,7 @@ enum Snapshots {
     }
 
     /// Lets SwiftUI settle, then draws the window's frame view at twice the point size.
-    private static func capture(_ window: NSWindow, size: NSSize, titled: Bool) async -> NSBitmapImageRep? {
+    static func capture(_ window: NSWindow, size: NSSize, titled: Bool) async -> NSBitmapImageRep? {
         for _ in 0..<3 {
             window.layoutIfNeeded()
             window.contentView?.layoutSubtreeIfNeeded()
@@ -216,7 +226,7 @@ enum Snapshots {
         return rep
     }
 
-    private static func write(_ folder: URL, _ name: String, _ rep: NSBitmapImageRep?) async {
+    static func write(_ folder: URL, _ name: String, _ rep: NSBitmapImageRep?) async {
         guard let data = rep?.representation(using: .png, properties: [:]) else { DevLog.write("app-shots: nothing drawn for \(name)"); return }
         try? data.write(to: folder.appending(path: "\(name).png"))
     }
@@ -236,8 +246,8 @@ enum Snapshots {
 }
 
 /// The recordings the History shots show. Alex and Northwind are made up.
-private enum Seed {
-    static func make(in folder: URL) throws -> CallStore {
+enum Seed {
+    static func make(in folder: URL) throws -> (calls: CallStore, dictations: Store) {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let database = folder.appending(path: "history.sqlite")
         let dictations = try Store(url: database)
@@ -273,6 +283,7 @@ private enum Seed {
                                  client: Edit.personClient)
         try calls.finishCall("zoom", endedAt: zoomStart.addingTimeInterval(Double(zoomSeconds)))
         _ = zoom
+        _ = try calls.setAutoTitle("zoom", "Northwind rollout with Alex")
 
         func finished(_ id: String, _ app: String, _ bundle: String, _ start: Date, minutes: Int, _ title: String?,
                       _ lines: [(CallSegment.Channel, String)]) throws {
@@ -288,7 +299,13 @@ private enum Seed {
             (.call, "Let's start with the numbers from last week."),
             (.me, "Signups are steady, and the new onboarding flow is working."),
         ])
-        try finished("slack", "Slack", "com.tinyspeck.slackmacgap", at(daysAgo: 2, 14, 0), minutes: 12, nil, [
+        try finished("teams", "Microsoft Teams", "com.microsoft.teams2", at(daysAgo: 1, 13, 0), minutes: 47, nil, [
+            (.call, "Let's go through the quarterly plan for Lakeside, starting with the budget."),
+            (.me, "Priya and the finance team have the numbers, so I will share my screen now."),
+            (.call, "Great, and then we can talk about hiring for the next two quarters."),
+        ])
+        _ = try calls.setAutoTitle("teams", "Lakeside quarterly planning review with Priya and the finance team on budget")
+        try finished("slack", "Slack", "com.tinyspeck.slackmacgap", at(daysAgo: 1, 8, 10), minutes: 12, nil, [
             (.me, "Can you hear me now? I switched to the other headset."),
             (.call, "Yes, loud and clear."),
         ])
@@ -307,7 +324,7 @@ private enum Seed {
         try dictation("d1", at(daysAgo: 1, 11, 42), seconds: 9, "Send Alex the Northwind proposal before Friday.")
         try dictation("d2", at(daysAgo: 2, 17, 5), seconds: 7, "Remind me to book the venue for the team offsite.")
         try dictation("d3", at(daysAgo: 3, 10, 18), seconds: 12, "Draft a short reply to the Northwind invoice question and keep it friendly.")
-        return calls
+        return (calls, dictations)
     }
 
     /// A mono 16-bit file with bursts of tone where someone speaks, so the waveform has a shape.

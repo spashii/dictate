@@ -138,7 +138,10 @@ final class AppModel {
 
     /// The model that fixes the text and titles calls.
     var effectiveModel: LocalModel {
-        preferences.effectiveModel(appleAvailable: appleModelAvailable)
+        #if DEBUG
+        if let snapshotModel { return snapshotModel }
+        #endif
+        return preferences.effectiveModel(appleAvailable: appleModelAvailable)
     }
 
     /// Whether the prompt will run: it is on, and the chosen model can answer.
@@ -285,6 +288,9 @@ final class AppModel {
     }
 
     func refreshOllama() async {
+        #if DEBUG
+        if snapshotModelsHeld { return }
+        #endif
         appleModelAvailable = AppleModel.isAvailable
         ollamaModels = try? await Ollama().installedModels(at: preferences.ollamaEndpoint)
     }
@@ -559,6 +565,19 @@ final class AppModel {
     var snapshotSetupComplete = false
 
     func unlockForSnapshots() { lock = LockPolicy(activation) }
+
+    /// What Settings, Model shows is set here and never stored: the choice is held in memory
+    /// instead of Preferences, which would write it to the defaults, and the refresh that asks
+    /// Ollama is switched off so no real model server is contacted.
+    private(set) var snapshotModel: LocalModel?
+    private var snapshotModelsHeld = false
+
+    func setModelsForSnapshots(appleAvailable: Bool, ollama: [String]?, choice: LocalModel) {
+        snapshotModelsHeld = true
+        appleModelAvailable = appleAvailable
+        ollamaModels = ollama
+        snapshotModel = choice
+    }
     #endif
 
     func openHistory() { openMainWindow(.history) }
