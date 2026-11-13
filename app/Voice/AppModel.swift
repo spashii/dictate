@@ -507,13 +507,25 @@ final class AppModel {
             return
         }
         let start = ContinuousClock.now
-        let pasted = await Paster.paste(dictation.finalText)
+        // Cmd+V in Dictate's own window would land in History's search field.
+        let ownWindow = !PasteDecision.pastes(frontmostPID: NSWorkspace.shared.frontmostApplication?.processIdentifier,
+                                             ownPID: ProcessInfo.processInfo.processIdentifier)
+        let pasted: Bool
+        if ownWindow {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(dictation.finalText, forType: .string)
+            pasted = true
+        } else {
+            pasted = await Paster.paste(dictation.finalText)
+        }
         let elapsed = ContinuousClock.now - start
         store?.setPasteTime(dictation.id, ms: Int(elapsed.components.seconds * 1000 + elapsed.components.attoseconds / 1_000_000_000_000_000))
         let changes = Self.changes(dictation)
         if let writeError {
             // Ahead of the rest: the recording is missing its end, and this says why.
             show("Couldn't keep writing the recording, so only what came before was transcribed: \(writeError)")
+        } else if ownWindow {
+            show("Copied.")
         } else if !pasted {
             show("Copied. Allow Dictate in Accessibility to paste for you.", action: .allowAccessibility)
         } else if let error = dictation.error {
