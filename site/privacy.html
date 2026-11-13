@@ -35,14 +35,17 @@
 </nav>
 <main id="main" class="doc">
 <h1>Privacy</h1>
-<p>Short version: Dictate needs no sign-up. If you signed up earlier, I keep your email, and you can ask me to delete it at any time.</p>
-<h2>What I store if you signed up</h2>
-<ul><li>Your email address.</li><li>When you signed up, and which wording of the form you saw.</li><li>Where you came from, if the link you followed said so (for example a campaign name).</li><li>Whether a download link was sent to you, whether you opened it, and whether the download started.</li></ul>
+<p>Your audio and transcripts stay on your Mac. You activate each Mac once with your email, in your browser. Your email is used to send your one-time activation code, and I might write to hear how you use Dictate and what's missing. Tell me to stop and I will.</p>
+<h2>What I store when you activate</h2>
+<ul><li>Your email address, which is used to send your one-time activation code and the occasional email from me asking how you use Dictate.</li><li>When you activated, and on how many Macs.</li><li>Which version of Dictate asked.</li><li>Which wording of the form you saw.</li><li>Where you came from, if the link you followed said so (for example a campaign name).</li></ul>
+<p>Earlier signups also keep whether a download link was sent to them, whether they opened it, and whether the download started.</p>
 <p>I do not store your IP address. To stop spam, I keep a salted, one-way hash of it for about two hours, which cannot be turned back into your address.</p>
-<h2>What I use it for</h2>
-<p>To email you occasional beta news. Nothing else, and I do not sell or share your address.</p>
+<h2>Your code</h2>
+<p>The code is sent from dictate@firstversion.in through Cloudflare Email. I keep only a one-way hash of it, for 15 minutes. Replies reach me.</p>
+<h2>No cookies</h2>
+<p>This site remembers the campaign that brought you (for example a utm tag or the site you came from) in your browser's local storage. The download link and the activation page pass it on, so activation can count it. It holds nothing that identifies you.</p>
 <h2>Who handles it</h2>
-<p>The controller of your data is Sameer, the developer of Dictate. Earlier signups are stored in a database on Cloudflare. The site is hosted on GitHub Pages.</p>
+<p>The controller of your data is Sameer, the developer of Dictate. The site, the database and the bot check run on Cloudflare, the code email goes through Cloudflare Email, and the site is hosted on GitHub Pages. I do not sell or share your address.</p>
 <p>This site counts visits with Cloudflare Web Analytics, which sets no cookies and does not track you across sites.</p>
 <h2>Deleting your data</h2>
 <p>Reply to any email from me and ask to be removed. I delete your email and signup record. You can also ask for a copy of what I hold, or for a correction.</p>
@@ -51,9 +54,11 @@
 <h2>How long I keep it</h2>
 <p>Until you ask me to delete it.</p>
 <h2>The app itself</h2>
-<p>Your audio and transcripts stay on your Mac. The app goes online only to fetch its speech models and to check for updates. It reaches three hosts:</p>
-<ul><li>huggingface.co, for the speech and voice activity models.</li><li>apps.firstversion.in, for update checks.</li><li>dictate.firstversion.in, for update downloads.</li></ul>
-<p>The update server counts checks by app, version and country and never stores your IP address. If you connect an agent, it can read your transcripts, and where it sends them depends on that agent.</p>
+<p>Your audio and transcripts stay on your Mac. The app goes online to fetch its speech models and to check for updates, and it reaches three hosts:</p>
+<ul><li>huggingface.co, for the speech and voice activity models, once.</li><li>apps.firstversion.in, for update checks.</li><li>dictate.firstversion.in, for update downloads.</li></ul>
+<p>Dictate uses Sparkle for updates. A check asks apps.firstversion.in for the list of updates and tells it which version of Dictate you have. The server counts checks by app, version and country and never stores your IP address.</p>
+<p>Dictate keeps one item in your login Keychain: a token signed by the Dictate site. It holds your signup id (a random code that points to your email in my list), a random number made on this Mac, and the date. Dictate checks the signature on your Mac and does not send the token anywhere.</p>
+<p>If you connect an agent, it can read your transcripts, and where it sends them depends on that agent.</p>
 <p><a href="./">Back to Dictate</a></p>
 </main>
 <footer class="site">Made by <a href="https://github.com/spashii">Sameer</a>. Source available <span class="nowrap">(FSL-1.1-MIT)</span>. <a href="https://github.com/spashii/dictate">GitHub</a>. <a href="privacy.html">Privacy</a>.</footer>

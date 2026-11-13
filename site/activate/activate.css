@@ -1,0 +1,12 @@
+/* Activation page: only the spacing inside its steps. Type, colour, buttons and fields come from ds/v1.css. */
+h1:focus { outline: none; }
+main.doc > section > .lede, main.doc > section > .err { margin-top: var(--sp-5); }
+.lede:empty { display: none; }
+form { margin-top: var(--sp-6); }
+.fine { margin-top: var(--sp-3); }
+.err:empty { display: none; }
+form .button, [data-step="done"] .button { margin-top: var(--sp-6); }
+input.code { font-family: var(--mono); letter-spacing: .35em; text-align: center; max-width: 280px; padding-left: calc(16px + .35em); }
+.row { display: flex; flex-wrap: wrap; gap: var(--sp-3); margin-top: var(--sp-6); }
+#ts:not(:empty) { margin-top: var(--sp-5); }
+#founding { margin-top: var(--sp-2); }

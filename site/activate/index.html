@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="light dark">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://challenges.cloudflare.com https://static.cloudflareinsights.com; frame-src https://challenges.cloudflare.com; connect-src https://dictate.firstversion.in https://cloudflareinsights.com; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Activate Dictate</title>
+<link rel="icon" href="../icon.svg" type="image/svg+xml">
+<!-- Same origin as this page, so style-src 'self' allows it. -->
+<link rel="stylesheet" href="https://spashii.github.io/ds/v1.css">
+<link rel="stylesheet" href="activate.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="nav" aria-label="Main">
+  <a class="brand" href="../"><img src="../icon.svg" alt="" width="24" height="24"><span class="name">Dictate</span></a>
+  <div class="links">
+    <a href="../#questions">Questions</a>
+    <a href="https://github.com/spashii/dictate">GitHub</a>
+    <a class="button primary small" href="../#get">Download</a>
+  </div>
+</nav>
+<main id="main" class="doc">
+<noscript><h1>Activation needs JavaScript</h1><p class="lede">Turn it on for this page and reload.</p></noscript>
+
+<section data-step="start" hidden aria-labelledby="h-start">
+<h1 id="h-start" tabindex="-1">Activate Dictate</h1>
+<p class="err card" id="err-start" role="alert"></p>
+<p class="lede">Thanks for trying the free beta. Enter your email and I send you a code.</p>
+<form id="f-start" novalidate>
+<label for="email">Email</label>
+<input id="email" name="email" type="email" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" required aria-describedby="founding consent err-start">
+<p id="founding" hidden></p>
+<p class="fine" id="consent">I use your email to send your activation code. I might also write to hear how you're using Dictate and what's missing. Tell me to stop and I will.</p>
+<p id="extra-start" hidden><a id="writeme" href="#">Write to me</a></p>
+<button class="button primary" id="b-start" type="submit" disabled>Email me a code</button>
+</form>
+</section>
+
+<section data-step="code" hidden aria-labelledby="h-code">
+<h1 id="h-code" tabindex="-1">Check your email</h1>
+<p class="err card" id="err-code" role="alert"></p>
+<p class="lede">I sent a code to <span id="sent-to"></span> from dictate@firstversion.in. It works for 15 minutes.</p>
+<form id="f-code" novalidate>
+<label for="code">Code</label>
+<input id="code" class="code" name="code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" required aria-describedby="err-code">
+<button class="button primary" id="b-code" type="submit">Activate</button>
+</form>
+<div class="row">
+<button class="button secondary" id="b-resend" type="button" disabled>Send a new code</button>
+<button class="button secondary" id="b-other" type="button">Use a different email</button>
+</div>
+</section>
+
+<section data-step="done" hidden aria-labelledby="h-done">
+<h1 id="h-done" tabindex="-1">Open Dictate to finish</h1>
+<p class="lede" id="ent"></p>
+<p id="closeme" hidden>You can close this page.</p>
+<a class="button primary" id="open-app" href="#">Open Dictate</a>
+<p class="fine" id="done-fine">Your browser may ask first.</p>
+</section>
+
+<section data-step="open" hidden aria-labelledby="h-open">
+<h1 id="h-open" tabindex="-1">Open this page from Dictate</h1>
+<p class="lede">Press Activate in Browser in the Dictate window.</p>
+<p>Don't have Dictate yet? <a href="../#get">Download for Mac</a>.</p>
+</section>
+
+<div id="ts"></div>
+</main>
+<footer class="site">Made by <a href="https://github.com/spashii">Sameer</a>. Source available <span class="nowrap">(FSL-1.1-MIT)</span>. <a href="https://github.com/spashii/dictate">GitHub</a>. <a href="../privacy.html">Privacy</a>.</footer>
+<script src="../attribution.js"></script>
+<script src="activate.js"></script>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "14285a6efcfe4ee891ba0c75f932711c"}'></script>
+</body>
+</html>

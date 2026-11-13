@@ -32,7 +32,7 @@
   "description": "Dictation and call recording for Mac. Dictate types into any app and records your online calls with your side and theirs kept apart.",
   "applicationCategory": "ProductivityApplication",
   "operatingSystem": "macOS",
-  "softwareVersion": "0.12.1",
+  "softwareVersion": "0.13.0",
   "url": "https://spashii.github.io/dictate/",
   "image": "https://spashii.github.io/dictate/og.png",
   "offers": {
@@ -56,7 +56,7 @@
     "name": "How is it different from Handy and OpenSuperWhisper?",
     "acceptedAnswer": {
      "@type": "Answer",
-     "text": "At the core they are close: all three run on your Mac with no sign-in. Handy also runs Parakeet and works on Windows and Linux. What Dictate adds is retries, online calls with both sides apart, and a local MCP server for your agents."
+     "text": "At the core they are close: all three run on your Mac. Handy also runs Parakeet and works on Windows and Linux. What Dictate adds is retries, online calls with both sides apart, and a local MCP server for your agents."
     }
    },
    {
@@ -89,6 +89,14 @@
     "acceptedAnswer": {
      "@type": "Answer",
      "text": "Your audio and transcripts stay on your Mac, in one folder, kept forever or for 30 days. Dictate goes online for its speech models (1.6 GB, once) and for updates, which count checks by app, version and country and never store your IP address. If you connect an agent, it can read your transcripts, and where it sends them depends on that agent. Where everything is kept"
+    }
+   },
+   {
+    "@type": "Question",
+    "name": "Why do I activate it?",
+    "acceptedAnswer": {
+     "@type": "Answer",
+     "text": "Dictate is a free beta, and I want to know who uses it. Your email gets the code, and I might write to hear how you use Dictate and what's missing. Tell me to stop and I will. The app does not sign in and does not report what you do."
     }
    },
    {
@@ -155,8 +163,9 @@
       <h1>Dictation and call recording for Mac.</h1>
       <p class="lede">Dictate types what you say into any app, and records your online calls with your side and theirs kept apart. It runs on your Mac, and no bot joins the call.</p>
       <div class="get">
-        <div class="actions"><a class="button primary" href="https://dictate.firstversion.in/download/0.12.1">Download for Mac</a></div>
+        <div class="actions"><a class="button primary" data-get href="https://dictate.firstversion.in/get">Download for Mac</a></div>
         <p class="meta"><span>Free during the beta, then $49 once.</span> <span>The first 50 to activate keep it free for good.</span></p>
+        <p class="meta"><span>You activate Dictate with your email and a code.</span></p>
         <p class="meta"><span>Apple silicon, macOS 15 or later</span></p>
       </div>
     </div>
@@ -277,7 +286,7 @@
     <div class="faq-list">
       <details open>
         <summary><h3>How is it different from Handy and OpenSuperWhisper?</h3></summary>
-        <p>At the core they are close: all three run on your Mac with no sign-in. <a href="https://handy.computer">Handy</a> also runs Parakeet and works on Windows and Linux. What Dictate adds is retries, online calls with both sides apart, and a local MCP server for your agents.</p>
+        <p>At the core they are close: all three run on your Mac. <a href="https://handy.computer">Handy</a> also runs Parakeet and works on Windows and Linux. What Dictate adds is retries, online calls with both sides apart, and a local MCP server for your agents.</p>
       </details>
       <details>
         <summary><h3>What will it cost?</h3></summary>
@@ -294,6 +303,10 @@
       <details>
         <summary><h3>Does anything leave my Mac?</h3></summary>
         <p>Your audio and transcripts stay on your Mac, in one folder, kept forever or for 30 days. Dictate goes online for its speech models (1.6 GB, once) and for updates, which count checks by app, version and country and never store your IP address. If you connect an agent, it can read your transcripts, and where it sends them depends on that agent. <a href="https://github.com/spashii/dictate/blob/main/docs/user/data.md">Where everything is kept</a></p>
+      </details>
+      <details>
+        <summary><h3>Why do I activate it?</h3></summary>
+        <p>Dictate is a free beta, and I want to know who uses it. Your email gets the code, and I might write to hear how you use Dictate and what's missing. Tell me to stop and I will. The app does not sign in and does not report what you do.</p>
       </details>
       <details>
         <summary><h3>What does it ask permission for?</h3></summary>
@@ -321,8 +334,9 @@
   <section class="bottom" id="get">
     <h2>Get Dictate</h2>
     <div class="get">
-      <div class="actions"><a class="button primary" href="https://dictate.firstversion.in/download/0.12.1">Download for Mac</a></div>
+      <div class="actions"><a class="button primary" data-get href="https://dictate.firstversion.in/get">Download for Mac</a></div>
       <p class="meta"><span>Free during the beta, then $49 once.</span> <span>The first 50 to activate keep it free for good.</span></p>
+        <p class="meta"><span>You activate Dictate with your email and a code.</span></p>
         <p class="meta"><span>Apple silicon, macOS 15 or later</span></p>
     </div>
   </section>
@@ -345,6 +359,8 @@
 </main>
 <footer class="site">Made by <a href="https://github.com/spashii">Sameer</a>. Source available <span class="nowrap">(FSL-1.1-MIT)</span>. <a href="https://github.com/spashii/dictate">GitHub</a>. <a href="privacy.html">Privacy</a>.</footer>
 
+<script src="attribution.js"></script>
+<script src="get.js"></script>
 <script>
 if (location.hostname === "spashii.github.io") {
   const s = document.createElement("script");

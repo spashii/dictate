@@ -3,6 +3,7 @@
 > Dictate is dictation and call recording for Mac. It types what you say into any app, and records your online calls with your side and theirs kept apart. It runs on your Mac, and no bot joins the call. Apple silicon, macOS 15 or later.
 
 - Price: free during the beta, then $49 once. The first 50 to activate keep it free for good.
+- Activation: you activate each Mac once in your browser with your email and a code. The app does not sign in and does not report what you do.
 - Dictation: press Option and backtick, talk, press again, and the text lands in the app you were writing in.
 - Calls: it asks before it records, and records your microphone and the call's audio separately, so every line is labelled Me or Call. Works with Zoom, Teams, Slack, Discord, FaceTime, WhatsApp, Signal, Telegram, Webex, Skype, Element and calls in a browser tab.
 - Fix the text before pasting: a model in Ollama on your Mac corrects the transcript. Off until you turn it on.
@@ -16,7 +17,7 @@
 ## Links
 
 - [Website](https://spashii.github.io/dictate/)
-- [Download for Mac](https://dictate.firstversion.in/download/0.12.1)
+- [Download for Mac](https://dictate.firstversion.in/get)
 - [Source on GitHub](https://github.com/spashii/dictate)
 - [Where everything is kept](https://github.com/spashii/dictate/blob/main/docs/user/data.md)
 - [Privacy](https://spashii.github.io/dictate/privacy.html)
