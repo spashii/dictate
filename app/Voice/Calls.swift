@@ -119,6 +119,9 @@ final class CallsModel {
     /// The app-shots run fills the menu's Recent list without a database behind it.
     func setRecentForSnapshots(_ calls: [Call]) { recent = calls }
 
+    /// The app-shots run shows an import part way through its transcript.
+    func setImportProgressForSnapshots(_ progress: [String: Double]) { importProgress = progress }
+
     /// The app-shots run asks the prompt to show for an app without a detector.
     func promptForSnapshots(_ app: DetectedCall, model: AppModel) {
         self.model = model

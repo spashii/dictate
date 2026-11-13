@@ -20,6 +20,58 @@ extension Snapshots {
         return await drawMenu(ReplicaRow.rows(of: menu), dark: dark)
     }
 
+    // MARK: History + menu
+
+    /// History with the + menu open under its button, drawn from the real items the way the
+    /// menu bar menu is. AppKit opens a menu below the button with its left edge on the button's,
+    /// or against the window edge when it would run past it.
+    static func plusMenu(_ model: AppModel, store: CallStore, dark: Bool) async throws -> NSBitmapImageRep? {
+        let calls = CallsModel()
+        let window = try await historyWindow(model, HistoryModel(store: store), calls: calls, dark: dark)
+        let menu = NSHostingMenu(rootView: HistoryNewMenu(chooseFiles: {}).environment(model).environment(calls))
+        menu.update()
+        let rows = ReplicaRow.rows(of: menu)
+        let width = ReplicaRow.width(of: rows), height = ReplicaRow.height(of: rows)
+        let margin: CGFloat = 36
+        let size = NSSize(width: width + margin * 2, height: height + margin * 2)
+        let view = MenuReplica(rows: rows, dark: dark).frame(width: width).padding(margin)
+            .background(Color(nsColor: .windowBackgroundColor))
+        guard let window,
+              let drawn = await capture(makeWindow(view, size: size, dark: dark, titled: false), size: size, titled: false),
+              let out = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: window.pixelsWide, pixelsHigh: window.pixelsHigh,
+                                         bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                         colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0),
+              let context = NSGraphicsContext(bitmapImageRep: out) else { return nil }
+        let windowSize = window.size
+        out.size = windowSize
+        let button = plusButton
+        let left = min(button.minX, windowSize.width - 8 - width)
+        // The panel sits 4 points under the button; its own margin holds the shadow.
+        let origin = NSPoint(x: left - margin, y: windowSize.height - (button.maxY + 4) - height - margin)
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        context.cgContext.scaleBy(x: 2, y: 2)
+        window.draw(in: NSRect(origin: .zero, size: windowSize))
+        // The capture has a solid backing, so only the panel is kept, with the shadow drawn here.
+        let panel = NSBezierPath(roundedRect: NSRect(x: origin.x + margin, y: origin.y + margin, width: width, height: height),
+                                 xRadius: 10, yRadius: 10)
+        NSGraphicsContext.saveGraphicsState()
+        let shadow = NSShadow()
+        shadow.shadowColor = NSColor(white: 0, alpha: dark ? 0.5 : 0.25)
+        shadow.shadowBlurRadius = 10
+        shadow.shadowOffset = NSSize(width: 0, height: -5)
+        shadow.set()
+        NSColor.black.setFill()
+        panel.fill()
+        NSGraphicsContext.restoreGraphicsState()
+        NSGraphicsContext.saveGraphicsState()
+        panel.addClip()
+        drawn.draw(in: NSRect(origin: origin, size: size))
+        NSGraphicsContext.restoreGraphicsState()
+        NSGraphicsContext.restoreGraphicsState()
+        return out
+    }
+
     // MARK: Model settings
 
     static func modelSettings(_ model: AppModel, apple: AppleModelState, ollama: [String]?, choice: LocalModel, dark: Bool) async throws -> NSBitmapImageRep? {
@@ -31,7 +83,7 @@ extension Snapshots {
     /// show the whole tool list.
     static func agentsSettings(_ model: AppModel, dark: Bool) async throws -> NSBitmapImageRep? {
         model.agents.holdForSnapshots()
-        return try await settingsPane(model, .agents, AgentsPane(), size: NSSize(width: 1060, height: 1000), dark: dark)
+        return try await settingsPane(model, .agents, AgentsPane(), size: NSSize(width: 1060, height: 1300), dark: dark)
     }
 
     /// Settings, About, tall enough to show the update and What's new, collapsed to the last

@@ -356,18 +356,7 @@ struct HistoryPane: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
-                    Button(model.isRecording ? "Stop Dictation" : "New Dictation") { model.toggle() }
-                        .disabled(model.isWorking)
-                    Button(calls.recording != nil ? "Stop Recording" : "Record a Call") {
-                        if calls.recording != nil {
-                            Task { await calls.stop() }
-                        } else {
-                            calls.recordFromMenu(calls.detected.first)
-                        }
-                    }
-                    .disabled(calls.starting)
-                    Divider()
-                    Button("Import Audio File\u{2026}") { chooseFiles() }
+                    HistoryNewMenu(chooseFiles: chooseFiles)
                 } label: {
                     Label("New", systemImage: "plus")
                 }
@@ -503,6 +492,28 @@ private struct HistoryList: View {
     }
 }
 
+/// The items of History's + menu, shared with the app-shots replica of the open menu.
+struct HistoryNewMenu: View {
+    @Environment(AppModel.self) private var model
+    @Environment(CallsModel.self) private var calls
+    let chooseFiles: () -> Void
+
+    var body: some View {
+        Button(model.isRecording ? "Stop Dictation" : "New Dictation") { model.toggle() }
+            .disabled(model.isWorking)
+        Button(calls.recording != nil ? "Stop Recording" : "Record a Call") {
+            if calls.recording != nil {
+                Task { await calls.stop() }
+            } else {
+                calls.recordFromMenu(calls.detected.first)
+            }
+        }
+        .disabled(calls.starting)
+        Divider()
+        Button("Import Audio File\u{2026}") { chooseFiles() }
+    }
+}
+
 private struct HistoryRow: View, @MainActor Equatable {
     let entry: HistoryEntry
     let renaming: Bool
@@ -541,6 +552,7 @@ private struct HistoryRow: View, @MainActor Equatable {
                     Text(" ")
                         .lineLimit(1)
                         .hidden()
+                        .frame(maxWidth: .infinity)
                         .overlay { ProgressView(value: part).controlSize(.small).accessibilityLabel("Transcribing") }
                 } else {
                     Text(secondLine(date: date))
