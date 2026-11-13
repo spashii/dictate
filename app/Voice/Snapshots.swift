@@ -205,11 +205,16 @@ enum Snapshots {
 
     // MARK: Drawing
 
+    /// A window the screen does not shrink, so a tall page such as About is drawn whole.
+    private final class UnclampedWindow: NSWindow {
+        override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
+    }
+
     static func makeWindow<V: View>(_ view: V, size: NSSize, dark: Bool, titled: Bool, active: Bool = false) -> NSWindow {
         // A window that is never key draws its controls grey. The environment value fixes the
         // text of a list, but not AppKit switches, and it makes a History row hover.
         let view = view.environment(\.controlActiveState, active ? .key : .inactive)
-        let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
+        let window = UnclampedWindow(contentRect: NSRect(origin: .zero, size: size),
                               styleMask: titled ? [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView] : [.borderless],
                               backing: .buffered, defer: true)
         window.isReleasedWhenClosed = false
