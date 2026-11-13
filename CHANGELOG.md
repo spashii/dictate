@@ -24,20 +24,19 @@ stops when VERSION has no entry here.
 - Rename and delete recordings in History.
 - Select words in History to correct them. A corrected name is offered as a key term.
 - Cmd+F searches inside the open recording.
-- The menu lists your newest recordings, with Open History beside Settings.
+- The menu shows your five newest recordings.
 - When another app has secure keyboard input on, the menu names that app and says the shortcuts are paused.
 - Settings, Microphones says whether Blend Mic is installed.
 
 ## 0.12.1 (2026-11-12)
 
 - Me is blue and Call is purple in transcripts.
-- On speakers, the call’s sound is taken out of your microphone, so its words stay under Call.
+- On speakers, the other side of the call no longer shows up under Me.
 - History search looks inside every transcript.
 - History works with VoiceOver and the keyboard. Press Return on a block to play from there.
-- Long calls scroll and play smoothly.
+- Long calls open and play faster in History.
 - Settings, Agents shows the setup to paste into an agent app with your token filled in, and warns when other machines can reach the server.
 - Settings, Microphones names each microphone and explains the call audio choice.
-- Clicking a line plays from that line again, and the correction popover is back.
 
 ## 0.12.0 (2026-11-12)
 
