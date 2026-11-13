@@ -8,7 +8,7 @@ the entry for VERSION into the update feed, which Sparkle shows before installin
 stops when VERSION has no entry here.
 -->
 
-## 0.15.2 (unreleased)
+## 0.15.2 (2026-11-13)
 
 - **Data retention.** Dictate deletes audio after 7 days and history after 30 days. You can change both in Settings, Setup. Developer mode keeps everything and asks before deleting when you turn it off.
 - **Audio deleted.** A recording whose audio is gone says so in History where the player was.
