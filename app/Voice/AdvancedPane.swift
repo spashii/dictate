@@ -32,7 +32,9 @@ struct AdvancedPane: View {
 
     var body: some View {
         Form {
-            if let data {
+            if let data, data.timings.isEmpty, data.retryDays.isEmpty {
+                Text("No measurements yet.").foregroundStyle(.secondary)
+            } else if let data {
                 TimingSection(entries: data.timings)
                 DistributionSection(entries: data.timings)
                 RetrySection(days: data.retryDays, seconds: data.retrySeconds)
@@ -68,7 +70,7 @@ private enum Numbers {
 
     static func summary(_ values: [Double]) -> String {
         guard !values.isEmpty else { return "No measurements yet." }
-        return "\(values.count) measured, median \(seconds(RetryStats.percentile(values, 0.5))), "
+        return "\(values.count) measured \u{00B7} median \(seconds(RetryStats.percentile(values, 0.5))) \u{00B7} "
             + "p90 \(seconds(RetryStats.percentile(values, 0.9)))"
     }
 
@@ -121,14 +123,6 @@ private struct TimingSection: View {
                             .foregroundStyle(by: .value("Task", point.work.label))
                             .symbolSize(30)
                     }
-                    ForEach(ModelTimings.Work.allCases, id: \.self) { work in
-                        if let median = RetryStats.percentile(points.filter { $0.work == work }.map(\.seconds), 0.5) {
-                            RuleMark(y: .value("Median", median))
-                                .foregroundStyle(by: .value("Task", work.label))
-                                .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                                .opacity(0.7)
-                        }
-                    }
                 }
                 .chartForegroundStyleScale(seriesColors)
                 .chartXScale(domain: Numbers.start()...Numbers.end)
@@ -159,8 +153,7 @@ private struct TimingSection: View {
 
 private struct Bin: Identifiable {
     let id: Int
-    let low: Double
-    let high: Double
+    let label: String
     let work: ModelTimings.Work
     let count: Int
 }
@@ -182,14 +175,12 @@ private struct DistributionSection: View {
                 Quiet()
             } else {
                 Chart(bins) { bin in
-                    // Each bin holds a bar per task side by side, with a hair of space around it.
-                    let half = (bin.high - bin.low) / 2
-                    let from = bin.low + (bin.work == .title ? 0 : half) + step * 0.04
-                    RectangleMark(xStart: .value("From", from), xEnd: .value("To", from + half - step * 0.08),
-                                  yStart: .value("Runs", 0), yEnd: .value("Runs", bin.count))
+                    BarMark(x: .value("Seconds", bin.label), y: .value("Runs", bin.count), width: .ratio(0.9))
                         .foregroundStyle(by: .value("Task", bin.work.label))
+                        .position(by: .value("Task", bin.work.label))
                 }
                 .chartForegroundStyleScale(seriesColors)
+                .chartXScale(domain: bins.map(\.label).reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } })
                 .chartXAxisLabel("Seconds")
                 .chartYAxisLabel("Runs")
                 .chartLegend(position: .bottom)
@@ -199,16 +190,18 @@ private struct DistributionSection: View {
         }
     }
 
+    /// Every bin is listed for both tasks, empty ones too, so the bins keep their order and gaps.
     private static func bins(_ points: [Point], step: Double) -> [Bin] {
         guard let maximum = points.map(\.seconds).max() else { return [] }
         let count = max(1, Int((maximum / step).rounded(.up)))
+        func number(_ value: Double) -> String { String(format: "%g", value) }
         var result: [Bin] = []
-        for work in ModelTimings.Work.allCases {
-            let seconds = points.filter { $0.work == work }.map(\.seconds)
-            for index in 0..<count {
-                let low = Double(index) * step, high = low + step
-                let n = seconds.filter { $0 >= low && ($0 < high || (index == count - 1 && $0 <= high)) }.count
-                if n > 0 { result.append(Bin(id: result.count, low: low, high: high, work: work, count: n)) }
+        for index in 0..<count {
+            let low = Double(index) * step, high = low + step
+            let label = "\(number(low))\u{2013}\(number(high)) s"
+            for work in ModelTimings.Work.allCases {
+                let n = points.filter { $0.work == work && $0.seconds >= low && ($0.seconds < high || (index == count - 1 && $0.seconds <= high)) }.count
+                result.append(Bin(id: result.count, label: label, work: work, count: n))
             }
         }
         return result
@@ -227,20 +220,21 @@ private struct RetryBar: Identifiable {
 private struct RetrySection: View {
     let days: [RetryStats.Day]
     let seconds: [Double]
+    private static let changed = "Changed"
+    private static let unchanged = "Retried (unchanged)"
 
     var body: some View {
-        let bars = days.flatMap { [($0.day, "Retried", $0.retried), ($0.day, "Changed", $0.changed)] }
+        let bars = days.flatMap { [($0.day, Self.changed, $0.changed), ($0.day, Self.unchanged, max(0, $0.retried - $0.changed))] }
             .enumerated().map { RetryBar(id: $0.offset, day: $0.element.0, kind: $0.element.1, count: $0.element.2) }
         Section("Retries") {
             if days.isEmpty {
                 Quiet()
             } else {
                 Chart(bars) { bar in
-                    BarMark(x: .value("Day", bar.day, unit: .day), y: .value("Segments", bar.count), width: .ratio(0.8))
+                    BarMark(x: .value("Day", bar.day, unit: .day), y: .value("Segments", bar.count), width: .ratio(0.7))
                         .foregroundStyle(by: .value("Kind", bar.kind))
-                        .position(by: .value("Kind", bar.kind))
                 }
-                .chartForegroundStyleScale(["Retried": Color.indigo, "Changed": Color.orange])
+                .chartForegroundStyleScale([Self.unchanged: Color.indigo, Self.changed: Color.orange])
                 .chartXScale(domain: Numbers.start()...Numbers.end)
                 .chartXAxis {
                     AxisMarks(values: .stride(by: .day, count: 7)) {
@@ -253,7 +247,7 @@ private struct RetrySection: View {
                 .frame(height: Numbers.height)
                 .padding(.vertical, 4)
                 LabeledContent("Last 30 days") {
-                    Text("\(days.map(\.unsure).reduce(0, +)) unsure, \(days.map(\.retried).reduce(0, +)) retried, "
+                    Text("\(days.map(\.unsure).reduce(0, +)) unsure \u{00B7} \(days.map(\.retried).reduce(0, +)) retried \u{00B7} "
                          + "\(days.map(\.changed).reduce(0, +)) changed").monospacedDigit()
                 }
                 LabeledContent("Median retry time") {
