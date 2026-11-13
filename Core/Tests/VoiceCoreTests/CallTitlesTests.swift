@@ -365,6 +365,19 @@ private final class AskCount: @unchecked Sendable {
         #expect(try store.call(id)?.title == "Alex's newer name")
     }
 
+    @Test func aCheckedRenameWritesOnlyWhileTheTitleIsAsExpected() throws {
+        let (store, created) = try call(title: "Old name", source: .user)
+        let id = created.id
+        let written = try store.renameChecked(.call, id, to: "Newer", source: .auto, expecting: ("Old name", .user))
+        #expect(written.applied && written.edit != nil)
+        #expect(try store.call(id)?.title == "Newer")
+        let stale = try store.renameChecked(.call, id, to: "Stale", source: .auto, expecting: ("Old name", .user))
+        #expect(!stale.applied && stale.edit == nil)
+        let wrongSource = try store.renameChecked(.call, id, to: "Stale", source: .auto, expecting: ("Newer", .user))
+        #expect(!wrongSource.applied)
+        #expect(try store.call(id)?.title == "Newer")
+    }
+
     @Test func aDictationIsTitledFromItsText() async throws {
         let url = temporaryCallDatabase()
         let calls = try CallStore(url: url)

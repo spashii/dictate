@@ -316,12 +316,13 @@ public struct CallTitler: Sendable {
                     continue
                 }
                 // Nothing is written when a person or an agent named it in the meantime.
+                if force {
+                    let written = try store.renameChecked(kind, ref, to: title, source: .auto,
+                                                          expecting: (before.title, before.source))
+                    return (written.applied ? title : nil, false)
+                }
                 guard let now = try store.recordingTitle(kind, ref), now.title == before.title,
                       now.source == before.source else { return (nil, false) }
-                if force {
-                    try store.rename(kind, ref, to: title, source: .auto)
-                    return (title, false)
-                }
                 return (try store.setAutoTitle(ref, title) ? title : nil, false)
             }
         } catch {
