@@ -1,12 +1,12 @@
 import Foundation
 import VoiceCore
 
-/// What History lists. An import is a call made from a file, so Calls leaves it to Files.
+/// What History lists. An import is a call made from a file, so Calls leaves it to Imports.
 enum HistoryFilter: String, CaseIterable, Identifiable {
     case all = "All"
     case dictations = "Dictations"
     case calls = "Calls"
-    case files = "Files"
+    case imports = "Imports"
 
     var id: String { rawValue }
 
@@ -15,7 +15,7 @@ enum HistoryFilter: String, CaseIterable, Identifiable {
         case .all: true
         case .dictations: entry.kind == .dictation
         case .calls: entry.kind == .call && entry.fileName == nil
-        case .files: entry.fileName != nil
+        case .imports: entry.fileName != nil
         }
     }
 }

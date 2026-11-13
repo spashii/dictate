@@ -476,7 +476,7 @@ private struct HistoryList: View {
             if history.visible.isEmpty {
                 if history.search.isEmpty {
                     ContentUnavailableView("Nothing yet", systemImage: "clock",
-                                           description: Text("Dictations, calls and files you import show up here."))
+                                           description: Text("Dictations, calls and imports show up here."))
                 } else {
                     ContentUnavailableView.search(text: history.search)
                 }
@@ -759,11 +759,6 @@ private struct HistoryDetailView: View {
                         .compactMap { $0 }.joined(separator: " \u{00B7} "))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
-                    if isImport {
-                        Text("A file is one track, so it has no Me and Call labels.")
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                    }
                 }
                 Spacer(minLength: 12)
                 // Centred on the title's first line, whatever the second line holds.

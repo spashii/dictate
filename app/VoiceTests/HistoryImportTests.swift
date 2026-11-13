@@ -8,15 +8,15 @@ final class HistoryImportTests: XCTestCase {
                      fileName: file, error: error)
     }
 
-    func testFiltersSplitCallsFromFiles() {
+    func testFiltersSplitCallsFromImports() {
         let dictation = entry(.dictation)
         let call = entry(.call)
         let file = entry(.call, file: "Standup.m4a")
         XCTAssertEqual([dictation, call, file].filter(HistoryFilter.all.includes), [dictation, call, file])
         XCTAssertEqual([dictation, call, file].filter(HistoryFilter.dictations.includes), [dictation])
         XCTAssertEqual([dictation, call, file].filter(HistoryFilter.calls.includes), [call])
-        XCTAssertEqual([dictation, call, file].filter(HistoryFilter.files.includes), [file])
-        XCTAssertEqual(HistoryFilter.allCases.map(\.rawValue), ["All", "Dictations", "Calls", "Files"])
+        XCTAssertEqual([dictation, call, file].filter(HistoryFilter.imports.includes), [file])
+        XCTAssertEqual(HistoryFilter.allCases.map(\.rawValue), ["All", "Dictations", "Calls", "Imports"])
     }
 
     func testRowStateOfAnImport() {
