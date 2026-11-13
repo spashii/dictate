@@ -1,5 +1,5 @@
 /* Download buttons. On a computer, pressing one opens the three install steps directly under it, in
-   the button's place, and hides the price and requirements line meanwhile, so only the
+   the button's place, and hides the sold-out price line meanwhile, so only the
    founding line stays. The download itself is the button's own link. On a phone there is no Mac to
    install on, so every Download button becomes a "Send to my Mac" button (or "Copy link" where the
    share sheet is missing) for the page address and never navigates to the DMG.
@@ -9,7 +9,7 @@
    The founding spots count is fetched once and appends "N spots left." to the founding sentence in every [data-left]; if the
    request fails the sentence stands alone. At zero the sentence says the spots are taken and each
    Download block that holds a [data-left] gets, under it, the price line ("Free until launch, then a
-   one-time $49. Works on Apple silicon.", in euros where the rest switch) and an email form collecting an address for the launch email, so
+   one-time $49.", in euros where the rest switch) and an email form collecting an address for the launch email, so
    every page with the block gets them without markup. The price appears only in that state. Preview hosts
    (localhost and the tailnet) can add ?spots=0 to show that sold-out state without the fetch. */
 (function () {
@@ -188,8 +188,7 @@
     price.setAttribute("data-price", "");
     nowrap.appendChild(price);
     outer.appendChild(nowrap);
-    outer.appendChild(document.createTextNode(". "));
-    outer.appendChild(el("span", "nowrap", "Works on Apple silicon."));
+    outer.appendChild(document.createTextNode("."));
     p.appendChild(outer);
     toEuro([price]);
     after.parentNode.insertBefore(p, after.nextSibling);
@@ -201,8 +200,7 @@
     var n = 0;
     for (var g = 0; g < groups.length; g++) {
       if (!groups[g].querySelector("[data-left]") || groups[g].querySelector(".notify")) continue;
-      // The injected price line already carries the requirements, so the page's own requirements and price
-      // lines would repeat it. They stay in the markup for the spots-left state.
+      // A page's own price line would repeat the injected one; it stays in the markup for the spots-left state.
       var old = groups[g].querySelectorAll(".meta[data-install-hide]");
       for (var k = 0; k < old.length; k++) old[k].hidden = true;
       buildPriceLine(groups[g]);
