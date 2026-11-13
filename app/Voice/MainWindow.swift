@@ -83,6 +83,10 @@ struct MainView: View {
             }
             .navigationTitle(pane.title)
         }
+        // Advanced goes away with Developer mode; About takes its place in the sidebar too.
+        .onChange(of: model.preferences.developerMode) {
+            if navigation.selection == .advanced, !model.preferences.developerMode { navigation.selection = .about }
+        }
         .onAppear {
             model.refreshDevices()
             model.refreshPermissions()
