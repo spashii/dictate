@@ -927,6 +927,5 @@ struct RecentCall: View {
                 Label(lines.detail, systemImage: symbol)
             }
         }
-        .help("Click to copy the transcript")
     }
 }

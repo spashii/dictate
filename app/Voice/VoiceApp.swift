@@ -147,8 +147,9 @@ struct MenuContent: View {
     @Environment(CallsModel.self) private var calls
 
     var body: some View {
-        // Groups are Sections, which the menu separates with real separators. A Divider can
-        // be highlighted like an item.
+        // Groups are Sections, which the menu separates with real separators. No item has a
+        // tooltip: an open menu showing one drew its highlight a row too high, over the
+        // separator, with the tooltip behind the menu.
         if !model.activation.isActivated {
             Section {
                 Button("Activate in Browser") { model.beginActivation() }
@@ -179,7 +180,6 @@ struct MenuContent: View {
                                     model.open(dictation)
                                 }
                             }
-                            .help(dictation.finalText.isEmpty && dictation.error != nil ? "Click to try again" : "Click to copy")
                             .disabled(dictation.finalText.isEmpty && dictation.error == nil)
                         case .call(let call):
                             RecentCall(call: call)
