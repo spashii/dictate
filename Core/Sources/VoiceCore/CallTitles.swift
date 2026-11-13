@@ -8,7 +8,7 @@ import FoundationModels
 /// and how its answer is cleaned. Pure, so the app and the tests share one definition.
 public enum CallTitles {
     public static let instructions = """
-        You title recorded calls. Reply with only a title of 3 to 7 words that says what the call \
+        You title recorded calls. Reply with only a title of 3 or 4 words that says what the call \
         was about, in the language of the transcript. Name the project, company or person when the \
         transcript makes them clear. No quotes, no trailing punctuation, nothing else.
         """
@@ -125,8 +125,8 @@ public enum CallTitles {
         line = line.split(whereSeparator: \.isWhitespace).joined(separator: " ")
 
         guard !line.isEmpty, line.contains(where: \.isLetter),
-              line.count <= 80,
-              line.split(separator: " ").count <= 10 else { return nil }
+              line.count <= 48,
+              line.split(separator: " ").count <= 5 else { return nil }
         let lowered = line.lowercased().replacingOccurrences(of: "\u{2019}", with: "'")
         if refusals.contains(where: { lowered.hasPrefix($0) }) { return nil }
         return line

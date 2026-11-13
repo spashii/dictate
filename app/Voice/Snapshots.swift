@@ -416,7 +416,7 @@ enum Seed {
             (.me, "Ryan and the finance team have the numbers, so I will share my screen now."),
             (.call, "Great, and then we can talk about hiring for the next two quarters."),
         ])
-        _ = try calls.setAutoTitle("long", "Lakeside quarterly budget review with Ryan and the finance leads")
+        _ = try calls.setAutoTitle("long", "Lakeside budget review")
         try finished("short", "Meeting", "com.example.meeting", at(daysAgo: 1, 8, 10), minutes: 4, nil, [
             (.me, "Can you hear me now? I switched to the other headset."),
             (.call, "Yes, loud and clear."),
