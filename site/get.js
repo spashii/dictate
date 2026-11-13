@@ -110,7 +110,7 @@
   }
 
   function soldOut(spots) {
-    for (var i = 0; i < spots.length; i++) spots[i].textContent = "All 50 founding spots are taken.";
+    for (var i = 0; i < spots.length; i++) spots[i].textContent = "All 50 early access spots are taken.";
     var forms = document.querySelectorAll("[data-notify]");
     for (var f = 0; f < forms.length; f++) notify(forms[f]);
   }
