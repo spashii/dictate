@@ -10,8 +10,10 @@ public final class CallStore: @unchecked Sendable {
 
     let db: SQLiteConnection
     let queue = DispatchQueue(label: "voice.calls")
+    public let url: URL
 
     public init(url: URL) throws {
+        self.url = url
         // Store owns the dictation tables. Opening it first means they exist before the
         // search index's triggers attach to them, even in a file no dictation has touched.
         _ = try Store(url: url)
@@ -720,6 +722,20 @@ public final class CallStore: @unchecked Sendable {
             ALTER TABLE calls ADD COLUMN file_name TEXT;
             ALTER TABLE calls ADD COLUMN file_hash TEXT;
             CREATE INDEX calls_file_hash ON calls(file_hash) WHERE file_hash IS NOT NULL;
+            """),
+        // How long the intelligence model takes, per title and per fix: numbers only, no text,
+        // names or ids (ModelTimings). The insert keeps the newest rows.
+        ("model-timings-1", """
+            CREATE TABLE model_timings (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              created_at REAL NOT NULL,
+              task TEXT NOT NULL CHECK (task IN ('title', 'fix')),
+              model_kind TEXT NOT NULL CHECK (model_kind IN ('apple', 'ollama')),
+              outcome TEXT NOT NULL,
+              total_ms INTEGER NOT NULL,
+              model_ms INTEGER
+            );
+            CREATE INDEX model_timings_created ON model_timings(created_at);
             """),
     ]
 

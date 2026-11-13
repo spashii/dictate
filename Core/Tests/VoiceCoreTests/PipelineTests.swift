@@ -284,6 +284,10 @@ final class PipelineWithWhisperTests: StubbedOllamaTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: audio.path))
         XCTAssertEqual(StubOllama.requests.count, 1)
         XCTAssertEqual(StubOllama.requests.first?.json["prompt"] as? String, dictation.rawText)
+
+        let timing = try XCTUnwrap(try ModelTimings.read(store.url).first)
+        XCTAssertEqual(timing.work, .fix)
+        XCTAssertEqual(timing.outcome, .failed)
     }
 
     func testAnErrorStatusFromOllamaFallsBackTheSameWay() async throws {

@@ -166,13 +166,45 @@ public enum RetryStats {
         return window
     }
 
+    /// One day's counts, for the charts.
+    public struct Day: Sendable, Equatable {
+        public var day: Date
+        public var unsure = 0
+        public var retried = 0
+        public var changed = 0
+    }
+
+    /// The last `days` days, oldest first, with a row for every day that had a record, and the
+    /// time of each retry in seconds. Numbers only.
+    public static func daily(_ url: URL, days: Int = 30, now: Date = Date(),
+                             calendar: Calendar = .current) throws -> (days: [Day], retrySeconds: [Double]) {
+        let db = try SQLiteConnection(url: url)
+        let from = calendar.startOfDay(for: now.addingTimeInterval(-Double(days - 1) * 24 * 3600))
+        var byDay: [Date: Day] = [:]
+        var seconds: [Double] = []
+        for row in try db.query("""
+            SELECT created_at, flagged, retried_text IS NOT NULL, changed, retry_seconds FROM segment_retries
+            WHERE created_at >= ? AND (flagged = 1 OR retried_text IS NOT NULL)
+            """, [from.timeIntervalSince1970], { (at: $0.date(0), flagged: $0.int(1), retried: $0.int(2), changed: $0.int(3),
+                                                  seconds: $0.double(4)) }) {
+            let start = calendar.startOfDay(for: row.at)
+            var day = byDay[start] ?? Day(day: start)
+            day.unsure += row.flagged
+            day.retried += row.retried
+            day.changed += row.changed
+            byDay[start] = day
+            if row.retried != 0 { seconds.append(row.seconds) }
+        }
+        return (byDay.values.sorted { $0.day < $1.day }, seconds)
+    }
+
     /// Nil with nothing to take a share of, so an empty week shows no rate rather than 0%.
     static func percent(_ part: Int, of whole: Int) -> Double? {
         whole > 0 ? 100 * Double(part) / Double(whole) : nil
     }
 
     /// Linear between the two nearest ranks, as numpy's default.
-    static func percentile(_ values: [Double], _ p: Double) -> Double? {
+    public static func percentile(_ values: [Double], _ p: Double) -> Double? {
         guard !values.isEmpty else { return nil }
         let sorted = values.sorted()
         let rank = p * Double(sorted.count - 1)

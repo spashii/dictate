@@ -55,6 +55,7 @@ public final class Pipeline: Sendable {
             segments: transcript.segments)
         if let cleanup {
             let transcriber = transcriber
+            let asked = ContinuousClock.now
             let outcome = await Self.fix(transcript, settings: cleanup, scope: fixScope,
                                          flagBelow: whisper.retry.logprobBelow, beforeOllama: {
                 // On a 16 GB Mac, whisper's GPU memory plus a 27B model's is more than Metal
@@ -66,6 +67,15 @@ public final class Pipeline: Sendable {
             if fixScope != .whole { dictation.fixEdits = outcome.edits }
             if outcome.askedOllama { dictation.timings.cleanup = Self.ms(outcome.seconds) }
             dictation.error = outcome.error
+            if outcome.askedOllama, let store {
+                // Including whisper's unload, which the fix waits for. The model's own time is
+                // the cleanup timing.
+                let entry = ModelTimings.Entry(
+                    work: .fix, kind: cleanup.engine == .apple ? .apple : .ollama,
+                    outcome: outcome.error == nil ? .ok : .failed,
+                    totalMs: (ContinuousClock.now - asked).milliseconds, modelMs: Self.ms(outcome.seconds))
+                try? ModelTimings.record(entry, at: store.url)
+            }
         }
         try store?.insert(dictation)
         return dictation

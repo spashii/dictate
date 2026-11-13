@@ -244,34 +244,44 @@ public struct CallTitler: Sendable {
     /// The title stored, or nil when none was: the call already has one, is too short, no
     /// model gave a usable answer, or a person named it while the model was working.
     public func title(_ callID: String, in store: CallStore, models: [any TitleModel]) async -> String? {
-        guard !models.isEmpty else { return nil }
+        await attempt(callID, in: store, models: models).title
+    }
+
+    /// `failed`: no model answered, because each one threw or the store did.
+    func attempt(_ callID: String, in store: CallStore, models: [any TitleModel]) async -> (title: String?, failed: Bool) {
+        guard !models.isEmpty else { return (nil, false) }
+        var answered = false
+        var errored = false
         do {
             guard let call = try store.call(callID), call.title == nil, call.titleSource == nil,
                   let excerpt = CallTitles.excerpt(try store.segments(callID), speakers: call.speakers)
-            else { return nil }
+            else { return (nil, false) }
             let prompt = CallTitles.prompt(for: excerpt)
             for model in models {
                 let raw: String
                 do {
                     raw = try await model.title(instructions: CallTitles.instructions, prompt: prompt)
                 } catch {
-                    if Task.isCancelled { return nil }
+                    if Task.isCancelled { return (nil, false) }
+                    errored = true
                     // The error type only: a model's message can quote the transcript.
                     Self.log.error("\(model.name, privacy: .public) failed: \(String(describing: type(of: error)), privacy: .public)")
                     continue
                 }
                 // A dictation started and took the model's turn: the answer is dropped.
-                if Task.isCancelled { return nil }
+                if Task.isCancelled { return (nil, false) }
+                answered = true
                 guard let title = CallTitles.sanitize(raw) else {
                     Self.log.error("\(model.name, privacy: .public) answered with no usable title")
                     continue
                 }
                 // False when a person or an agent named the call in the meantime.
-                return try store.setAutoTitle(callID, title) ? title : nil
+                return (try store.setAutoTitle(callID, title) ? title : nil, false)
             }
         } catch {
+            errored = true
             Self.log.error("titling failed: \(String(describing: type(of: error)), privacy: .public)")
         }
-        return nil
+        return (nil, errored && !answered)
     }
 }
